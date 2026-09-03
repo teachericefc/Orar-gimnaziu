@@ -980,6 +980,105 @@ td.move-swap-target{
   font-weight:900;
 }
 
+
+.class-timetable-actions{
+  display:flex;
+  gap:6px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+.remove-display-hour{
+  border-color:#efcaca !important;
+  color:#9f3a3a !important;
+  background:#fffafa !important;
+}
+.remove-display-hour:hover{
+  background:#fff1f1 !important;
+}
+
+
+.hour-number-cell{
+  min-width:70px;
+  text-align:center;
+  vertical-align:middle;
+}
+.hour-number{
+  font-weight:900;
+  font-size:14px;
+  line-height:1.1;
+}
+.hour-time{
+  margin-top:3px;
+  font-size:9px;
+  line-height:1.1;
+  font-weight:600;
+  color:#64748b;
+  white-space:nowrap;
+}
+
+
+.token-panel-tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:5px;
+  margin-bottom:9px;
+  padding:4px;
+  border-radius:12px;
+  background:#eaf0f8;
+}
+.token-panel-tab{
+  border:0;
+  border-radius:9px;
+  padding:8px 7px;
+  background:transparent;
+  color:#475569;
+  font-weight:850;
+  font-size:12px;
+}
+.token-panel-tab.active{
+  background:#fff;
+  color:#1d4ed8;
+  box-shadow:0 2px 7px rgba(15,23,42,.10);
+}
+.discipline-token{
+  margin:9px 0;
+  border:1px solid #d8e0ec;
+  border-radius:12px;
+  padding:10px;
+  background:linear-gradient(135deg,#fff7ed,#fff 82%);
+  user-select:none;
+}
+.discipline-token:not(.empty){cursor:pointer}
+.discipline-token.empty{opacity:.55;cursor:not-allowed}
+.discipline-token.token-selected{
+  outline:3px solid #f59e0b;
+  outline-offset:2px;
+  box-shadow:0 0 0 4px rgba(245,158,11,.12);
+}
+.discipline-token strong{display:block;font-size:12px;line-height:1.2}
+.discipline-token .token-classes{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
+.discipline-token .token-class-pill{
+  border-radius:999px;padding:3px 7px;font-size:10px;
+  background:#fff;border:1px solid #e2e8f0;
+}
+.unassigned .lesson-tools{top:2px;right:2px}
+.assign-unassigned-inline{
+  margin-top:6px!important;
+  padding:4px 7px!important;
+  border-radius:7px!important;
+  border:1px solid #f3c26b!important;
+  background:#fff8e8!important;
+  color:#8a5700!important;
+  font-size:10px!important;
+  font-weight:850!important;
+}
+.assign-teacher-list{display:grid;gap:8px;margin-top:12px}
+.assign-teacher-choice{
+  width:100%;border:1px solid #dbe3ef;border-radius:10px;padding:10px 12px;
+  background:#f8fafc;color:#172033;font-weight:800;text-align:left;
+}
+.assign-teacher-choice:hover{background:#eef5ff;border-color:#b8cff5}
+
 </style>
 </head>
 <body>
@@ -1322,9 +1421,13 @@ td.move-swap-target{
         <div class="orar-workspace">
           <div id="allClassTimetables" class="all-class-timetables"></div>
           <aside class="card teacher-token-panel">
-            <h3>🧩 Profesori</h3>
-            <p class="teacher-token-help">Fiecare profesor are culoarea sa. Trage disciplina profesorului direct în orarul clasei dorite.</p>
-            <div id="teacherTimetableTokens"></div>
+            <div class="token-panel-tabs">
+              <button type="button" id="teacherTokenTabBtn" class="token-panel-tab active" onclick="switchTimetableTokenTab('teachers')">🧩 Profesori</button>
+              <button type="button" id="disciplineTokenTabBtn" class="token-panel-tab" onclick="switchTimetableTokenTab('disciplines')">📚 Discipline</button>
+            </div>
+            <p id="tokenPanelHelp" class="teacher-token-help">Selectează un profesor și apoi apasă succesiv pe orele libere din orar.</p>
+            <div id="teacherTimetableTokens" class="token-tab-content"></div>
+            <div id="disciplineTimetableTokens" class="token-tab-content" hidden></div>
           </aside>
         </div>
       </section>
@@ -3508,73 +3611,68 @@ function assignmentForTeacherSubjectClass(teacherId,subjectName,className){
   );
 }
 
-function assignUnassignedSlot(className,dayIndex,hourIndex){
-  const data=state.timetable?.[className]||{};
-  const key=`${dayIndex}-${hourIndex}`;
-  const slot=data[key];
+function assignUnassignedSlot(className,day,hour){
+  const slot=getNestedSlot(className,day,hour);
   if(!slot || !slot.unassigned) return;
 
   const candidates=(state.assignments||[]).filter(a=>
     a.className===className &&
-    (!slot.subject || a.subjectName===slot.subject)
+    String(a.subjectName||"").trim().toLocaleLowerCase("ro")===String(slot.subject||"").trim().toLocaleLowerCase("ro")
   );
 
   if(!candidates.length){
-    appMessage(`Nu există încă niciun profesor încadrat pentru ${slot.subject||"această oră"} la clasa ${className}. Adaugă mai întâi încadrarea.`,"error");
+    appMessage(`Nu există încă niciun profesor încadrat pentru ${slot.subject||"această oră"} la clasa ${classLabelRomanian(className)}. Poți păstra ora așa și îi atribui profesorul mai târziu.`,"info",3200);
     return;
   }
 
-  const options=candidates.map((a,i)=>{
-    const t=state.teachers.find(x=>x.id===a.teacherId);
-    return `${i+1}. ${t?.name||"Profesor"} — ${a.subjectName}`;
-  }).join("\n");
-
-  const answer=prompt(`Alege profesorul pentru ${slot.subject||"ora liberă"}:\n\n${options}\n\nScrie numărul opțiunii.`);
-  if(answer===null) return;
-  const idx=Number(answer)-1;
-  const chosen=candidates[idx];
-  if(!chosen) return appMessage("Opțiune invalidă.","error");
-
-  const teacher=state.teachers.find(t=>t.id===chosen.teacherId);
-  const day=DAYS[dayIndex];
-  const hour=hourIndex+1;
-
-  if(!isTeacherAvailable(chosen.teacherId,day,hour)){
-    return appMessage(`${teacher?.name||"Profesorul"} este indisponibil în ${day}, ora ${hour}.`,"error");
-  }
-
-  // No teacher double booking.
-  for(const cls of CLASSES){
-    const other=state.timetable?.[cls]?.[key];
-    if(cls!==className && other?.teacherId===chosen.teacherId){
-      return appMessage(`${teacher?.name||"Profesorul"} are deja oră la clasa ${cls} în acest interval.`,"error");
-    }
-  }
-
-  data[key]={
-    subject:chosen.subjectName,
-    subjectId:chosen.subjectId,
-    teacher:teacher?.name||"",
-    teacherId:chosen.teacherId,
-    className,
-    day,
-    hour,
-    unassigned:false,
-    manual:true
-  };
-
-  state.timetable[className]=data;
-  save();
-  renderTimetable();
-  renderTeachers();
+  document.querySelectorAll(".app-message-overlay").forEach(x=>x.remove());
+  const overlay=document.createElement("div");
+  overlay.className="app-message-overlay";
+  const box=document.createElement("div");
+  box.className="app-message info";
+  box.innerHTML=`<div class="app-message-icon">👤</div>
+    <div>Atribuie <b>${esc(slot.subject||"disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
+    <div class="assign-teacher-list"></div>`;
+  const list=box.querySelector(".assign-teacher-list");
+  candidates.forEach(a=>{
+    const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
+    const btn=document.createElement("button");
+    btn.type="button";
+    btn.className="assign-teacher-choice";
+    btn.textContent=teacher?.name||"Profesor";
+    btn.onclick=e=>{
+      e.stopPropagation();
+      if(!isTeacherAvailable(a.teacherId,day,Number(hour))){
+        overlay.remove();
+        return appMessage(`${teacher?.name||"Profesorul"} este indisponibil în ${day}, ora ${hour}.`,"error");
+      }
+      if(teacherHasConflictAt(a.teacherId,day,Number(hour))){
+        overlay.remove();
+        return appMessage(`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`,"error");
+      }
+      setNestedSlot(className,day,hour,{
+        ...slot,
+        subject:a.subjectName||slot.subject,
+        subjectId:a.subjectId||slot.subjectId,
+        teacher:teacher?.name||"Profesor",
+        teacherId:a.teacherId,
+        unassigned:false,
+        manual:true
+      });
+      overlay.remove();
+      save();
+      renderTimetable();
+      renderTeachers();
+      renderGlobalHoursSummary();
+      showPlacementSuccess({className,day,hour:Number(hour)});
+    };
+    list.appendChild(btn);
+  });
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+  overlay.onclick=()=>overlay.remove();
+  box.onclick=e=>e.stopPropagation();
 }
-
-
-let draggedTimetableSlot=null;
-let draggedTeacherToken=null;
-let selectedTeacherToken=null;
-let selectedTimetableActionSlot=null;
-
 function getNestedSlot(className,day,hour){
   const d=DAYS.indexOf(day);
   if(d<0) return null;
@@ -3909,14 +4007,22 @@ function enableTimetableDragAndDrop(){
         return;
       }
 
-      if(!selectedTeacherToken) return;
-
-      if(getNestedSlot(cls,day,hour)){
-        appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
+      if(selectedTeacherToken){
+        if(getNestedSlot(cls,day,hour)){
+          appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
+          return;
+        }
+        placeTeacherTokenInTimetable(selectedTeacherToken.assignmentIds,to);
         return;
       }
 
-      placeTeacherTokenInTimetable(selectedTeacherToken.assignmentIds,to);
+      if(selectedDisciplineToken){
+        if(getNestedSlot(cls,day,hour)){
+          appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
+          return;
+        }
+        placeDisciplineTokenInTimetable(selectedDisciplineToken.subjectName,to);
+      }
     };
 
     // Keep drag support as secondary convenience on desktop.
@@ -3993,6 +4099,54 @@ function addDisplayHour(className){
   renderTimetable();
 }
 
+
+function removeDisplayHour(className){
+  const current=classDisplayHours(className);
+
+  if(current<=6){
+    appMessage(`Clasa ${classLabelRomanian(className)} trebuie să păstreze cel puțin 6 ore afișate.`, "info");
+    return;
+  }
+
+  // The last displayed period must be empty on every day before removing it.
+  const occupiedDays=[];
+  for(const day of DAYS){
+    if(getNestedSlot(className,day,current)){
+      occupiedDays.push(day);
+    }
+  }
+
+  if(occupiedDays.length){
+    appMessage(
+      `Ora ${current} nu poate fi ștearsă încă. Există lecții programate în această oră (${occupiedDays.join(", ")}). Mută sau elimină mai întâi acele lecții.`,
+      "error"
+    );
+    return;
+  }
+
+  // Also protect locked hours.
+  const lockedDays=DAYS.filter(day=>isSlotLocked(className,day,current));
+  if(lockedDays.length){
+    appMessage(
+      `Ora ${current} nu poate fi ștearsă deoarece conține ore blocate 🔒 (${lockedDays.join(", ")}).`,
+      "error"
+    );
+    return;
+  }
+
+  state.classDisplayHours ||= {};
+  state.classDisplayHours[className]=current-1;
+  save();
+  renderTimetable();
+
+  appMessage(
+    `Ora ${current} a fost eliminată din afișarea clasei ${classLabelRomanian(className)}.`,
+    "success",
+    1700
+  );
+}
+
+
 function totalVisibleCapacityForClass(className){
   return classDisplayHours(className)*DAYS.length;
 }
@@ -4001,6 +4155,20 @@ function classHoursCounterHtml(className){
   const occupied=occupiedHoursForClass(className);
   const required=totalRequiredHoursForClass(className);
   return `<span class="class-hours-mini">Ore ocupate: ${occupied} / ${required}</span>`;
+}
+
+
+function informationalHourRange(hour){
+  const startMinutes = 8*60 + (Number(hour)-1)*60;
+  const endMinutes = startMinutes + 50;
+
+  const fmt = mins => {
+    const h = Math.floor(mins/60);
+    const m = mins%60;
+    return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
+  };
+
+  return `${fmt(startMinutes)}–${fmt(endMinutes)}`;
 }
 
 function renderSingleClassTimetable(className){
@@ -4014,6 +4182,7 @@ function renderSingleClassTimetable(className){
         </div>
         <div class="class-timetable-actions">
           <button onclick="addDisplayHour('${className}')">+ Adaugă o oră</button>
+          <button class="remove-display-hour" onclick="removeDisplayHour('${className}')">− Șterge o oră</button>
         </div>
       </div>
       <table class="timetable">
@@ -4026,7 +4195,10 @@ function renderSingleClassTimetable(className){
         <tbody>`;
 
   for(let h=0;h<hours;h++){
-    out+=`<tr><th>${h+1}</th>`;
+    out+=`<tr><th class="hour-number-cell">
+      <div class="hour-number">${h+1}</div>
+      <div class="hour-time">${informationalHourRange(h+1)}</div>
+    </th>`;
     for(let d=0;d<DAYS.length;d++){
       const slot=state.timetable?.[className]?.[`${d}-${h}`];
       const day=DAYS[d];
@@ -4048,7 +4220,7 @@ function renderSingleClassTimetable(className){
             <strong>${subject}</strong>
             <span>${teacher}</span>
             ${locked ? '<span>🔒 Oră blocată</span>' : ""}
-            ${!locked && !slot.unassigned ? `
+            ${!locked ? `
               <div class="lesson-tools">
                 <button class="lesson-tool lesson-move"
                         title="Mută / schimbă"
@@ -4059,7 +4231,7 @@ function renderSingleClassTimetable(className){
                         aria-label="Elimină ora"
                         onclick="event.stopPropagation();removeScheduledLesson('${className}','${day}',${h+1})">×</button>
               </div>` : ""}
-            ${slot.unassigned ? `<button onclick="event.stopPropagation();assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie</button>` : ""}
+            ${slot.unassigned ? `<button class="assign-unassigned-inline" onclick="event.stopPropagation();assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie…</button>` : ""}
           </div>`;
       }
 
@@ -4167,8 +4339,10 @@ function renderTeacherTimetableTokens(){
       if(!ids.length) return;
 
       selectedTeacherToken={assignmentIds:ids};
+      selectedDisciplineToken=null;
 
       renderTeacherTimetableTokens();
+      renderDisciplineTimetableTokens();
       markTimetableCellsForTokenSelection();
     };
 
@@ -4188,6 +4362,7 @@ function renderTeacherTimetableTokens(){
     // Keep desktop drag-and-drop optional.
     token.setAttribute("draggable","true");
     token.ondragstart=e=>{
+      selectedDisciplineToken=null;
       draggedTimetableSlot=null;
       draggedTeacherToken={assignmentIds:ids};
       e.dataTransfer.effectAllowed="copy";
@@ -4236,31 +4411,149 @@ function readTeacherTokenFromDragEvent(e){
 }
 
 
+
+function scheduledSubjectHoursInClass(className,subjectName,timetableData=state.timetable){
+  let count=0;
+  Object.values(timetableData?.[className]||{}).forEach(slot=>{
+    if(!slot) return;
+    const slotName=slot.subject || (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name || "";
+    if(String(slotName).trim().toLocaleLowerCase("ro")===String(subjectName).trim().toLocaleLowerCase("ro")) count++;
+  });
+  return count;
+}
+
+function remainingSubjectHoursForClass(className,subjectName,timetableData=state.timetable){
+  return Math.max(0,subjectRequiredHours(className,subjectName)-scheduledSubjectHoursInClass(className,subjectName,timetableData));
+}
+
+function switchTimetableTokenTab(tab){
+  activeTimetableTokenTab=tab==="disciplines"?"disciplines":"teachers";
+  updateTimetableTokenTabs();
+}
+
+function updateTimetableTokenTabs(){
+  const teachers=document.getElementById("teacherTimetableTokens");
+  const disciplines=document.getElementById("disciplineTimetableTokens");
+  const tb=document.getElementById("teacherTokenTabBtn");
+  const db=document.getElementById("disciplineTokenTabBtn");
+  const help=document.getElementById("tokenPanelHelp");
+  if(!teachers||!disciplines) return;
+  const disciplineMode=activeTimetableTokenTab==="disciplines";
+  teachers.hidden=disciplineMode;
+  disciplines.hidden=!disciplineMode;
+  tb?.classList.toggle("active",!disciplineMode);
+  db?.classList.toggle("active",disciplineMode);
+  if(help){
+    help.textContent=disciplineMode
+      ? "Selectează o disciplină și așază orele chiar dacă profesorul nu este încă stabilit."
+      : "Selectează un profesor și apoi apasă succesiv pe orele libere din orar.";
+  }
+}
+
+function renderDisciplineTimetableTokens(){
+  const box=document.getElementById("disciplineTimetableTokens");
+  if(!box) return;
+
+  const names=[...new Set((state.subjects||[]).map(s=>String(s.name||"").trim()).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,"ro"));
+
+  if(!names.length){
+    box.innerHTML='<div class="muted">Nu există încă discipline configurate.</div>';
+    updateTimetableTokenTabs();
+    return;
+  }
+
+  box.innerHTML=names.map(subjectName=>{
+    const classRows=CLASSES.map(cls=>({
+      cls,
+      required:subjectRequiredHours(cls,subjectName),
+      remaining:remainingSubjectHoursForClass(cls,subjectName)
+    })).filter(x=>x.required>0);
+    if(!classRows.length) return "";
+    const total=classRows.reduce((sum,x)=>sum+x.remaining,0);
+    const selected=selectedDisciplineToken?.subjectName===subjectName;
+    const pills=classRows.map(x=>`<span class="token-class-pill">${x.cls} (${x.remaining})</span>`).join("");
+    return `<div class="discipline-token ${total<=0?"empty":""} ${selected?"token-selected":""}"
+                 data-subject-name="${esc(subjectName)}" ${total>0?'role="button" tabindex="0"':""}>
+      <strong>${esc(subjectName)}</strong>
+      <div class="token-classes">${pills}</div>
+      ${total>0?'<div style="margin-top:6px;font-size:10px;color:#b45309;font-weight:800">Apasă pentru selectare</div>':""}
+    </div>`;
+  }).join("");
+
+  box.querySelectorAll(".discipline-token:not(.empty)").forEach(token=>{
+    const subjectName=token.dataset.subjectName||"";
+    const choose=()=>{
+      selectedDisciplineToken={subjectName};
+      selectedTeacherToken=null;
+      renderTeacherTimetableTokens();
+      renderDisciplineTimetableTokens();
+      markTimetableCellsForTokenSelection();
+    };
+    token.onclick=e=>{e.preventDefault();e.stopPropagation();choose();};
+    token.onkeydown=e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();choose();}};
+  });
+  updateTimetableTokenTabs();
+}
+
+function placeDisciplineTokenInTimetable(subjectName,to){
+  const subject=(state.subjects||[]).find(s=>s.className===to.className && s.name===subjectName);
+  if(!subject){
+    return appMessage(`${subjectName} nu este configurată la clasa ${classLabelRomanian(to.className)}.`,"error");
+  }
+  if(remainingSubjectHoursForClass(to.className,subjectName)<=0){
+    return appMessage(`S-a atins limita maximă de ore de ${subjectName} la clasa ${classLabelRomanian(to.className)}.`,"error");
+  }
+  if(getNestedSlot(to.className,to.day,to.hour)){
+    return appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
+  }
+  if(isSlotLocked(to.className,to.day,to.hour)){
+    return appMessage("Ora este blocată 🔒.","error");
+  }
+
+  setNestedSlot(to.className,to.day,to.hour,{
+    subject:subjectName,
+    subjectId:subject.id,
+    teacher:"Profesor neatribuit",
+    teacherId:null,
+    className:to.className,
+    day:to.day,
+    hour:Number(to.hour),
+    unassigned:true,
+    manual:true
+  });
+  save();
+  renderTimetable();
+  renderTeachers();
+  renderGlobalHoursSummary();
+  showPlacementSuccess(to);
+}
+
 function markTimetableCellsForTokenSelection(){
+  const hasToken=!!selectedTeacherToken || !!selectedDisciplineToken;
   document.querySelectorAll("#allClassTimetables td[data-class][data-day][data-hour]").forEach(cell=>{
-    cell.classList.toggle("token-click-target",!!selectedTeacherToken);
+    cell.classList.toggle("token-click-target",hasToken);
   });
 
   let hint=document.getElementById("teacherTokenTapHint");
   const panel=document.querySelector(".teacher-token-panel");
-
-  if(selectedTeacherToken){
+  if(hasToken){
     if(panel && !hint){
       hint=document.createElement("div");
       hint.id="teacherTokenTapHint";
       hint.className="token-place-hint";
-      hint.textContent="Profesor selectat — apasă succesiv pe orele libere pentru a-i așeza programul.";
-      panel.insertBefore(hint,panel.querySelector("#teacherTimetableTokens"));
+      const firstContent=panel.querySelector(".token-tab-content");
+      panel.insertBefore(hint,firstContent);
+    }
+    if(hint){
+      hint.textContent=selectedTeacherToken
+        ? "Profesor selectat — apasă succesiv pe orele libere pentru a-i așeza programul."
+        : "Disciplină selectată — apasă succesiv pe orele libere; profesorul poate fi atribuit mai târziu.";
     }
   }else if(hint){
     hint.remove();
   }
 }
-
-
-
-
-
 function appMessage(message,type="error",duration=2600){
   document.querySelectorAll(".app-message-overlay").forEach(x=>x.remove());
 
@@ -4374,6 +4667,7 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
 
   renderTimetable();
   renderTeacherTimetableTokens();
+  renderDisciplineTimetableTokens();
   renderTeachers();
   renderGlobalHoursSummary();
   showPlacementSuccess(to);
@@ -4384,6 +4678,7 @@ function renderTimetable(){
 
   box.innerHTML=CLASSES.map(renderSingleClassTimetable).join("");
   renderTeacherTimetableTokens();
+  renderDisciplineTimetableTokens();
 
   renderGlobalHoursSummary();
   renderFinalScheduleStatus();
