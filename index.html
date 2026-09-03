@@ -921,16 +921,17 @@ td.token-click-target:active{
 }
 .lesson-tools{
   position:absolute;
-  top:2px;
-  right:2px;
+  top:3px;
+  right:3px;
   display:flex;
-  gap:2px;
-  z-index:4;
+  flex-direction:column;
+  gap:3px;
+  z-index:6;
 }
 .lesson-tool{
-  width:20px!important;
-  height:20px!important;
-  min-width:20px!important;
+  width:21px!important;
+  height:21px!important;
+  min-width:21px!important;
   padding:0!important;
   border-radius:50%!important;
   display:grid!important;
@@ -940,14 +941,31 @@ td.token-click-target:active{
   font-weight:900!important;
   background:#fff!important;
   box-shadow:0 1px 4px rgba(15,23,42,.15)!important;
+  touch-action:manipulation;
 }
 .lesson-delete{
   color:#c24141!important;
   border:1px solid #efb4b4!important;
 }
+.lesson-lock{
+  color:#92400e!important;
+  border:1px solid #f4c97a!important;
+}
+.lesson-lock.is-locked{
+  color:#166534!important;
+  border-color:#86cfa0!important;
+  background:#f0fdf4!important;
+}
 .lesson-move{
   color:#2563eb!important;
   border:1px solid #bfd4f5!important;
+}
+.lesson-tools .lesson-move.is-locked,
+.lesson-tools .lesson-delete.is-locked{
+  opacity:.45;
+}
+.lesson{
+  padding-right:28px!important;
 }
 .lesson.action-selected{
   outline:3px solid #2563eb;
@@ -1087,7 +1105,7 @@ td.move-swap-target{
     <div class="brand">
       <div class="logo">🗓️</div>
 
-<p class="muted" style="margin-top:8px">Dublu-click pe o oră ocupată pentru 🔒 blocare/deblocare. Orele blocate sunt constrângeri obligatorii la regenerare.</p>
+<p class="muted" style="margin-top:8px">Folosește iconița 🔓 / 🔒 de pe fiecare oră pentru blocare/deblocare. Orele blocate sunt constrângeri obligatorii la regenerare.</p>
       <div><h1>Orar gimnaziu</h1><small>Generator și organizator de orar</small></div>
     </div>
     <select class="schoolyear" id="schoolYear">
@@ -3315,6 +3333,16 @@ function unlockSlot(className,day,hour){
   }
 }
 
+function toggleSlotLock(className,day,hour){
+  if(isSlotLocked(className,day,hour)){
+    unlockSlot(className,day,hour);
+    appMessage("Ora a fost deblocată 🔓.","success",1400);
+  }else{
+    lockSlot(className,day,hour);
+    appMessage("Ora a fost blocată 🔒.","success",1400);
+  }
+}
+
 function unlockAllSlots(){
   const count=Object.keys(state.lockedSlots||{}).length;
   if(!count) return;
@@ -3408,8 +3436,8 @@ function enhanceTimetableLockUI(){
 
     cell.classList.toggle("locked-slot",isSlotLocked(className,day,hour));
     cell.title=isSlotLocked(className,day,hour)
-      ? "Oră blocată. Dublu-click pentru deblocare."
-      : "Dublu-click pentru blocare.";
+      ? "Oră blocată. Click pe iconița 🔓 / 🔒 pentru deblocare."
+      : "Click pe iconița 🔓 / 🔒 pentru blocare.";
 
     cell.ondblclick=(ev)=>{
       ev.preventDefault();
@@ -4278,17 +4306,20 @@ function renderSingleClassTimetable(className){
             <strong>${subject}</strong>
             <span>${teacher}</span>
             ${locked ? '<span>🔒 Oră blocată</span>' : ""}
-            ${!locked ? `
-              <div class="lesson-tools">
-                <button class="lesson-tool lesson-move"
-                        title="Mută / schimbă"
-                        aria-label="Mută sau schimbă ora"
-                        onclick="event.stopPropagation();selectLessonForMove('${className}','${day}',${h+1})">↻</button>
-                <button class="lesson-tool lesson-delete"
-                        title="Elimină"
-                        aria-label="Elimină ora"
-                        onclick="event.stopPropagation();removeScheduledLesson('${className}','${day}',${h+1})">×</button>
-              </div>` : ""}
+            <div class="lesson-tools">
+              <button class="lesson-tool lesson-delete ${locked ? "is-locked" : ""}"
+                      title="${locked ? "Deblochează ora înainte de eliminare" : "Elimină"}"
+                      aria-label="Elimină ora"
+                      onclick="event.stopPropagation();removeScheduledLesson('${className}','${day}',${h+1})">×</button>
+              <button class="lesson-tool lesson-lock ${locked ? "is-locked" : ""}"
+                      title="${locked ? "Deblochează ora" : "Blochează ora"}"
+                      aria-label="${locked ? "Deblochează ora" : "Blochează ora"}"
+                      onclick="event.stopPropagation();toggleSlotLock('${className}','${day}',${h+1})">${locked ? "🔒" : "🔓"}</button>
+              <button class="lesson-tool lesson-move ${locked ? "is-locked" : ""}"
+                      title="${locked ? "Deblochează ora înainte de mutare" : "Mută / schimbă"}"
+                      aria-label="Mută sau schimbă ora"
+                      onclick="event.stopPropagation();selectLessonForMove('${className}','${day}',${h+1})">↻</button>
+            </div>
             ${slot.unassigned ? `<button class="assign-unassigned-inline" onclick="event.stopPropagation();assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie…</button>` : ""}
           </div>`;
       }
