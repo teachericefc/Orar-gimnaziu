@@ -1209,101 +1209,78 @@ function deleteTeacher(id){
   save();renderTeachers();renderAssignmentSelectors();renderAssignments();
 }
 function renderTeachers(){
-  const box=document.getElementById("teachersTable");
-  if(!box)return;
+  const list=document.getElementById("teacherList");
+  if(!list) return;
 
-  if(!state.teachers.length){
-    box.innerHTML='<div class="card empty">Nu există încă profesori adăugați.</div>';
+  if(!(state.teachers||[]).length){
+    list.innerHTML=`<div class="empty-state">Nu există profesori adăugați.</div>`;
     return;
   }
 
-  const teachers=state.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"));
+  list.innerHTML=(state.teachers||[]).map(t=>{
+    const tas=(state.assignments||[]).filter(a=>a.teacherId===t.id);
 
-  box.innerHTML=`<div class="teacher-card-grid">
-    ${teachers.map(t=>{
-      const rows=state.assignments
-        .filter(a=>a.teacherId===t.id)
-        .map(a=>({...a, subjectName:a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name || "Disciplină"}));
-      const approvedTotal=rows.reduce((s,a)=>s+Number(a.hours||0),0);
-      const scheduledTotal=scheduledHoursForTeacher(t.id);
-      const extraTotal=Math.max(0,scheduledTotal-approvedTotal);
-      const remainingTotal=Math.max(0,approvedTotal-scheduledTotal);
-      const remainingRows=teacherRemainingAssignments(t.id);
+    // Group assignments by subject, but KEEP the hours of every individual class.
+    const groups={};
+    tas.forEach(a=>{
+      const subjectName=a.subjectName || "Fără disciplină";
+      if(!groups[subjectName]) groups[subjectName]=[];
+      groups[subjectName].push(a);
+    });
 
-      const grouped={};
-      rows.forEach(a=>{
-        const subject=a.subjectName;
-        grouped[subject] ||= [];
-        grouped[subject].push(a);
-      });
+    const subjectNames=Object.keys(groups).sort((a,b)=>{
+      const ap=a===t.primarySubject ? -1 : 0;
+      const bp=b===t.primarySubject ? -1 : 0;
+      if(ap!==bp) return ap-bp;
+      return a.localeCompare(b,"ro");
+    });
 
-      const subjectNames=Object.keys(grouped);
-      let primary=t.primarySubject && grouped[t.primarySubject] ? t.primarySubject : (subjectNames[0]||"");
-      const ordered=subjectNames.sort((a,b)=>{
-        if(a===primary)return -1;
-        if(b===primary)return 1;
-        return a.localeCompare(b,"ro");
-      });
+    const groupedHtml=subjectNames.length ? subjectNames.map(subjectName=>{
+      const arr=groups[subjectName].slice().sort((a,b)=>
+        ["V","VI","VII","VIII"].indexOf(a.className)-["V","VI","VII","VIII"].indexOf(b.className)
+      );
 
-      const assignmentHtml=ordered.length ? ordered.map(subject=>{
-        const byClass=grouped[subject]
-          .slice()
-          .sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className))
-          .map(a=>`${esc(a.className)} (${a.hours})`)
-          .join(" ");
-        const total=grouped[subject].reduce((s,a)=>s+Number(a.hours||0),0);
-        const isPrimary=subject===primary;
-        return `<div class="teacher-subject-line ${isPrimary?"primary-subject-line":""}">
-          <div class="teacher-subject-name">
-            ${esc(subject)}
-            ${isPrimary?'<span class="mini-badge">principală</span>':''}
-          </div>
-          <div class="teacher-subject-hours">${byClass || `(${total})`}</div>
-        </div>`;
-      }).join("") : '<div class="teacher-no-hours">Fără ore încadrate</div>';
+      // IMPORTANT: each class shows its own assignment hours.
+      const classSummary=arr.map(a=>`${esc(a.className)} (${Number(a.hours||0)})`).join(" ");
+      const primary=subjectName===t.primarySubject;
 
-      return `<article class="teacher-token">
-        <div class="teacher-token-head">
-          <div>
-            <h3>${esc(t.name)}</h3>
-            <div class="teacher-status">${esc(t.status||"Titular")}</div>
-          </div>
-          <div class="teacher-total">${approvedTotal} h${extraTotal>0?`<span class="extra-hours-badge">+${extraTotal}h</span>`:""}${remainingTotal>0?`<span class="unassigned-teacher-badge">${remainingTotal}h neatribuite</span>`:""}</div>
+      return `<div class="teacher-subject-group">
+        <div class="teacher-subject-title">
+          ${esc(subjectName)}
+          ${primary?'<span class="teacher-primary-badge">PRINCIPALĂ</span>':""}
         </div>
+        <div class="teacher-subject-classes">${classSummary}</div>
+      </div>`;
+    }).join("") : `<div class="muted">Fără încadrare</div>`;
 
-        <div class="teacher-token-body">${assignmentHtml}</div>
+    const approved=tas.reduce((sum,a)=>sum+Number(a.hours||0),0);
+    const extra=typeof extraHoursForTeacher==="function" ? extraHoursForTeacher(t.id) : 0;
+    const remaining=typeof remainingUnassignedHoursForTeacher==="function" ? remainingUnassignedHoursForTeacher(t.id) : 0;
 
-        <div class="teacher-token-actions">
-          <button class="btn" onclick="openTeacherProfile('${t.id}')">Fișă profesor</button>
-          <button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button>
-          <button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button>
+    return `<div class="teacher-card">
+      <div class="teacher-card-head">
+        <div>
+          <h3>${esc(t.name||"Profesor")}</h3>
+          <div class="teacher-status">${esc(t.status||"")}</div>
         </div>
-      </article>`;
-    }).join("")}
-  </div>`;
+        <div class="teacher-hours-total">${approved} h/săpt.</div>
+      </div>
+
+      ${groupedHtml}
+
+      <div class="teacher-card-badges">
+        ${extra>0?`<span class="badge badge-green">+${extra}h</span>`:""}
+        ${remaining>0?`<span class="badge badge-amber">${remaining}h neatribuite</span>`:""}
+      </div>
+
+      <div class="teacher-actions">
+        <button class="btn" onclick="openTeacherProfile('${t.id}')">Fișă profesor</button>
+        <button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button>
+        <button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button>
+      </div>
+    </div>`;
+  }).join("");
 }
-
-
-const DEFAULT_GYMNASIUM_SUBJECTS=[
-  "Limba și literatura română",
-  "Matematică",
-  "Limba engleză",
-  "Limba franceză",
-  "Istorie",
-  "Geografie",
-  "Biologie",
-  "Fizică",
-  "Chimie",
-  "Educație socială",
-  "Religie",
-  "Educație fizică și sport",
-  "Educație muzicală",
-  "Educație plastică",
-  "Educație tehnologică și aplicații practice",
-  "Informatică și TIC",
-  "Consiliere și dezvoltare personală"
-];
-
 function subjectEntry(className,name){
   return (state.subjects||[]).find(s=>
     s.className===className &&
