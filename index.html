@@ -873,6 +873,77 @@
   box-shadow:inset 0 0 0 2px rgba(255,255,255,.82);
 }
 
+
+.hour-number-cell{
+  min-width:60px!important;
+  width:60px!important;
+  text-align:center!important;
+  vertical-align:middle!important;
+}
+.hour-number{
+  font-weight:900!important;
+  font-size:14px!important;
+  line-height:1!important;
+}
+.hour-time{
+  font-size:9px!important;
+  line-height:1!important;
+  font-weight:700!important;
+  color:#64748b!important;
+  white-space:nowrap!important;
+}
+.hour-time-start{margin-top:3px!important}
+.hour-time-separator{
+  font-size:9px!important;
+  line-height:1!important;
+  color:#94a3b8!important;
+  font-weight:900!important;
+  margin:1px 0!important;
+}
+.hour-time-end{margin-top:0!important}
+
+.lesson-tools{
+  position:absolute!important;
+  top:3px!important;
+  right:4px!important;
+  display:flex!important;
+  flex-direction:column!important;
+  align-items:center!important;
+  gap:4px!important;
+  z-index:8!important;
+}
+.lesson-tool{
+  width:18px!important;
+  height:18px!important;
+  min-width:18px!important;
+  padding:0!important;
+  border:0!important;
+  border-radius:0!important;
+  background:transparent!important;
+  box-shadow:none!important;
+  display:grid!important;
+  place-items:center!important;
+  font-weight:900!important;
+  line-height:1!important;
+  touch-action:manipulation!important;
+}
+.lesson-delete{
+  color:#dc2626!important;
+  font-size:18px!important;
+}
+.lesson-lock{
+  color:#a16207!important;
+  font-size:15px!important;
+}
+.lesson-lock.is-locked{
+  color:#92400e!important;
+  background:transparent!important;
+}
+.lesson-move{
+  color:#2563eb!important;
+  font-size:16px!important;
+}
+
 </style>
 </head>
 <body>
@@ -4111,7 +4182,7 @@ function informationalHourRange(hour){
     return `${String(h).padStart(2,"0")}:${String(m).padStart(2,"0")}`;
   };
 
-  return `${fmt(startMinutes)}–${fmt(endMinutes)}`;
+  return {start:fmt(startMinutes),end:fmt(endMinutes)};
 }
 
 function renderSingleClassTimetable(className){
@@ -4138,9 +4209,12 @@ function renderSingleClassTimetable(className){
         <tbody>`;
 
   for(let h=0;h<hours;h++){
+    const infoTime=informationalHourRange(h+1);
     out+=`<tr><th class="hour-number-cell">
       <div class="hour-number">${h+1}</div>
-      <div class="hour-time">${informationalHourRange(h+1)}</div>
+      <div class="hour-time hour-time-start">${infoTime.start}</div>
+      <div class="hour-time-separator">−</div>
+      <div class="hour-time hour-time-end">${infoTime.end}</div>
     </th>`;
     for(let d=0;d<DAYS.length;d++){
       const slot=state.timetable?.[className]?.[`${d}-${h}`];
