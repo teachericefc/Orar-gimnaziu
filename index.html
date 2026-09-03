@@ -1060,6 +1060,17 @@
   overflow:visible!important;
 }
 
+
+.lesson-lock,
+.lesson-lock *,
+.lock-glyph{
+  pointer-events:auto!important;
+}
+.lesson-lock{
+  cursor:pointer!important;
+  opacity:1!important;
+}
+
 </style>
 </head>
 <body>
@@ -3378,13 +3389,31 @@ function unlockSlot(className,day,hour){
 }
 
 function toggleSlotLock(className,day,hour){
-  if(isSlotLocked(className,day,hour)){
-    unlockSlot(className,day,hour);
-    appMessage("Ora a fost deblocată 🔓.","success",1400);
-  }else{
-    lockSlot(className,day,hour);
-    appMessage("Ora a fost blocată 🔒.","success",1400);
+  const key=timetableSlotKey(className,day,hour);
+  state.lockedSlots ||= {};
+
+  if(state.lockedSlots[key]){
+    delete state.lockedSlots[key];
+    save();
+    renderTimetable();
+    renderTeacherTimetableTokens();
+    renderDisciplineTimetableTokens();
+    appMessage("Ora a fost deblocată.","success",1300);
+    return;
   }
+
+  const slot=getNestedSlot(className,day,hour);
+  if(!slot){
+    appMessage("Poți bloca doar o oră ocupată.","error",1800);
+    return;
+  }
+
+  state.lockedSlots[key]=true;
+  save();
+  renderTimetable();
+  renderTeacherTimetableTokens();
+  renderDisciplineTimetableTokens();
+  appMessage("Ora a fost blocată.","success",1300);
 }
 
 function unlockAllSlots(){
