@@ -1370,7 +1370,7 @@
         <div class="page-head">
           <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase. Blocarea și deblocarea se fac direct din iconița 🔓 / 🔒 a fiecărei ore.</p></div>
           <div class="toolbar">
-            <button class="btn btn-primary" onclick="demoGenerate()">Generează orarul automat</button>
+            <button id="generateTimetableBtn" class="btn btn-primary" onclick="demoGenerate()">Generează orarul automat</button>
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
         </div>
@@ -3471,7 +3471,52 @@ function restoreLockedSlots(targetTimetable){
 }
 
 
+
+function normalizeLockedSlots(){
+  state.lockedSlots ||= {};
+  let changed=false;
+
+  Object.entries(state.lockedSlots).forEach(([key,value])=>{
+    if(value && typeof value==="object" && value.className && value.day && value.hour){
+      return;
+    }
+
+    const parts=String(key).split("|");
+    const className=parts[0];
+    const day=parts[1];
+    const hour=Number(parts[2]);
+
+    if(!CLASSES.includes(className) || !DAYS.includes(day) || !Number.isFinite(hour)){
+      delete state.lockedSlots[key];
+      changed=true;
+      return;
+    }
+
+    const d=DAYS.indexOf(day);
+    const slot=state.timetable?.[className]?.[`${d}-${hour-1}`];
+
+    if(!slot){
+      delete state.lockedSlots[key];
+      changed=true;
+      return;
+    }
+
+    state.lockedSlots[key]={
+      className,
+      day,
+      hour,
+      teacherId:slot.teacherId||null,
+      subjectId:slot.subjectId||null,
+      snapshot:JSON.parse(JSON.stringify(slot))
+    };
+    changed=true;
+  });
+
+  if(changed) saveState();
+}
+
 function validateLockedHours(){
+  normalizeLockedSlots();
   const locks=Object.values(state.lockedSlots||{});
   const seenClass=new Set();
   const seenTeacher=new Set();
@@ -4135,6 +4180,8 @@ function removeScheduledLesson(className,day,hour){
   save();
   renderTimetable();
   renderTeachers();
+  renderTeacherTimetableTokens();
+  renderDisciplineTimetableTokens();
   renderGlobalHoursSummary();
   appMessage("Ora a fost eliminată din orar.","success",1700);
 }
@@ -5698,71 +5745,116 @@ function renderScheduleReport(){
   `;
 }
 
-function demoGenerate(){
-  if(!canGenerateTimetable()) return;
+async function demoGenerate(){
+  const btn=document.getElementById("generateTimetableBtn");
+  const oldText=btn?.textContent || "Generează orarul automat";
 
-  const hasSubjects=(state.subjects||[]).some(s=>Number(s.hours||0)>0);
-  if(!hasSubjects){
-    appMessage("Adaugă mai întâi disciplinele și numărul de ore săptămânale.","error");
-    return;
-  }
+  try{
+    if(btn){
+      btn.disabled=true;
+      btn.textContent="Generez…";
+    }
 
-  const targets=solverTargetsForAllClasses();
-  if(!targets){
-    appMessage("Orele blocate nu permit construirea unui program consecutiv pentru toate clasele. Verifică pozițiile 🔒.","error");
-    return;
-  }
+    // Lăsăm browserul să afișeze imediat starea butonului.
+    await new Promise(resolve=>setTimeout(resolve,30));
 
-  const base=solverLockedBase();
-  let best=null;
+    normalizeLockedSlots();
 
-  // Generate many complete candidates for the whole school, then retain the best.
-  const attempts=160;
-  for(let attempt=0;attempt<attempts;attempt++){
-    const placed=solverPlaceTeachers(base,targets);
-    const candidate=solverFillClassDeficits(placed.tt,targets);
-    const quality=solverScore(candidate,targets);
+    if(!canGenerateTimetable()) return;
 
-    if(!best || quality.score<best.quality.score){
-      best={tt:candidate,quality};
+    const hasSubjects=(state.subjects||[]).some(s=>Number(s.hours||0)>0);
+    if(!hasSubjects){
+      appMessage("Adaugă mai întâi disciplinele și numărul de ore săptămânale.","error");
+      return;
+    }
+
+    const targets=solverTargetsForAllClasses();
+    if(!targets){
+      appMessage(
+        "Orele blocate nu permit construirea unui program pentru toate clasele. Verifică pozițiile orelor blocate.",
+        "error",
+        4200
+      );
+      return;
+    }
+
+    const base=solverLockedBase();
+    let best=null;
+
+    // Pe telefon folosim mai puține încercări pentru răspuns rapid.
+    // Pe laptop păstrăm mai multe variante pentru o calitate mai bună.
+    const mobile=window.matchMedia && window.matchMedia("(max-width: 800px)").matches;
+    const attempts=mobile ? 36 : 90;
+
+    for(let attempt=0;attempt<attempts;attempt++){
+      const placed=solverPlaceTeachers(base,targets);
+      const candidate=solverFillClassDeficits(placed.tt,targets);
+      const quality=solverScore(candidate,targets);
+
+      if(!best || quality.score<best.quality.score){
+        best={tt:candidate,quality};
+      }
+
+      // Cedăm periodic controlul browserului ca pagina să rămână interactivă.
+      if(attempt>0 && attempt%6===0){
+        if(btn) btn.textContent=`Generez… ${Math.round((attempt/attempts)*100)}%`;
+        await new Promise(resolve=>setTimeout(resolve,0));
+      }
+    }
+
+    if(!best){
+      appMessage("Nu a putut fi construită nicio variantă de orar.","error");
+      return;
+    }
+
+    state.timetable=best.tt;
+    invalidateFinalSchedule();
+    save();
+
+    renderTimetable();
+    renderTeachers();
+    renderTeacherTimetableTokens();
+    renderDisciplineTimetableTokens();
+    renderGlobalHoursSummary();
+    updateStats();
+
+    const reportBox=document.getElementById("scheduleReport");
+    if(reportBox && reportBox.innerHTML.trim()) renderScheduleReport();
+
+    const unassignedClasses=CLASSES
+      .map(cls=>({cls,n:classUnassignedHours(cls,state.timetable)}))
+      .filter(x=>x.n>0);
+
+    const remainingTeachers=(state.teachers||[])
+      .map(t=>({name:t.name||"Profesor",n:remainingUnassignedHoursForTeacher(t.id,state.timetable)}))
+      .filter(x=>x.n>0);
+
+    let msg="Orarul automat a fost generat pentru toate clasele.";
+    if(unassignedClasses.length){
+      msg+=" Ore fără profesor: "+
+        unassignedClasses.map(x=>`clasa ${x.cls}: ${x.n}h`).join(", ")+".";
+    }
+    if(remainingTeachers.length){
+      msg+=" Ore repartizate profesorilor, dar rămase neplasate: "+
+        remainingTeachers.map(x=>`${x.name}: ${x.n}h`).join(", ")+".";
+    }
+
+    appMessage(msg,"success",4200);
+
+  }catch(err){
+    console.error("Generator automat:",err);
+    appMessage(
+      "Generatorul a întâmpinat o eroare: "+(err?.message||String(err)),
+      "error",
+      6500
+    );
+  }finally{
+    if(btn){
+      btn.disabled=false;
+      btn.textContent=oldText;
     }
   }
-
-  if(!best){
-    appMessage("Nu a putut fi construită nicio variantă de orar.","error");
-    return;
-  }
-
-  state.timetable=best.tt;
-  invalidateFinalSchedule();
-  save();
-  renderTimetable();
-  renderTeachers();
-  renderGlobalHoursSummary();
-  const reportBox=document.getElementById("scheduleReport");
-  if(reportBox && reportBox.innerHTML.trim()) renderScheduleReport();
-
-  const unassignedClasses=CLASSES
-    .map(cls=>({cls,n:classUnassignedHours(cls,state.timetable)}))
-    .filter(x=>x.n>0);
-
-  const remainingTeachers=(state.teachers||[])
-    .map(t=>({name:t.name||"Profesor",n:remainingUnassignedHoursForTeacher(t.id,state.timetable)}))
-    .filter(x=>x.n>0);
-
-  let msg="Orarul automat a fost generat pentru toate clasele.";
-  if(unassignedClasses.length){
-    msg+="\n\nOre fără profesor: "+unassignedClasses.map(x=>`clasa ${x.cls}: ${x.n}h`).join(", ")+".";
-  }
-  if(remainingTeachers.length){
-    msg+="\n\nOre repartizate pe discipline rămase neplasate în orar: "+remainingTeachers.map(x=>`${x.name}: ${x.n}h`).join(", ")+".";
-  }
-  if(!unassignedClasses.length && !remainingTeachers.length){
-    msg+="\n\nToate orele prevăzute și toate orele deja repartizate pe discipline au fost plasate în orar.";
-  }
-  appMessage(msg,"error");
 }
-
 function clearTimetable(){
   let removed=0;
   let keptLocked=0;
