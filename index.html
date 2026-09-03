@@ -229,6 +229,62 @@
   margin-top:8px;
 }
 
+
+.class-hours-counter{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  margin:8px 0 12px;
+  padding:7px 10px;
+  border-radius:999px;
+  background:#f3f4f6;
+  font-weight:800;
+  font-size:14px;
+}
+.class-hours-counter.complete{
+  background:#dcfce7;
+  color:#166534;
+}
+.class-hours-counter.incomplete{
+  background:#fef3c7;
+  color:#92400e;
+}
+.class-hours-counter.over{
+  background:#fee2e2;
+  color:#991b1b;
+}
+
+
+.global-hours-summary{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(220px,1fr));
+  gap:12px;
+  margin:12px 0 16px;
+}
+.global-hours-card{
+  padding:14px 16px;
+  border-radius:14px;
+  background:#f8fafc;
+  border:1px solid #e5e7eb;
+}
+.global-hours-card strong{
+  display:block;
+  font-size:15px;
+  margin-bottom:5px;
+}
+.global-hours-value{
+  font-size:24px;
+  font-weight:900;
+}
+.global-hours-note{
+  margin-top:4px;
+  font-size:12px;
+  opacity:.75;
+}
+@media(max-width:760px){
+  .global-hours-summary{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 <body>
@@ -364,6 +420,20 @@
           
           
           
+          
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">INFORMARE GENERALĂ</div>
+            <h3>Contoare totale școală și profesori</h3>
+            <p>Aplicația afișează totalul orelor ocupate față de orele prevăzute pentru toate clasele și, separat, totalul orelor repartizate profesorilor față de totalul orelor din încadrare.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">INFORMARE CLASĂ</div>
+            <h3>Contor ore ocupate</h3>
+            <p>La fiecare orar de clasă se afișează permanent raportul „Ore ocupate / Total ore prevăzute”, de exemplu 27 / 30. Contorul se actualizează automat după generare, atribuire manuală, blocare sau modificarea orarului.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">GENERARE PERMISĂ</div>
             <h3>Ore de profesor rămase neatribuite</h3>
@@ -2034,6 +2104,93 @@ function subjectApprovedCoverage(className,subjectName){
     .reduce((sum,a)=>sum+Number(a.hours||0),0);
 }
 
+
+function occupiedHoursForClass(className,timetableData=state.timetable){
+  const data=timetableData?.[className]||{};
+  return Object.values(data).filter(slot=>slot && !slot.unassigned).length;
+}
+
+function totalRequiredHoursForClass(className){
+  return requiredHoursForClass(className);
+}
+
+
+function totalRequiredHoursSchool(){
+  return CLASSES.reduce((sum,cls)=>sum+requiredHoursForClass(cls),0);
+}
+
+function totalOccupiedHoursSchool(timetableData=state.timetable){
+  return CLASSES.reduce((sum,cls)=>sum+occupiedHoursForClass(cls,timetableData),0);
+}
+
+function totalApprovedTeacherHours(){
+  return (state.assignments||[]).reduce((sum,a)=>sum+Number(a.hours||0),0);
+}
+
+function totalScheduledTeacherHours(timetableData=state.timetable){
+  return (state.teachers||[]).reduce((sum,t)=>sum+scheduledHoursForTeacher(t.id,timetableData),0);
+}
+
+function renderGlobalHoursSummary(){
+  const box=document.getElementById("globalHoursSummary");
+  if(!box) return;
+
+  const schoolRequired=totalRequiredHoursSchool();
+  const schoolOccupied=totalOccupiedHoursSchool();
+  const schoolRemaining=Math.max(0,schoolRequired-schoolOccupied);
+
+  const teacherApproved=totalApprovedTeacherHours();
+  const teacherScheduled=totalScheduledTeacherHours();
+  const teacherRemaining=Math.max(0,teacherApproved-teacherScheduled);
+  const teacherExtra=Math.max(0,teacherScheduled-teacherApproved);
+
+  box.innerHTML=`
+    <div class="global-hours-summary">
+      <div class="global-hours-card">
+        <strong>Școală — ore ocupate / ore prevăzute</strong>
+        <div class="global-hours-value">${schoolOccupied} / ${schoolRequired}</div>
+        <div class="global-hours-note">
+          ${schoolRemaining>0 ? `${schoolRemaining}h rămase de completat` : schoolRequired>0 ? "orar complet după total" : "totalul de ore nu este încă definit"}
+        </div>
+      </div>
+
+      <div class="global-hours-card">
+        <strong>Profesori — ore repartizate / ore încadrate</strong>
+        <div class="global-hours-value">${teacherScheduled} / ${teacherApproved}</div>
+        <div class="global-hours-note">
+          ${teacherRemaining>0 ? `${teacherRemaining}h din încadrare încă nerepartizate` : teacherExtra>0 ? `+${teacherExtra}h peste totalul încadrat` : teacherApproved>0 ? "toate orele încadrate sunt repartizate" : "nu există încă încadrare"}
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderClassHoursCounter(className){
+  const box=document.getElementById("classHoursCounter");
+  if(!box) return;
+
+  const occupied=occupiedHoursForClass(className);
+  const required=totalRequiredHoursForClass(className);
+
+  let statusClass="incomplete";
+  let suffix="";
+  if(required===0){
+    suffix=" · totalul de ore nu este încă definit";
+  }else if(occupied===required){
+    statusClass="complete";
+    suffix=" · complet";
+  }else if(occupied>required){
+    statusClass="over";
+    suffix=` · +${occupied-required}h peste necesar`;
+  }else{
+    suffix=` · ${required-occupied}h rămase`;
+  }
+
+  box.innerHTML=`<div class="class-hours-counter ${statusClass}">
+    Ore ocupate: ${occupied} / ${required}${suffix}
+  </div>`;
+}
+
 function renderFreeHoursBanner(className){
   const box=document.getElementById("freeHoursBanner");
   if(!box) return;
@@ -2130,6 +2287,8 @@ function renderTimetable(){
       return `<td data-class="${cls}" data-day="${d}" data-hour="${i+1}" class="${locked?"locked-slot":""}">${content}</td>`
     }).join('')}</tr>`).join('')
   }</tbody>`;
+  renderGlobalHoursSummary();
+  renderClassHoursCounter(cls);
   renderFreeHoursBanner(cls);
   setTimeout(enhanceTimetableLockUI,0);
 }
