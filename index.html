@@ -1991,6 +1991,27 @@ function setAllAvailability(value){
 
 let currentTeacherProfileId=null;
 
+
+function sortTeacherAssignmentsForProfile(teacher){
+  const list=sortTeacherAssignmentsForProfile(teacher).slice();
+  const main=String(teacher.mainSubject||"").trim().toLocaleLowerCase("ro");
+
+  return list.sort((a,b)=>{
+    const aName=String(a.subjectName||state.subjects.find(s=>s.id===a.subjectId)?.name||"").trim();
+    const bName=String(b.subjectName||state.subjects.find(s=>s.id===b.subjectId)?.name||"").trim();
+
+    const aMain=aName.toLocaleLowerCase("ro")===main ? 0 : 1;
+    const bMain=bName.toLocaleLowerCase("ro")===main ? 0 : 1;
+
+    if(aMain!==bMain) return aMain-bMain;
+
+    const subjectCmp=aName.localeCompare(bName,"ro",{sensitivity:"base"});
+    if(subjectCmp!==0) return subjectCmp;
+
+    return CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className);
+  });
+}
+
 function openTeacherProfile(teacherId){
   currentTeacherProfileId=teacherId;
   const teacher=state.teachers.find(t=>t.id===teacherId);
