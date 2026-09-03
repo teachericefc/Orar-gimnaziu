@@ -849,6 +849,15 @@ td.token-click-target:active{
   to{opacity:1;transform:translate(-50%,0)}
 }
 
+
+.teacher-prof-scheduled{
+  margin-top:3px;
+  font-size:11px;
+  font-weight:800;
+  color:#475569;
+  white-space:nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -3851,6 +3860,21 @@ function renderSingleClassTimetable(className){
 }
 
 
+
+function teacherScheduledHours(teacherId){
+  let total=0;
+  for(const className of CLASSES){
+    for(const day of DAYS){
+      const max=classDisplayHours(className);
+      for(let hour=1;hour<=max;hour++){
+        const slot=getNestedSlot(className,day,hour);
+        if(slot && slot.teacherId===teacherId) total++;
+      }
+    }
+  }
+  return total;
+}
+
 function renderTeacherTimetableTokens(){
   const box=document.getElementById("teacherTimetableTokens");
   if(!box) return;
@@ -3874,6 +3898,7 @@ function renderTeacherTimetableTokens(){
 
     const assigned=teacherAssignedCurriculumHours(t.id);
     const contract=teacherContractHours(t.id);
+    const scheduled=teacherScheduledHours(t.id);
     const toComplete=Math.max(0,contract-assigned);
 
     const groups={};
@@ -3910,7 +3935,8 @@ function renderTeacherTimetableTokens(){
           <div class="teacher-prof-status">${esc(t.status||"")}</div>
         </div>
         <div class="teacher-prof-load">
-          ${contract}h încadrare
+          <div>${contract}h încadrare</div>
+          <div class="teacher-prof-scheduled">${scheduled}h atribuite</div>
           ${toComplete>0?`<span class="teacher-prof-complete">${toComplete}h de completat</span>`:""}
         </div>
       </div>
