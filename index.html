@@ -749,13 +749,20 @@
   cursor:pointer;
 }
 
-@media(max-width:980px){
-  .orar-workspace{grid-template-columns:1fr}
-  .teacher-token-panel{
-    position:static;
-    max-height:none;
-    order:-1;
-  }
+
+
+
+.orar-workspace{
+  grid-template-columns:minmax(780px,1fr) 330px !important;
+  min-width:1128px;
+}
+.teacher-token-panel{
+  position:sticky !important;
+  top:10px;
+  max-height:calc(100vh - 20px);
+}
+#timetable{
+  overflow-x:auto;
 }
 
 </style>
