@@ -5665,7 +5665,59 @@ function demoGenerate(){
   appMessage(msg,"error");
 }
 
-function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
+function clearTimetable(){
+  let removed=0;
+  let keptLocked=0;
+
+  CLASSES.forEach(className=>{
+    const classSlots=state.timetable?.[className];
+    if(!classSlots) return;
+
+    Object.keys(classSlots).forEach(key=>{
+      const [dayIndexRaw,hourIndexRaw]=String(key).split("-");
+      const dayIndex=Number(dayIndexRaw);
+      const hour=Number(hourIndexRaw)+1;
+      const day=DAYS[dayIndex];
+
+      if(day && isSlotLocked(className,day,hour)){
+        keptLocked++;
+        return;
+      }
+
+      delete classSlots[key];
+      removed++;
+    });
+
+    if(Object.keys(classSlots).length===0){
+      delete state.timetable[className];
+    }
+  });
+
+  selectedTeacherToken=null;
+  selectedDisciplineToken=null;
+  selectedTimetableActionSlot=null;
+  draggedTeacherToken=null;
+  draggedTimetableSlot=null;
+
+  save();
+  renderTimetable();
+  renderTeacherTimetableTokens();
+  renderDisciplineTimetableTokens();
+  updateStats();
+
+  if(removed===0 && keptLocked>0){
+    appMessage(`Nu există ore neblocate de șters. Au fost păstrate ${keptLocked} ${keptLocked===1?"oră blocată":"ore blocate"}.`,"info",2600);
+  }else if(removed===0){
+    appMessage("Orarul este deja gol.","info",1800);
+  }else{
+    appMessage(
+      `Au fost șterse ${removed} ${removed===1?"oră":"ore"} din orar.`+
+      (keptLocked>0?` Au fost păstrate ${keptLocked} ${keptLocked===1?"oră blocată":"ore blocate"}.`:""),
+      "success",
+      2600
+    );
+  }
+}
 
 synchronizeAssignmentsWithSubjects();
 ensureTeacherContractHours();
