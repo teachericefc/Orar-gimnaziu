@@ -151,6 +151,30 @@
     }
     .priority-check input,.priority-toggle input{width:18px;height:18px}
 
+
+.locked-slot{
+  position:relative;
+  outline:3px solid rgba(40,40,40,.65);
+  box-shadow:inset 0 0 0 2px rgba(255,255,255,.85);
+}
+.locked-slot::after{
+  content:"🔒";
+  position:absolute;
+  top:4px;
+  right:5px;
+  font-size:14px;
+  line-height:1;
+}
+.lock-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-top:10px;
+}
+.lock-actions button{
+  width:auto;
+}
+
 </style>
 </head>
 <body>
@@ -158,6 +182,8 @@
   <header>
     <div class="brand">
       <div class="logo">🗓️</div>
+
+<p class="muted" style="margin-top:8px">Dublu-click pe o oră ocupată pentru 🔒 blocare/deblocare. Orele blocate sunt constrângeri obligatorii la regenerare.</p>
       <div><h1>Orar gimnaziu</h1><small>Generator și organizator de orar</small></div>
     </div>
     <select class="schoolyear" id="schoolYear">
@@ -280,6 +306,13 @@
         </div>
 
         <div class="rules-grid">
+          
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">OBLIGATORIU</div>
+            <h3>Ore blocate manual</h3>
+            <p>O oră marcată cu 🔒 rămâne fixă la regenerare. Generatorul reconstruiește restul orarului în jurul tuturor orelor blocate și nu are voie să le mute.</p>
+          </div>
+
           <div class="card rule-card mandatory-rule">
             <div class="rule-type">OBLIGATORIU</div>
             <h3>Fără ferestre pentru elevi</h3>
@@ -375,7 +408,10 @@
 
       <section id="timetable" class="section">
         <div class="page-head">
-          <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase.</p></div>
+          <div><h2>Orar</h2>
+<div class="lock-actions">
+<button type="button" onclick="unlockAllSlots()" class="secondary">🔓 Deblochează toate orele</button>
+</div><p>Vizualizare săptămânală pe clase.</p></div>
           <div class="toolbar">
             <select id="viewClass" onchange="renderTimetable()"><option>V</option><option>VI</option><option>VII</option><option>VIII</option></select>
             <button class="btn btn-primary" onclick="demoGenerate()">Generează variantă demonstrativă</button>
@@ -1281,6 +1317,123 @@ function compareTimetablePreferenceScores(a,b){
   return scoreTimetablePreferences(a).total - scoreTimetablePreferences(b).total;
 }
 
+
+function timetableSlotKey(className,day,hour){
+  return `${className}|${day}|${hour}`;
+}
+
+function isSlotLocked(className,day,hour){
+  return !!state.lockedSlots?.[timetableSlotKey(className,day,hour)];
+}
+
+function lockSlot(className,day,hour){
+  const key=timetableSlotKey(className,day,hour);
+  const slot=state.timetable?.[key];
+
+  if(!slot){
+    alert("Poți bloca doar o oră care conține deja o disciplină.");
+    return;
+  }
+
+  if(!state.lockedSlots || typeof state.lockedSlots!=="object"){
+    state.lockedSlots={};
+  }
+
+  state.lockedSlots[key]={
+    className,
+    day,
+    hour:Number(hour),
+    teacherId:slot.teacherId||null,
+    subjectId:slot.subjectId||null,
+    snapshot:JSON.parse(JSON.stringify(slot))
+  };
+
+  saveState();
+  renderTimetable();
+}
+
+function unlockSlot(className,day,hour){
+  const key=timetableSlotKey(className,day,hour);
+  if(state.lockedSlots?.[key]){
+    delete state.lockedSlots[key];
+    saveState();
+    renderTimetable();
+  }
+}
+
+function unlockAllSlots(){
+  const count=Object.keys(state.lockedSlots||{}).length;
+  if(!count) return;
+
+  if(confirm(`Deblochezi toate cele ${count} ore fixate?`)){
+    state.lockedSlots={};
+    saveState();
+    renderTimetable();
+  }
+}
+
+function restoreLockedSlots(targetTimetable){
+  const locks=state.lockedSlots||{};
+
+  Object.entries(locks).forEach(([key,lock])=>{
+    // Prefer current saved timetable value if present; otherwise use snapshot.
+    const current=state.timetable?.[key];
+    const source=current || lock.snapshot;
+
+    if(source){
+      targetTimetable[key]=JSON.parse(JSON.stringify(source));
+    }
+  });
+
+  return targetTimetable;
+}
+
+function lockedSlotHardConstraint(candidateTimetable){
+  const locks=state.lockedSlots||{};
+
+  for(const [key,lock] of Object.entries(locks)){
+    const candidate=candidateTimetable?.[key];
+    if(!candidate) return false;
+
+    if(lock.teacherId && candidate.teacherId!==lock.teacherId) return false;
+    if(lock.subjectId && candidate.subjectId!==lock.subjectId) return false;
+  }
+
+  return true;
+}
+
+function toggleSlotLock(className,day,hour){
+  if(isSlotLocked(className,day,hour)){
+    unlockSlot(className,day,hour);
+  }else{
+    lockSlot(className,day,hour);
+  }
+}
+
+
+function enhanceTimetableLockUI(){
+  const table=document.querySelector("#timetableTable, .timetable-table, table");
+  if(!table) return;
+
+  const cells=table.querySelectorAll("td[data-class][data-day][data-hour]");
+  cells.forEach(cell=>{
+    const className=cell.dataset.class;
+    const day=cell.dataset.day;
+    const hour=Number(cell.dataset.hour);
+
+    cell.classList.toggle("locked-slot",isSlotLocked(className,day,hour));
+    cell.title=isSlotLocked(className,day,hour)
+      ? "Oră blocată. Dublu-click pentru deblocare."
+      : "Dublu-click pentru blocare.";
+
+    cell.ondblclick=(ev)=>{
+      ev.preventDefault();
+      ev.stopPropagation();
+      toggleSlotLock(className,day,hour);
+    };
+  });
+}
+
 function renderTimetable(){
   const cls=viewClass.value;
   const data=state.timetable[cls]||{};
@@ -1324,6 +1477,18 @@ document.getElementById("availabilityModal")?.addEventListener("click",e=>{
 
 document.getElementById("teacherProfileModal")?.addEventListener("click",e=>{
   if(e.target.id==="teacherProfileModal") closeTeacherProfile();
+});
+
+
+const timetableLockObserver=new MutationObserver(()=>{
+  enhanceTimetableLockUI();
+});
+document.addEventListener("DOMContentLoaded",()=>{
+  const root=document.body;
+  if(root){
+    timetableLockObserver.observe(root,{childList:true,subtree:true});
+    setTimeout(enhanceTimetableLockUI,0);
+  }
 });
 
 </script>
