@@ -3615,59 +3615,117 @@ function assignUnassignedSlot(className,day,hour){
   const slot=getNestedSlot(className,day,hour);
   if(!slot || !slot.unassigned) return;
 
-  const candidates=(state.assignments||[]).filter(a=>
+  const subjectName=slot.subject||"";
+  const cleanSubject=String(subjectName).trim().toLocaleLowerCase("ro");
+  const existingAssignments=(state.assignments||[]).filter(a=>
     a.className===className &&
-    String(a.subjectName||"").trim().toLocaleLowerCase("ro")===String(slot.subject||"").trim().toLocaleLowerCase("ro")
+    String(a.subjectName||"").trim().toLocaleLowerCase("ro")===cleanSubject
   );
 
-  if(!candidates.length){
-    appMessage(`Nu există încă niciun profesor încadrat pentru ${slot.subject||"această oră"} la clasa ${classLabelRomanian(className)}. Poți păstra ora așa și îi atribui profesorul mai târziu.`,"info",3200);
-    return;
-  }
+  // Dacă disciplina nu a fost încă atribuită, o putem atribui direct de aici
+  // oricărui profesor existent. Dacă există deja o atribuire, păstrăm profesorul
+  // acelei atribuiri pentru a evita împărțirea accidentală a disciplinei.
+  const choices=existingAssignments.length
+    ? existingAssignments.map(a=>({teacherId:a.teacherId,assignment:a}))
+    : (state.teachers||[]).map(t=>({teacherId:t.id,assignment:null}));
 
   document.querySelectorAll(".app-message-overlay").forEach(x=>x.remove());
   const overlay=document.createElement("div");
   overlay.className="app-message-overlay";
   const box=document.createElement("div");
   box.className="app-message info";
+
+  if(!choices.length){
+    box.innerHTML=`<div class="app-message-icon">👤</div>
+      <div><b>${esc(subjectName||"Disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
+      <div style="margin-top:8px">Nu există încă profesori adăugați. Adaugă mai întâi un profesor, apoi îl vei putea atribui direct de aici.</div>`;
+    overlay.appendChild(box);
+    document.body.appendChild(overlay);
+    overlay.onclick=()=>overlay.remove();
+    box.onclick=e=>e.stopPropagation();
+    return;
+  }
+
   box.innerHTML=`<div class="app-message-icon">👤</div>
-    <div>Atribuie <b>${esc(slot.subject||"disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
+    <div>Atribuie <b>${esc(subjectName||"disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
+    <div style="margin-top:5px;font-size:12px;opacity:.78">Profesorul ales va primi disciplina la această clasă, iar orele deja puse în orar fără profesor vor fi atribuite automat.</div>
     <div class="assign-teacher-list"></div>`;
   const list=box.querySelector(".assign-teacher-list");
-  candidates.forEach(a=>{
-    const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
+
+  choices.forEach(choice=>{
+    const teacher=(state.teachers||[]).find(t=>t.id===choice.teacherId);
+    if(!teacher) return;
     const btn=document.createElement("button");
     btn.type="button";
     btn.className="assign-teacher-choice";
-    btn.textContent=teacher?.name||"Profesor";
+    btn.textContent=teacher.name||"Profesor";
     btn.onclick=e=>{
       e.stopPropagation();
-      if(!isTeacherAvailable(a.teacherId,day,Number(hour))){
-        overlay.remove();
-        return appMessage(`${teacher?.name||"Profesorul"} este indisponibil în ${day}, ora ${hour}.`,"error");
-      }
-      if(teacherHasConflictAt(a.teacherId,day,Number(hour))){
-        overlay.remove();
-        return appMessage(`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`,"error");
-      }
-      setNestedSlot(className,day,hour,{
-        ...slot,
-        subject:a.subjectName||slot.subject,
-        subjectId:a.subjectId||slot.subjectId,
-        teacher:teacher?.name||"Profesor",
-        teacherId:a.teacherId,
-        unassigned:false,
-        manual:true
+
+      // Verificăm toate orele deja așezate pentru această disciplină/clasă,
+      // nu doar ora pe care s-a apăsat butonul „Atribuie…”.
+      const matchingSlots=[];
+      Object.entries(state.timetable?.[className]||{}).forEach(([key,current])=>{
+        if(!current || !current.unassigned) return;
+        const currentSubject=current.subject || (state.subjects||[]).find(s=>s.id===current.subjectId)?.name || "";
+        if(String(currentSubject).trim().toLocaleLowerCase("ro")!==cleanSubject) return;
+        const [dayIndex,hourIndex]=key.split("-").map(Number);
+        matchingSlots.push({
+          key,
+          day:DAYS[dayIndex],
+          hour:hourIndex+1,
+          slot:current
+        });
       });
+
+      for(const item of matchingSlots){
+        if(!isTeacherAvailable(teacher.id,item.day,item.hour)){
+          overlay.remove();
+          return appMessage(`${teacher.name} este indisponibil în ${item.day}, ora ${item.hour}. Atribuirea nu a fost făcută.`,"error",3600);
+        }
+        if(teacherHasConflictAt(teacher.id,item.day,item.hour)){
+          overlay.remove();
+          return appMessage(`${teacher.name} are deja oră la altă clasă în ${item.day}, ora ${item.hour}. Atribuirea nu a fost făcută.`,"error",3600);
+        }
+      }
+
+      let assignment=choice.assignment;
+      if(!assignment){
+        const hours=Math.max(1,subjectRequiredHours(className,subjectName));
+        const result=ensureWholeClassSubjectAssignment(subjectName,className,teacher.id,hours);
+        if(!result.ok){
+          overlay.remove();
+          return appMessage(result.message||"Disciplina nu a putut fi atribuită.","error",3600);
+        }
+        assignment=(state.assignments||[]).find(a=>
+          a.teacherId===teacher.id && a.className===className &&
+          String(a.subjectName||"").trim().toLocaleLowerCase("ro")===cleanSubject
+        );
+      }
+
+      matchingSlots.forEach(item=>{
+        setNestedSlot(className,item.day,item.hour,{
+          ...item.slot,
+          subject:assignment?.subjectName||subjectName,
+          subjectId:assignment?.subjectId||item.slot.subjectId,
+          teacher:teacher.name||"Profesor",
+          teacherId:teacher.id,
+          unassigned:false,
+          manual:true
+        });
+      });
+
       overlay.remove();
       save();
       renderTimetable();
       renderTeachers();
       renderGlobalHoursSummary();
       showPlacementSuccess({className,day,hour:Number(hour)});
+      appMessage(`${subjectName} la clasa ${classLabelRomanian(className)} a fost atribuită profesorului ${teacher.name}.`,"success",2200);
     };
     list.appendChild(btn);
   });
+
   overlay.appendChild(box);
   document.body.appendChild(overlay);
   overlay.onclick=()=>overlay.remove();
