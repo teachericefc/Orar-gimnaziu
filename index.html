@@ -97,6 +97,43 @@
     .legend-box.available{background:#f0fdf4;border:1px solid #86efac}
     .legend-box.unavailable{background:#fef2f2;border:1px solid #fca5a5}
 
+
+    .teacher-card-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px}
+    .teacher-token{
+      background:#fff;border:1px solid #e2e8f0;border-radius:18px;padding:16px;
+      box-shadow:0 8px 24px rgba(15,23,42,.05)
+    }
+    .teacher-token-head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
+    .teacher-token h3{margin:0;font-size:18px}
+    .teacher-status{margin-top:4px;font-size:12px;color:#64748b;font-weight:700}
+    .teacher-total{
+      min-width:48px;text-align:center;padding:7px 9px;border-radius:12px;
+      background:#f1f5f9;font-weight:800
+    }
+    .teacher-token-body{margin:14px 0;display:grid;gap:10px}
+    .teacher-subject-line{
+      padding:10px 12px;border:1px solid #e2e8f0;border-radius:12px;background:#f8fafc
+    }
+    .primary-subject-line{border-width:2px}
+    .teacher-subject-name{font-weight:800;margin-bottom:4px}
+    .teacher-subject-hours{font-size:14px;word-spacing:3px;color:#334155}
+    .mini-badge{
+      margin-left:6px;padding:2px 6px;border-radius:999px;background:#e2e8f0;
+      font-size:10px;text-transform:uppercase;letter-spacing:.04em
+    }
+    .teacher-token-actions{display:flex;gap:8px;flex-wrap:wrap}
+    .teacher-no-hours{color:#94a3b8;font-style:italic}
+    .teacher-profile-form{
+      display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:16px
+    }
+    .teacher-profile-form label{display:grid;gap:6px;font-weight:700}
+    .teacher-profile-form select{width:100%}
+    .teacher-profile-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px}
+    @media(max-width:700px){
+      .teacher-profile-form{grid-template-columns:1fr}
+      .teacher-card-grid{grid-template-columns:1fr}
+    }
+
 </style>
 </head>
 <body>
@@ -152,12 +189,18 @@
       <section id="teachers" class="section">
         <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorii care predau la gimnaziu.</p></div></div>
         <div class="card" style="margin-bottom:16px">
-          <div class="form-row" style="grid-template-columns:1fr 1fr auto">
+          <div class="form-row teacher-form" style="grid-template-columns:1.3fr 1fr 1fr auto">
             <input id="teacherName" placeholder="Nume și prenume profesor">
-            <input id="teacherNote" placeholder="Observații (opțional)">
-            <button class="btn btn-primary" onclick="addTeacher()">Adaugă</button>
+            <select id="teacherStatus">
+              <option value="Titular">Titular</option>
+              <option value="Suplinitor">Suplinitor</option>
+              <option value="Asociat">Asociat / plata cu ora</option>
+              <option value="Altul">Alt statut</option>
+            </select>
+            <input id="teacherNote" placeholder="Observație (opțional)">
+            <button class="btn btn-primary" onclick="addTeacher()">Adaugă profesor</button>
           </div>
-        </div>
+</div>
         <div id="teachersTable"></div>
       </section>
 
@@ -242,6 +285,12 @@ state.assignments ||= [];
 state.availability ||= {};
 state.timetable ||= {};
 
+state.teachers.forEach(t=>{
+  if(!("status" in t)) t.status="Titular";
+  if(!("primarySubject" in t)) t.primarySubject="";
+});
+
+
 function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
 function showSection(id){
   document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));
@@ -271,9 +320,22 @@ function renderClasses(){
 }
 
 function addTeacher(){
-  const name=teacherName.value.trim(); if(!name)return alert("Introdu numele profesorului.");
-  state.teachers.push({id:crypto.randomUUID(),name,note:teacherNote.value.trim()});
-  teacherName.value="";teacherNote.value="";save();renderTeachers();
+  const name=(teacherName.value||"").trim();
+  const note=(teacherNote.value||"").trim();
+  const status=document.getElementById("teacherStatus")?.value||"Titular";
+  if(!name)return alert("Introdu numele profesorului.");
+  state.teachers.push({
+    id:crypto.randomUUID(),
+    name,
+    note,
+    status,
+    primarySubject:""
+  });
+  teacherName.value="";
+  teacherNote.value="";
+  save();
+  renderTeachers();
+  renderAssignmentSelectors();
 }
 function deleteTeacher(id){
   state.teachers=state.teachers.filter(t=>t.id!==id);
@@ -282,11 +344,73 @@ function deleteTeacher(id){
   save();renderTeachers();renderAssignmentSelectors();renderAssignments();
 }
 function renderTeachers(){
-  if(!state.teachers.length){teachersTable.innerHTML='<div class="card empty">Nu ai adăugat încă profesori.</div>';return}
-  teachersTable.innerHTML=`<table><thead><tr><th>Profesor</th><th>Observații</th><th></th></tr></thead><tbody>${
-    state.teachers.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.note||"—")}</td><td style="width:90px"><button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button><button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button>
-        <button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button></td></tr>`).join('')
-  }</tbody></table>`
+  const box=document.getElementById("teachersTable");
+  if(!box)return;
+
+  if(!state.teachers.length){
+    box.innerHTML='<div class="card empty">Nu există încă profesori adăugați.</div>';
+    return;
+  }
+
+  const teachers=state.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"));
+
+  box.innerHTML=`<div class="teacher-card-grid">
+    ${teachers.map(t=>{
+      const rows=state.assignments
+        .filter(a=>a.teacherId===t.id)
+        .map(a=>({...a, subjectName:a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name || "Disciplină"}));
+
+      const grouped={};
+      rows.forEach(a=>{
+        const subject=a.subjectName;
+        grouped[subject] ||= [];
+        grouped[subject].push(a);
+      });
+
+      const subjectNames=Object.keys(grouped);
+      let primary=t.primarySubject && grouped[t.primarySubject] ? t.primarySubject : (subjectNames[0]||"");
+      const ordered=subjectNames.sort((a,b)=>{
+        if(a===primary)return -1;
+        if(b===primary)return 1;
+        return a.localeCompare(b,"ro");
+      });
+
+      const assignmentHtml=ordered.length ? ordered.map(subject=>{
+        const byClass=grouped[subject]
+          .slice()
+          .sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className))
+          .map(a=>`${esc(a.className)} (${a.hours})`)
+          .join(" ");
+        const total=grouped[subject].reduce((s,a)=>s+Number(a.hours||0),0);
+        const isPrimary=subject===primary;
+        return `<div class="teacher-subject-line ${isPrimary?"primary-subject-line":""}">
+          <div class="teacher-subject-name">
+            ${esc(subject)}
+            ${isPrimary?'<span class="mini-badge">principală</span>':''}
+          </div>
+          <div class="teacher-subject-hours">${byClass || `(${total})`}</div>
+        </div>`;
+      }).join("") : '<div class="teacher-no-hours">Fără ore încadrate</div>';
+
+      return `<article class="teacher-token">
+        <div class="teacher-token-head">
+          <div>
+            <h3>${esc(t.name)}</h3>
+            <div class="teacher-status">${esc(t.status||"Titular")}</div>
+          </div>
+          <div class="teacher-total">${rows.reduce((s,a)=>s+Number(a.hours||0),0)} h</div>
+        </div>
+
+        <div class="teacher-token-body">${assignmentHtml}</div>
+
+        <div class="teacher-token-actions">
+          <button class="btn" onclick="openTeacherProfile('${t.id}')">Fișă profesor</button>
+          <button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button>
+          <button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button>
+        </div>
+      </article>`;
+    }).join("")}
+  </div>`;
 }
 
 function addSubject(){
@@ -359,19 +483,22 @@ function addAssignment(){
       subjectId,
       subjectName:subject.name,
       className,
-      hours
+      hours,
+      assignmentType:"normal"
     });
   }
 
   assignmentHours.value=1;
   save();
   renderAssignments();
+  renderTeachers();
 }
 
 function deleteAssignment(id){
   state.assignments=state.assignments.filter(a=>a.id!==id);
   save();
   renderAssignments();
+  renderTeachers();
 }
 
 function renderAssignments(){
@@ -506,6 +633,74 @@ function setAllAvailability(value){
   renderAvailability();
 }
 
+
+let currentTeacherProfileId=null;
+
+function openTeacherProfile(teacherId){
+  currentTeacherProfileId=teacherId;
+  const teacher=state.teachers.find(t=>t.id===teacherId);
+  if(!teacher)return;
+
+  document.getElementById("teacherProfileTitle").textContent="Fișă profesor – "+teacher.name;
+  document.getElementById("profileTeacherStatus").value=teacher.status||"Titular";
+
+  const assignedSubjects=Array.from(new Set(
+    state.assignments
+      .filter(a=>a.teacherId===teacherId)
+      .map(a=>a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name)
+      .filter(Boolean)
+  ));
+
+  const sel=document.getElementById("profilePrimarySubject");
+  sel.innerHTML=assignedSubjects.length
+    ? assignedSubjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("")
+    : '<option value="">Fără discipline încadrate</option>';
+
+  if(teacher.primarySubject && assignedSubjects.includes(teacher.primarySubject)){
+    sel.value=teacher.primarySubject;
+  }
+
+  const box=document.getElementById("teacherProfileAssignments");
+  const rows=state.assignments
+    .filter(a=>a.teacherId===teacherId)
+    .slice()
+    .sort((a,b)=>
+      (a.subjectName||"").localeCompare(b.subjectName||"","ro") ||
+      CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)
+    );
+
+  box.innerHTML=rows.length ? `<table>
+    <thead>
+      <tr><th>Disciplina</th><th>Clasa</th><th>Ore/săptămână</th></tr>
+    </thead>
+    <tbody>
+      ${rows.map(a=>`<tr>
+        <td>${esc(a.subjectName||"")}</td>
+        <td>Clasa ${esc(a.className)}</td>
+        <td><b>${a.hours}</b></td>
+      </tr>`).join("")}
+    </tbody>
+  </table>` : '<div class="card empty">Profesorul nu are încă ore încadrate.</div>';
+
+  document.getElementById("teacherProfileModal").style.display="flex";
+}
+
+function closeTeacherProfile(){
+  document.getElementById("teacherProfileModal").style.display="none";
+  currentTeacherProfileId=null;
+}
+
+function saveTeacherProfile(){
+  if(!currentTeacherProfileId)return;
+  const teacher=state.teachers.find(t=>t.id===currentTeacherProfileId);
+  if(!teacher)return;
+  teacher.status=document.getElementById("profileTeacherStatus").value;
+  teacher.primarySubject=document.getElementById("profilePrimarySubject").value||"";
+  save();
+  renderTeachers();
+  closeTeacherProfile();
+}
+
 function renderTimetable(){
   const cls=viewClass.value;
   const data=state.timetable[cls]||{};
@@ -544,6 +739,11 @@ document.addEventListener("keydown",e=>{
 });
 document.getElementById("availabilityModal")?.addEventListener("click",e=>{
   if(e.target.id==="availabilityModal") closeAvailability();
+});
+
+
+document.getElementById("teacherProfileModal")?.addEventListener("click",e=>{
+  if(e.target.id==="teacherProfileModal") closeTeacherProfile();
 });
 
 </script>
@@ -597,6 +797,47 @@ document.getElementById("availabilityModal")?.addEventListener("click",e=>{
     <div class="availability-legend">
       <span><i class="legend-box available"></i> Disponibil</span>
       <span><i class="legend-box unavailable"></i> Indisponibil</span>
+    </div>
+  </div>
+</div>
+
+
+<div id="teacherProfileModal" class="modal-overlay" style="display:none">
+  <div class="modal-card teacher-profile-card">
+    <div class="modal-head">
+      <div>
+        <h3 id="teacherProfileTitle">Fișă profesor</h3>
+        <p>Statut, disciplină principală și discipline pentru completarea normei.</p>
+      </div>
+      <button class="btn" onclick="closeTeacherProfile()">✕</button>
+    </div>
+
+    <div class="teacher-profile-form">
+      <label>
+        <span>Statut</span>
+        <select id="profileTeacherStatus">
+          <option value="Titular">Titular</option>
+          <option value="Suplinitor">Suplinitor</option>
+          <option value="Asociat">Asociat / plata cu ora</option>
+          <option value="Altul">Alt statut</option>
+        </select>
+      </label>
+
+      <label>
+        <span>Disciplina principală</span>
+        <select id="profilePrimarySubject"></select>
+      </label>
+    </div>
+
+    <div class="note" style="margin-top:14px">
+      Celelalte discipline din încadrare sunt considerate discipline suplimentare / pentru completarea normei.
+    </div>
+
+    <div id="teacherProfileAssignments" style="margin-top:16px"></div>
+
+    <div class="teacher-profile-actions">
+      <button class="btn btn-primary" onclick="saveTeacherProfile()">Salvează</button>
+      <button class="btn" onclick="closeTeacherProfile()">Închide</button>
     </div>
   </div>
 </div>
