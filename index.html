@@ -4246,6 +4246,14 @@ function renderSingleClassTimetable(className){
 
 
 
+// Stare UI pentru panoul lateral al orarului și mutarea manuală a orelor.
+let selectedTeacherToken = null;
+let selectedDisciplineToken = null;
+let activeTimetableTokenTab = "teachers";
+let draggedTeacherToken = null;
+let draggedTimetableSlot = null;
+let selectedTimetableActionSlot = null;
+
 function teacherScheduledHours(teacherId){
   let total=0;
   for(const className of CLASSES){
