@@ -2399,78 +2399,34 @@ function validateBeforeGeneration(){
   const errors=[];
   const warnings=[];
 
-  // 1. Locked hours validity.
   const lockedCheck=validateLockedHours();
   if(!lockedCheck.ok) errors.push(lockedCheck.message);
 
-  // 2. Required class timetable must physically fit in 5 days x 7 periods.
-  // A shortage of assigned teachers is allowed: those periods remain "neatribuite".
-  ["V","VI","VII","VIII"].forEach(className=>{
+  // Missing teacher coverage is allowed. The generator will leave those
+  // curriculum periods as "Profesor neatribuit".
+  CLASSES.forEach(className=>{
     const required=requiredHoursForClass(className);
     const covered=(state.assignments||[])
       .filter(a=>a.className===className)
       .reduce((sum,a)=>sum+Number(a.hours||0),0);
 
-    if(required>35){
-      errors.push(`Clasa ${className} are prevăzute ${required} ore/săptămână, dar poate avea maximum 35 (5 zile × 7 ore).`);
-    }
-
     if(required>covered){
-      warnings.push(`Clasa ${className}: ${required-covered}h nu sunt încă acoperite de încadrarea profesorilor. Orarul poate fi generat, iar aceste ore vor rămâne neatribuite.`);
+      warnings.push(`Clasa ${className}: ${required-covered}h nu sunt încă acoperite de profesori. Vor putea rămâne neatribuite după generare.`);
     }
   });
 
-  // 3. Teacher total assigned hours must fit teacher availability.
-  (state.teachers||[]).forEach(t=>{
-    const assigned=(state.assignments||[])
-      .filter(a=>a.teacherId===t.id)
-      .reduce((sum,a)=>sum+Number(a.hours||0),0);
-
-    let availableSlots=0;
-    AVAIL_DAYS.forEach(day=>{
-      for(let h=1; h<=7; h++){
-        if(isTeacherAvailable(t.id,day,h)) availableSlots++;
-      }
-    });
-
-    if(assigned>availableSlots){
-      errors.push(`${t.name||"Profesor"} are ${assigned} ore încadrate, dar doar ${availableSlots} intervale disponibile.`);
-    }
-
-    if(assigned>35){
-      errors.push(`${t.name||"Profesor"} are ${assigned} ore încadrate într-o săptămână, peste limita fizică de 35 de intervale.`);
-    }
-  });
-
-  // 4. Every assignment must have positive weekly hours.
+  // Only actual subject/class assignments participate in generation.
+  // A teacher's total contract (e.g. 22h) is NOT a blocking requirement:
+  // if only 19h are assigned to subjects, the remaining 3h stay "de completat".
   (state.assignments||[]).forEach(a=>{
     if(Number(a.hours||0)<=0){
       const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
-      const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
-      errors.push(`Încadrarea ${teacher?.name||"Profesor"} – ${subject?.name||"Disciplină"} – clasa ${a.className} are un număr invalid de ore.`);
+      errors.push(`Încadrarea ${teacher?.name||"Profesor"} – ${a.subjectName||"Disciplină"} – clasa ${a.className} are un număr invalid de ore.`);
     }
   });
 
-  // 5. Check if each assignment has at least enough distinct teacher-available slots in that class's week.
-  (state.assignments||[]).forEach(a=>{
-    const needed=Number(a.hours||0);
-    if(!needed) return;
-
-    let slots=0;
-    AVAIL_DAYS.forEach(day=>{
-      for(let h=1; h<=7; h++){
-        if(isTeacherAvailable(a.teacherId,day,h)) slots++;
-      }
-    });
-
-    if(needed>slots){
-      const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
-      const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
-      errors.push(`${teacher?.name||"Profesor"} nu are suficiente intervale disponibile pentru ${subject?.name||"disciplină"} la clasa ${a.className} (${needed} ore necesare).`);
-    }
-  });
-
-  // 6. Check locked hours against weekly assignment count.
+  // Locked hours must still correspond to a real assignment and may not
+  // exceed that assignment's weekly hours.
   const lockedByAssignment={};
   Object.values(state.lockedSlots||{}).forEach(l=>{
     const k=`${l.teacherId}|${l.subjectId}|${l.className}`;
@@ -2484,7 +2440,6 @@ function validateBeforeGeneration(){
       a.subjectId===subjectId &&
       a.className===className
     );
-
     const teacher=(state.teachers||[]).find(t=>t.id===teacherId);
     const subject=(state.subjects||[]).find(s=>s.id===subjectId);
 
@@ -2495,56 +2450,52 @@ function validateBeforeGeneration(){
     }
   });
 
-  // 7. Detect multiple locked class periods in same day/hour and teacher double-booking.
   const classSlots=new Set();
   const teacherSlots=new Set();
   Object.values(state.lockedSlots||{}).forEach(l=>{
     const ck=`${l.className}|${l.day}|${l.hour}`;
     const tk=`${l.teacherId}|${l.day}|${l.hour}`;
-
-    if(classSlots.has(ck)){
-      errors.push(`Clasa ${l.className} are două ore blocate în ${l.day}, ora ${l.hour}.`);
-    }
+    if(classSlots.has(ck)) errors.push(`Clasa ${l.className} are două ore blocate în ${l.day}, ora ${l.hour}.`);
     if(teacherSlots.has(tk)){
       const teacher=(state.teachers||[]).find(t=>t.id===l.teacherId);
       errors.push(`${teacher?.name||"Profesor"} este blocat simultan în două clase în ${l.day}, ora ${l.hour}.`);
     }
-
     classSlots.add(ck);
     teacherSlots.add(tk);
   });
 
-  // 8. Missing teacher coverage is informational, not a generation blocker.
-  ["V","VI","VII","VIII"].forEach(className=>{
-    const required=requiredHoursForClass(className);
-    const covered=(state.assignments||[])
-      .filter(a=>a.className===className)
-      .reduce((sum,a)=>sum+Number(a.hours||0),0);
-
-    if(required>0 && covered===0){
-      warnings.push(`Clasa ${className} nu are încă ore acoperite de profesori; generatorul poate crea structura cu ore neatribuite.`);
-    }
-  });
-
-
-  // 9. Teacher hours that cannot yet be placed are allowed.
-  // They remain visible on the teacher token as "h neatribuite".
+  // Availability shortages are warnings, not blockers. Any teacher hours
+  // that cannot be fitted remain visibly "neplasate în orar".
   (state.teachers||[]).forEach(t=>{
-    const approved=approvedHoursForTeacher(t.id);
-    const theoreticalCapacity=AVAIL_DAYS.reduce((sum,day)=>{
-      let c=0;
-      for(let h=1;h<=7;h++) if(isTeacherAvailable(t.id,day,h)) c++;
-      return sum+c;
-    },0);
+    const assigned=teacherAssignedCurriculumHours(t.id);
+    if(!assigned) return;
 
-    if(approved>0 && theoreticalCapacity>0 && approved<=theoreticalCapacity){
-      // No blocking error: any unplaced hours after generation remain on the side as pending.
+    const maxRelevantHour=Math.max(
+      7,
+      ...Object.values(state.lockedSlots||{})
+        .filter(l=>l.teacherId===t.id)
+        .map(l=>Number(l.hour)||0)
+    );
+
+    let availableSlots=0;
+    AVAIL_DAYS.forEach(day=>{
+      for(let h=1;h<=maxRelevantHour;h++){
+        if(isTeacherAvailable(t.id,day,h)) availableSlots++;
+      }
+    });
+
+    if(availableSlots<assigned){
+      warnings.push(`${t.name||"Profesor"} are ${assigned}h repartizate pe discipline, dar numai ${availableSlots} intervale marcate disponibile. Generatorul va plasa cât poate, iar restul vor rămâne neplasate.`);
+    }
+
+    const toComplete=teacherHoursToComplete(t.id);
+    if(toComplete>0){
+      warnings.push(`${t.name||"Profesor"} mai are ${toComplete}h de completat până la totalul de ${teacherContractHours(t.id)}h din încadrare. Aceste ore nu blochează generarea.`);
     }
   });
 
   return {ok:errors.length===0,errors,warnings};
 }
-
 function showPreGenerationValidation(){
   const result=validateBeforeGeneration();
 
@@ -4396,10 +4347,10 @@ function demoGenerate(){
     msg+="\n\nOre fără profesor: "+unassignedClasses.map(x=>`clasa ${x.cls}: ${x.n}h`).join(", ")+".";
   }
   if(remainingTeachers.length){
-    msg+="\n\nOre din încadrare rămase nerepartizate: "+remainingTeachers.map(x=>`${x.name}: ${x.n}h`).join(", ")+".";
+    msg+="\n\nOre repartizate pe discipline rămase neplasate în orar: "+remainingTeachers.map(x=>`${x.name}: ${x.n}h`).join(", ")+".";
   }
   if(!unassignedClasses.length && !remainingTeachers.length){
-    msg+="\n\nToate orele prevăzute și toate orele din încadrare au fost repartizate.";
+    msg+="\n\nToate orele prevăzute și toate orele deja repartizate pe discipline au fost plasate în orar.";
   }
   alert(msg);
 }
