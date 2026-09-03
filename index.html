@@ -524,7 +524,7 @@
 }
 .subject-config-row{
   display:grid;
-  grid-template-columns:22px minmax(0,1fr) 58px;
+  grid-template-columns:22px minmax(0,1fr) 98px;
   gap:7px;
   align-items:center;
   min-height:39px;
@@ -546,627 +546,60 @@
   border-radius:8px;
 }
 .subject-config-row.inactive{
-  opacity:.58;
-}
-.subject-priority-star{
-  font-size:11px;
-  color:#7c5300;
-  display:block;
-  margin-top:2px;
-}
-.subject-panel-add{
-  padding:10px;
-  border-top:1px solid #e2e8f0;
-  background:#fafcff;
-}
-.subject-panel-add .add-subject-line{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) 58px 36px;
-  gap:6px;
-}
-.subject-panel-add input{
-  min-width:0;
-}
-.subject-plus-btn{
-  border:0;
-  border-radius:8px;
-  background:#2563eb;
-  color:white;
-  font-weight:800;
-  cursor:pointer;
-}
-@media(max-width:1250px){
-  .subject-class-grid{grid-template-columns:repeat(2,minmax(280px,1fr))}
-}
-@media(max-width:700px){
-  .subject-class-grid{grid-template-columns:1fr}
-}
-
-
-.subject-config-row .hours-input:not(:disabled){
-  background:#fff;
-  color:#172033;
-  cursor:text;
-}
-
-
-.orar-workspace{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) 300px;
-  gap:16px;
-  align-items:start;
-}
-.teacher-token-panel{
-  position:sticky;
-  top:12px;
-  max-height:calc(100vh - 24px);
-  overflow:auto;
-  padding:12px;
-}
-.teacher-token-panel h3{margin:0 0 6px}
-.teacher-token-help{font-size:12px;color:#64748b;margin:0 0 10px}
-.teacher-drag-token{
-  border:1px solid #dbe3ef;
-  border-radius:12px;
-  padding:10px;
-  margin:8px 0;
-  background:#fff;
-  cursor:grab;
-  box-shadow:0 2px 8px rgba(15,23,42,.06);
-}
-.teacher-drag-token:active{cursor:grabbing}
-.teacher-drag-token strong{display:block;font-size:13px}
-.teacher-drag-token .token-subject{font-size:12px;margin-top:3px}
-.teacher-drag-token .token-meta{
-  display:flex;justify-content:space-between;gap:8px;
-  margin-top:6px;font-size:11px;color:#64748b
-}
-.teacher-drag-token.empty{opacity:.45;cursor:not-allowed}
-.teacher-token-dragging{opacity:.5}
-.teacher-token-drop-target{outline:2px dashed #2563eb;outline-offset:-3px;background:#eff6ff!important}
-@media(max-width:980px){
-  .orar-workspace{grid-template-columns:1fr}
-  .teacher-token-panel{position:static;max-height:none}
-}
-
-
-/* Panoul profesorilor din dreapta orarului */
-.orar-workspace{
-  display:grid;
-  grid-template-columns:minmax(0,1fr) 330px;
-  gap:18px;
-  align-items:start;
-}
-.teacher-token-panel{
-  position:sticky;
-  top:10px;
-  max-height:calc(100vh - 20px);
-  overflow:auto;
-  padding:12px;
   background:#f8fafc;
 }
-.teacher-token-panel h3{margin:0 0 4px}
-.teacher-token-help{font-size:12px;color:#64748b;margin:0 0 10px}
-
-.teacher-prof-card{
-  --teacher-color:#dbeafe;
-  background:linear-gradient(135deg,var(--teacher-color),#ffffff 72%);
-  border:2px solid color-mix(in srgb, var(--teacher-color) 72%, #64748b);
-  border-radius:15px;
-  padding:12px;
-  margin:10px 0;
-  box-shadow:0 3px 12px rgba(15,23,42,.08);
+.subject-config-row.inactive .subject-label{
+  color:#94a3b8;
 }
-.teacher-prof-head{
-  display:flex;
-  align-items:flex-start;
-  justify-content:space-between;
-  gap:10px;
+.subject-config-row.inactive > input[type="checkbox"]{
+  opacity:.55;
 }
-.teacher-prof-name{
-  font-size:15px;
-  font-weight:800;
-  line-height:1.15;
-}
-.teacher-prof-status{
-  margin-top:2px;
-  font-size:11px;
-  color:#475569;
-  font-weight:650;
-}
-.teacher-prof-load{
-  flex:0 0 auto;
-  text-align:right;
-  font-size:11px;
-  font-weight:800;
-  background:rgba(255,255,255,.78);
-  border-radius:9px;
-  padding:5px 7px;
-}
-.teacher-prof-complete{
-  display:block;
-  color:#a16207;
-  font-size:10px;
-  margin-top:2px;
-}
-.teacher-assignment-token{
-  margin-top:9px;
-  border:1px solid rgba(100,116,139,.22);
-  border-radius:11px;
-  padding:9px;
-  background:rgba(255,255,255,.80);
-  cursor:grab;
-  user-select:none;
-}
-.teacher-assignment-token:active{cursor:grabbing}
-.teacher-assignment-token.empty{
-  opacity:.48;
-  cursor:not-allowed;
-}
-.teacher-assignment-token strong{
-  display:block;
-  font-size:12px;
-  line-height:1.2;
-}
-.teacher-assignment-token .token-classes{
-  margin-top:4px;
-  display:flex;
-  flex-wrap:wrap;
-  gap:4px;
-}
-.teacher-assignment-token .token-class-pill{
-  border-radius:999px;
-  padding:2px 6px;
-  font-size:10px;
-  background:rgba(255,255,255,.84);
-  border:1px solid rgba(100,116,139,.18);
-}
-.teacher-token-dragging{opacity:.45}
-.teacher-token-drop-target{
-  outline:3px dashed #2563eb;
-  outline-offset:-3px;
-  background:#eff6ff!important;
-}
-
-/* Orele din orar folosesc culoarea profesorului */
-.lesson[data-teacher-color]{
-  background:linear-gradient(135deg,var(--teacher-color),#fff 78%);
-  border-left:5px solid color-mix(in srgb,var(--teacher-color) 65%,#334155);
-}
-
-/* selector culoare */
-.teacher-color-field{
-  display:flex;
-  align-items:center;
-  gap:8px;
-}
-.teacher-color-field input[type="color"]{
-  width:46px;
-  min-width:46px;
-  height:38px;
-  padding:2px;
-  border-radius:8px;
-  cursor:pointer;
-}
-
-
-
-
-.orar-workspace{
-  grid-template-columns:minmax(780px,1fr) 330px !important;
-  min-width:1128px;
-}
-.teacher-token-panel{
-  position:sticky !important;
-  top:10px;
-  max-height:calc(100vh - 20px);
-}
-#timetable{
-  overflow-x:auto;
-}
-
-
-.teacher-assignment-token.token-selected{
-  outline:3px solid #2563eb;
-  outline-offset:2px;
-  box-shadow:0 0 0 4px rgba(37,99,235,.12);
-}
-.token-place-hint{
-  margin:8px 0 0;
-  padding:7px 9px;
-  border-radius:9px;
-  background:#eff6ff;
-  color:#1d4ed8;
-  font-size:11px;
-  font-weight:700;
-}
-td.token-click-target{
-  cursor:pointer;
-}
-td.token-click-target:hover{
-  background:#eff6ff;
-}
-
-
-.teacher-assignment-token.token-selected{
-  outline:3px solid #2563eb;
-  outline-offset:2px;
-}
-td.token-click-target{
-  cursor:pointer;
-}
-td.token-click-target:hover,
-td.token-click-target:active{
-  background:#eff6ff !important;
-}
-.token-place-hint{
-  margin:8px 0 10px;
-  padding:8px 10px;
-  border-radius:9px;
-  background:#eff6ff;
-  color:#1d4ed8;
-  font-size:11px;
-  font-weight:800;
-}
-
-
-.app-toast{
-  position:fixed;
-  left:50%;
-  bottom:28px;
-  transform:translateX(-50%);
-  z-index:99999;
-  width:min(92vw,460px);
-  padding:14px 16px;
-  border-radius:14px;
-  background:#ffffff;
-  border:1px solid #dbeafe;
-  box-shadow:0 14px 36px rgba(15,23,42,.18);
-  display:flex;
-  align-items:flex-start;
-  gap:10px;
-  animation:toastIn .18s ease-out;
-}
-.app-toast-icon{
-  flex:0 0 30px;
-  width:30px;
-  height:30px;
-  border-radius:50%;
-  display:grid;
-  place-items:center;
-  background:#eff6ff;
-  font-size:17px;
-}
-.app-toast-text{
-  flex:1;
-  color:#0f172a;
-  font-size:14px;
-  line-height:1.4;
-  font-weight:700;
-}
-@keyframes toastIn{
-  from{opacity:0;transform:translate(-50%,10px)}
-  to{opacity:1;transform:translate(-50%,0)}
-}
-
-
-.teacher-prof-scheduled{
-  margin-top:3px;
-  font-size:11px;
-  font-weight:800;
-  color:#475569;
-  white-space:nowrap;
-}
-
-
-.app-message-overlay{
-  position:fixed;
-  inset:0;
-  z-index:100000;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  padding:20px;
-  pointer-events:none;
-}
-.app-message{
-  width:min(88vw,480px);
-  padding:18px 20px;
-  border-radius:18px;
-  background:#fff;
-  border:2px solid #efb4b4;
-  box-shadow:0 20px 55px rgba(15,23,42,.28);
-  text-align:center;
-  color:#172033;
-  font-size:15px;
-  line-height:1.45;
-  font-weight:750;
-  white-space:pre-line;
-  pointer-events:auto;
-  animation:appMessagePop .18s ease-out;
-}
-.app-message.info{border-color:#bfd4f5}
-.app-message.success{border-color:#b5dfc2}
-.app-message-icon{
-  width:38px;height:38px;margin:0 auto 10px;
-  border-radius:50%;
-  display:grid;place-items:center;
-  background:#fff4f4;
-  font-size:21px;
-}
-.app-message.info .app-message-icon{background:#eff6ff}
-.app-message.success .app-message-icon{background:#ecfdf3}
-@keyframes appMessagePop{
-  from{opacity:0;transform:scale(.93)}
-  to{opacity:1;transform:scale(1)}
-}
-.placement-success-mark{
-  position:fixed;
-  z-index:100001;
-  pointer-events:none;
-  font-size:34px;
-  font-weight:1000;
-  color:#16a34a;
-  text-shadow:0 2px 8px rgba(22,163,74,.22);
-  transform:translate(-50%,-50%);
-  animation:successFloat .85s ease-out forwards;
-}
-@keyframes successFloat{
-  0%{opacity:0;transform:translate(-50%,-30%) scale(.65)}
-  18%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}
-  100%{opacity:0;transform:translate(-50%,-115%) scale(.92)}
-}
-.lesson{
-  position:relative;
-}
-.lesson-tools{
-  position:absolute;
-  top:3px;
-  right:3px;
-  display:flex;
-  flex-direction:column;
-  gap:3px;
-  z-index:6;
-}
-.lesson-tool{
-  width:21px!important;
-  height:21px!important;
-  min-width:21px!important;
-  padding:0!important;
-  border-radius:50%!important;
-  display:grid!important;
-  place-items:center!important;
-  font-size:13px!important;
-  line-height:1!important;
-  font-weight:900!important;
-  background:#fff!important;
-  box-shadow:0 1px 4px rgba(15,23,42,.15)!important;
-  touch-action:manipulation;
-}
-.lesson-delete{
-  color:#c24141!important;
-  border:1px solid #efb4b4!important;
-}
-.lesson-lock{
-  color:#92400e!important;
-  border:1px solid #f4c97a!important;
-}
-.lesson-lock.is-locked{
-  color:#166534!important;
-  border-color:#86cfa0!important;
-  background:#f0fdf4!important;
-}
-.lesson-move{
-  color:#2563eb!important;
-  border:1px solid #bfd4f5!important;
-}
-.lesson-tools .lesson-move.is-locked,
-.lesson-tools .lesson-delete.is-locked{
-  opacity:.45;
-}
-.lesson{
-  padding-right:28px!important;
-}
-.lesson.action-selected{
-  outline:3px solid #2563eb;
-  outline-offset:-2px;
-}
-td.move-swap-target{
-  cursor:pointer;
-  box-shadow:inset 0 0 0 2px #93c5fd;
-}
-.teacher-assignment-token.token-selected{
-  outline:3px solid #2563eb;
-  outline-offset:2px;
-}
-
-
-.teacher-contract-line{
-  display:flex;
-  align-items:center;
-  justify-content:flex-end;
-  gap:6px;
-  white-space:nowrap;
-}
-.teacher-extra-hours{
-  color:#15803d;
-  background:#ecfdf3;
-  border:1px solid #bbf7d0;
-  border-radius:999px;
-  padding:1px 6px;
-  font-size:11px;
-  font-weight:900;
-}
-
-
-.class-timetable-actions{
-  display:flex;
-  gap:6px;
-  flex-wrap:wrap;
-  justify-content:flex-end;
-}
-.remove-display-hour{
-  border-color:#efcaca !important;
-  color:#9f3a3a !important;
-  background:#fffafa !important;
-}
-.remove-display-hour:hover{
-  background:#fff1f1 !important;
-}
-
-
-.hour-number-cell{
-  min-width:70px;
-  text-align:center;
-  vertical-align:middle;
-}
-.hour-number{
-  font-weight:900;
-  font-size:14px;
-  line-height:1.1;
-}
-.hour-time{
-  margin-top:3px;
-  font-size:9px;
-  line-height:1.1;
-  font-weight:600;
-  color:#64748b;
-  white-space:nowrap;
-}
-
-
-.token-panel-tabs{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:5px;
-  margin-bottom:9px;
-  padding:4px;
-  border-radius:12px;
-  background:#eaf0f8;
-}
-.token-panel-tab{
-  border:0;
-  border-radius:9px;
-  padding:8px 7px;
-  background:transparent;
-  color:#475569;
-  font-weight:850;
-  font-size:12px;
-}
-.token-panel-tab.active{
-  background:#fff;
-  color:#1d4ed8;
-  box-shadow:0 2px 7px rgba(15,23,42,.10);
-}
-.discipline-token{
-  margin:9px 0;
-  border:1px solid #d8e0ec;
-  border-radius:12px;
-  padding:10px;
-  background:linear-gradient(135deg,#fff7ed,#fff 82%);
-  user-select:none;
-}
-.discipline-token:not(.empty){cursor:pointer}
-.discipline-token.empty{opacity:.55;cursor:not-allowed}
-.discipline-token.token-selected{
-  outline:3px solid #f59e0b;
-  outline-offset:2px;
-  box-shadow:0 0 0 4px rgba(245,158,11,.12);
-}
-.discipline-token strong{display:block;font-size:12px;line-height:1.2}
-.discipline-token .token-classes{margin-top:6px;display:flex;flex-wrap:wrap;gap:4px}
-.discipline-token .token-class-pill{
-  border-radius:999px;padding:3px 7px;font-size:10px;
-  background:#fff;border:1px solid #e2e8f0;
-}
-.unassigned .lesson-tools{top:2px;right:2px}
-.assign-unassigned-inline{
-  margin-top:6px!important;
-  padding:4px 7px!important;
-  border-radius:7px!important;
-  border:1px solid #f3c26b!important;
-  background:#fff8e8!important;
-  color:#8a5700!important;
-  font-size:10px!important;
-  font-weight:850!important;
-}
-.assign-teacher-list{display:grid;gap:8px;margin-top:12px}
-.assign-teacher-choice{
-  width:100%;border:1px solid #dbe3ef;border-radius:10px;padding:10px 12px;
-  background:#f8fafc;color:#172033;font-weight:800;text-align:left;
-}
-.assign-teacher-choice:hover{background:#eef5ff;border-color:#b8cff5}
-
-
-.school-banner{
-  margin:0;
-  padding:12px 20px;
-  background:linear-gradient(135deg,#ffffff 0%,#f8fbff 55%,#eef5ff 100%);
-  border-bottom:1px solid #dbe3ef;
-  box-shadow:0 4px 14px rgba(15,23,42,.05);
-  display:flex;
-  align-items:center;
-  gap:12px;
-}
-.school-banner-icon{
-  width:38px;
-  height:38px;
-  border-radius:12px;
-  display:grid;
-  place-items:center;
-  background:#eaf2ff;
-  font-size:21px;
-  flex:0 0 auto;
-}
-.school-banner-title{
-  font-size:17px;
-  line-height:1.15;
-  font-weight:900;
-  letter-spacing:.01em;
-  color:#172033;
-}
-.school-banner-subtitle{
-  margin-top:3px;
-  font-size:11px;
-  color:#64748b;
-  font-weight:600;
-}
-@media(max-width:700px){
-  .school-banner{padding:10px 12px}
-  .school-banner-icon{width:34px;height:34px;font-size:19px}
-  .school-banner-title{font-size:15px}
-  .school-banner-subtitle{font-size:10px}
-}
-
-
-.subject-hours-stepper{
-  display:inline-grid;
-  grid-template-columns:28px 34px 28px;
-  align-items:center;
-  gap:3px;
-}
-.subject-hours-stepper button{
-  width:28px;
-  height:28px;
-  padding:0;
-  border:1px solid #cbd5e1;
-  border-radius:7px;
-  background:#fff;
-  color:#334155;
-  font-weight:900;
-  font-size:16px;
-  line-height:1;
-}
-.subject-hours-stepper button:hover{
+.subject-config-row.inactive .subject-hours-value{
+  color:#94a3b8;
   background:#f1f5f9;
 }
+.subject-config-row.inactive .subject-hours-stepper{
+  display:inline-grid;
+  grid-template-columns:29px 34px 29px;
+  align-items:center;
+  gap:3px;
+  width:98px;
+}
+.subject-hours-stepper button{
+  width:29px;
+  height:29px;
+  padding:0;
+  border-radius:8px;
+  font-weight:900;
+  font-size:18px;
+  line-height:1;
+  touch-action:manipulation;
+}
+.subject-hours-stepper .hours-minus{
+  border:1px solid #fca5a5;
+  background:#fff1f2;
+  color:#dc2626;
+}
+.subject-hours-stepper .hours-minus:hover,
+.subject-hours-stepper .hours-minus:active{
+  background:#fee2e2;
+}
+.subject-hours-stepper .hours-plus{
+  border:1px solid #86efac;
+  background:#f0fdf4;
+  color:#16a34a;
+}
+.subject-hours-stepper .hours-plus:hover,
+.subject-hours-stepper .hours-plus:active{
+  background:#dcfce7;
+}
 .subject-hours-value{
-  height:28px;
+  height:29px;
   display:grid;
   place-items:center;
   border:1px solid #dbe3ef;
-  border-radius:7px;
-  background:#f8fafc;
+  border-radius:8px;
+  background:#fff;
   font-weight:900;
   color:#172033;
   font-size:13px;
@@ -2065,8 +1498,9 @@ function saveSubjectClassPanel(className){
     const name=row.dataset.subjectName || "";
     if(!name || !cb) return;
 
-    if(cb.checked){
-      const hours=Math.max(1, Number(hoursInput?.value || 1));
+    const rawHours=Math.max(0, Number(hoursInput?.value || 0));
+    if(cb.checked && rawHours>0){
+      const hours=rawHours;
       const old=subjectEntry(className,name);
       nextSubjects.push({
         id: old?.id || crypto.randomUUID(),
@@ -2156,12 +1590,31 @@ function adjustSubjectHours(button,delta){
   const valueEl=row.querySelector(".subject-hours-value");
   const hidden=row.querySelector(".hours-input");
   const checkbox=row.querySelector('input[type="checkbox"]');
-  let value=Number(hidden?.value || valueEl?.textContent || 1);
-  value=Math.max(1,value+Number(delta||0));
-  if(hidden) hidden.value=value;
-  if(valueEl) valueEl.textContent=value;
-  if(checkbox) checkbox.checked=true;
-  row.classList.remove("inactive");
+
+  let value=Number(hidden?.value ?? valueEl?.textContent ?? 0);
+  if(!Number.isFinite(value)) value=0;
+  value=Math.max(0,value+Number(delta||0));
+
+  if(hidden) hidden.value=String(value);
+  if(valueEl) valueEl.textContent=String(value);
+
+  if(checkbox) checkbox.checked=value>0;
+  row.classList.toggle("inactive",value===0);
+}
+
+function toggleSubjectCheckbox(checkbox){
+  const row=checkbox.closest(".subject-config-row");
+  if(!row) return;
+  const valueEl=row.querySelector(".subject-hours-value");
+  const hidden=row.querySelector(".hours-input");
+  let value=Number(hidden?.value ?? valueEl?.textContent ?? 0);
+
+  if(checkbox.checked && value===0) value=1;
+  if(!checkbox.checked) value=0;
+
+  if(hidden) hidden.value=String(value);
+  if(valueEl) valueEl.textContent=String(value);
+  row.classList.toggle("inactive",value===0);
 }
 
 function renderSubjects(){
@@ -2205,16 +1658,16 @@ function renderSubjects(){
       const enabled=!!s;
       html+=`<div class="subject-config-row ${enabled?"":"inactive"}" data-subject-name="${esc(name)}">
         <input type="checkbox" ${enabled?"checked":""}
-          onchange="this.closest('.subject-config-row').classList.toggle('inactive',!this.checked)">
+          onchange="toggleSubjectCheckbox(this)">
         <div class="subject-label">
           ${esc(name)}
           ${s && s.prioritized ? '<span class="subject-priority-star">★ prioritară</span>' : ''}
         </div>
         <div class="subject-hours-stepper" title="Ore pe săptămână">
-          <button type="button" onclick="adjustSubjectHours(this,-1)">−</button>
-          <span class="subject-hours-value">${enabled?Number(s.hours||1):1}</span>
-          <button type="button" onclick="adjustSubjectHours(this,1)">+</button>
-          <input class="hours-input" type="hidden" value="${enabled?Number(s.hours||1):1}">
+          <button class="hours-minus" type="button" onclick="adjustSubjectHours(this,-1)" aria-label="Scade o oră">−</button>
+          <span class="subject-hours-value">${enabled?Number(s.hours||1):0}</span>
+          <button class="hours-plus" type="button" onclick="adjustSubjectHours(this,1)" aria-label="Adaugă o oră">+</button>
+          <input class="hours-input" type="hidden" value="${enabled?Number(s.hours||1):0}">
         </div>
       </div>`;
     });
