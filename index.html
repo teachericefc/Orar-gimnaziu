@@ -809,6 +809,46 @@ td.token-click-target:active{
   font-weight:800;
 }
 
+
+.app-toast{
+  position:fixed;
+  left:50%;
+  bottom:28px;
+  transform:translateX(-50%);
+  z-index:99999;
+  width:min(92vw,460px);
+  padding:14px 16px;
+  border-radius:14px;
+  background:#ffffff;
+  border:1px solid #dbeafe;
+  box-shadow:0 14px 36px rgba(15,23,42,.18);
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  animation:toastIn .18s ease-out;
+}
+.app-toast-icon{
+  flex:0 0 30px;
+  width:30px;
+  height:30px;
+  border-radius:50%;
+  display:grid;
+  place-items:center;
+  background:#eff6ff;
+  font-size:17px;
+}
+.app-toast-text{
+  flex:1;
+  color:#0f172a;
+  font-size:14px;
+  line-height:1.4;
+  font-weight:700;
+}
+@keyframes toastIn{
+  from{opacity:0;transform:translate(-50%,10px)}
+  to{opacity:1;transform:translate(-50%,0)}
+}
+
 </style>
 </head>
 <body>
@@ -3977,6 +4017,36 @@ function markTimetableCellsForTokenSelection(){
   }
 }
 
+
+function classLabelRomanian(className){
+  const map={
+    "V":"a V-a",
+    "VI":"a VI-a",
+    "VII":"a VII-a",
+    "VIII":"a VIII-a"
+  };
+  return map[className] || className;
+}
+
+function showNiceMessage(message,icon="ℹ️"){
+  document.querySelectorAll(".app-toast").forEach(x=>x.remove());
+
+  const toast=document.createElement("div");
+  toast.className="app-toast";
+  toast.innerHTML=`
+    <div class="app-toast-icon">${icon}</div>
+    <div class="app-toast-text">${esc(message)}</div>
+  `;
+
+  document.body.appendChild(toast);
+
+  setTimeout(()=>{
+    toast.style.opacity="0";
+    toast.style.transition="opacity .2s ease";
+    setTimeout(()=>toast.remove(),220);
+  },3200);
+}
+
 function placeTeacherTokenInTimetable(assignmentIds,to){
   const ids=Array.isArray(assignmentIds)?assignmentIds:[assignmentIds];
   const candidates=(state.assignments||[]).filter(a=>ids.includes(a.id));
@@ -3988,7 +4058,12 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   }
 
   if(remainingUnassignedHoursForAssignment(a)<=0){
-    return alert(`Toate orele acestei discipline la clasa ${a.className} sunt deja plasate.`);
+    const subjectName=a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
+    showNiceMessage(
+      `S-a atins limita maximă de ore de ${subjectName} la clasa ${classLabelRomanian(a.className)}.`,
+      "✓"
+    );
+    return;
   }
 
   if(getNestedSlot(to.className,to.day,to.hour)){
