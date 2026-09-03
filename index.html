@@ -1138,6 +1138,41 @@ td.move-swap-target{
   .school-banner-subtitle{font-size:10px}
 }
 
+
+.subject-hours-stepper{
+  display:inline-grid;
+  grid-template-columns:28px 34px 28px;
+  align-items:center;
+  gap:3px;
+}
+.subject-hours-stepper button{
+  width:28px;
+  height:28px;
+  padding:0;
+  border:1px solid #cbd5e1;
+  border-radius:7px;
+  background:#fff;
+  color:#334155;
+  font-weight:900;
+  font-size:16px;
+  line-height:1;
+}
+.subject-hours-stepper button:hover{
+  background:#f1f5f9;
+}
+.subject-hours-value{
+  height:28px;
+  display:grid;
+  place-items:center;
+  border:1px solid #dbe3ef;
+  border-radius:7px;
+  background:#f8fafc;
+  font-weight:900;
+  color:#172033;
+  font-size:13px;
+  user-select:none;
+}
+
 </style>
 </head>
 <body>
@@ -2114,6 +2149,21 @@ function toggleSubjectPriority(id,value){
   renderSubjects();
 }
 
+
+function adjustSubjectHours(button,delta){
+  const row=button.closest(".subject-config-row");
+  if(!row) return;
+  const valueEl=row.querySelector(".subject-hours-value");
+  const hidden=row.querySelector(".hours-input");
+  const checkbox=row.querySelector('input[type="checkbox"]');
+  let value=Number(hidden?.value || valueEl?.textContent || 1);
+  value=Math.max(1,value+Number(delta||0));
+  if(hidden) hidden.value=value;
+  if(valueEl) valueEl.textContent=value;
+  if(checkbox) checkbox.checked=true;
+  row.classList.remove("inactive");
+}
+
 function renderSubjects(){
   const box=document.getElementById("subjectsTable");
   if(!box) return;
@@ -2160,10 +2210,12 @@ function renderSubjects(){
           ${esc(name)}
           ${s && s.prioritized ? '<span class="subject-priority-star">★ prioritară</span>' : ''}
         </div>
-        <input class="hours-input" type="number" min="1"
-          value="${enabled?Number(s.hours||1):1}"
-          title="Ore pe săptămână"
-          oninput="this.closest('.subject-config-row').querySelector('input[type=checkbox]').checked=true;this.closest('.subject-config-row').classList.remove('inactive')">
+        <div class="subject-hours-stepper" title="Ore pe săptămână">
+          <button type="button" onclick="adjustSubjectHours(this,-1)">−</button>
+          <span class="subject-hours-value">${enabled?Number(s.hours||1):1}</span>
+          <button type="button" onclick="adjustSubjectHours(this,1)">+</button>
+          <input class="hours-input" type="hidden" value="${enabled?Number(s.hours||1):1}">
+        </div>
       </div>`;
     });
 
@@ -2171,7 +2223,12 @@ function renderSubjects(){
       <div class="subject-panel-add">
         <div class="add-subject-line">
           <input id="newSubject-${className}" placeholder="Altă disciplină / opțional">
-          <input id="newSubjectHours-${className}" type="number" min="1" value="1" title="Ore/săpt.">
+          <div class="subject-hours-stepper" title="Ore/săpt.">
+            <button type="button" onclick="const i=document.getElementById('newSubjectHours-${className}');i.value=Math.max(1,Number(i.value||1)-1);this.nextElementSibling.textContent=i.value">−</button>
+            <span class="subject-hours-value">1</span>
+            <button type="button" onclick="const i=document.getElementById('newSubjectHours-${className}');i.value=Number(i.value||1)+1;this.previousElementSibling.textContent=i.value">+</button>
+            <input id="newSubjectHours-${className}" type="hidden" value="1">
+          </div>
           <button class="subject-plus-btn" onclick="addCustomSubjectToClass('${className}')" title="Adaugă">+</button>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
