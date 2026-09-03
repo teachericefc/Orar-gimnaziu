@@ -307,6 +307,13 @@
 
         <div class="rules-grid">
           
+          
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">CONTROL ÎNAINTE DE GENERARE</div>
+            <h3>Validarea imposibilităților</h3>
+            <p>Înainte de generare, aplicația verifică dacă încadrarea, disponibilitatea profesorilor și orele blocate permit fizic construirea orarului. Dacă există un conflict, generatorul nu pornește și afișează problema exactă.</p>
+          </div>
+
           <div class="card rule-card mandatory-rule">
             <div class="rule-type">OBLIGATORIU</div>
             <h3>🔒 Oră blocată</h3>
@@ -462,6 +469,7 @@
           </div>
           <div class="lock-actions">
             <button type="button" onclick="addPreGenerationLockedHour()">🔒 Adaugă oră blocată</button>
+            <button type="button" class="secondary" onclick="showPreGenerationValidation()">✅ Verifică înainte de generare</button>
             <button type="button" class="secondary" onclick="unlockAllSlots()">🔓 Deblochează toate orele</button>
           </div>
           <div id="lockedHoursList" style="margin-top:12px"></div>
@@ -1327,6 +1335,183 @@ function prioritizedSubjectEarlyPenalty(timetableData=state.timetable){
   });
 
   return penalty;
+}
+
+
+function validateBeforeGeneration(){
+  const errors=[];
+  const warnings=[];
+
+  // 1. Locked hours validity.
+  const lockedCheck=validateLockedHours();
+  if(!lockedCheck.ok) errors.push(lockedCheck.message);
+
+  // 2. Class weekly load must fit in 5 days x 7 periods.
+  ["V","VI","VII","VIII"].forEach(className=>{
+    const total=(state.assignments||[])
+      .filter(a=>a.className===className)
+      .reduce((sum,a)=>sum+Number(a.hours||0),0);
+
+    if(total>35){
+      errors.push(`Clasa ${className} are ${total} ore/săptămână, dar poate avea maximum 35 (5 zile × 7 ore).`);
+    }
+  });
+
+  // 3. Teacher total assigned hours must fit teacher availability.
+  (state.teachers||[]).forEach(t=>{
+    const assigned=(state.assignments||[])
+      .filter(a=>a.teacherId===t.id)
+      .reduce((sum,a)=>sum+Number(a.hours||0),0);
+
+    let availableSlots=0;
+    AVAIL_DAYS.forEach(day=>{
+      for(let h=1; h<=7; h++){
+        if(isTeacherAvailable(t.id,day,h)) availableSlots++;
+      }
+    });
+
+    if(assigned>availableSlots){
+      errors.push(`${t.name||"Profesor"} are ${assigned} ore încadrate, dar doar ${availableSlots} intervale disponibile.`);
+    }
+
+    if(assigned>35){
+      errors.push(`${t.name||"Profesor"} are ${assigned} ore încadrate într-o săptămână, peste limita fizică de 35 de intervale.`);
+    }
+  });
+
+  // 4. Every assignment must have positive weekly hours.
+  (state.assignments||[]).forEach(a=>{
+    if(Number(a.hours||0)<=0){
+      const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
+      const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
+      errors.push(`Încadrarea ${teacher?.name||"Profesor"} – ${subject?.name||"Disciplină"} – clasa ${a.className} are un număr invalid de ore.`);
+    }
+  });
+
+  // 5. Check if each assignment has at least enough distinct teacher-available slots in that class's week.
+  (state.assignments||[]).forEach(a=>{
+    const needed=Number(a.hours||0);
+    if(!needed) return;
+
+    let slots=0;
+    AVAIL_DAYS.forEach(day=>{
+      for(let h=1; h<=7; h++){
+        if(isTeacherAvailable(a.teacherId,day,h)) slots++;
+      }
+    });
+
+    if(needed>slots){
+      const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
+      const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
+      errors.push(`${teacher?.name||"Profesor"} nu are suficiente intervale disponibile pentru ${subject?.name||"disciplină"} la clasa ${a.className} (${needed} ore necesare).`);
+    }
+  });
+
+  // 6. Check locked hours against weekly assignment count.
+  const lockedByAssignment={};
+  Object.values(state.lockedSlots||{}).forEach(l=>{
+    const k=`${l.teacherId}|${l.subjectId}|${l.className}`;
+    lockedByAssignment[k]=(lockedByAssignment[k]||0)+1;
+  });
+
+  Object.entries(lockedByAssignment).forEach(([k,count])=>{
+    const [teacherId,subjectId,className]=k.split("|");
+    const assignment=(state.assignments||[]).find(a=>
+      a.teacherId===teacherId &&
+      a.subjectId===subjectId &&
+      a.className===className
+    );
+
+    const teacher=(state.teachers||[]).find(t=>t.id===teacherId);
+    const subject=(state.subjects||[]).find(s=>s.id===subjectId);
+
+    if(!assignment){
+      errors.push(`Există o oră blocată pentru ${teacher?.name||"Profesor"} – ${subject?.name||"Disciplină"} – clasa ${className}, dar această încadrare nu mai există.`);
+    }else if(count>Number(assignment.hours||0)){
+      errors.push(`Sunt blocate ${count} ore pentru ${teacher?.name||"Profesor"} – ${subject?.name||"Disciplină"} – clasa ${className}, dar încadrarea are doar ${assignment.hours} ore/săptămână.`);
+    }
+  });
+
+  // 7. Detect multiple locked class periods in same day/hour and teacher double-booking.
+  const classSlots=new Set();
+  const teacherSlots=new Set();
+  Object.values(state.lockedSlots||{}).forEach(l=>{
+    const ck=`${l.className}|${l.day}|${l.hour}`;
+    const tk=`${l.teacherId}|${l.day}|${l.hour}`;
+
+    if(classSlots.has(ck)){
+      errors.push(`Clasa ${l.className} are două ore blocate în ${l.day}, ora ${l.hour}.`);
+    }
+    if(teacherSlots.has(tk)){
+      const teacher=(state.teachers||[]).find(t=>t.id===l.teacherId);
+      errors.push(`${teacher?.name||"Profesor"} este blocat simultan în două clase în ${l.day}, ora ${l.hour}.`);
+    }
+
+    classSlots.add(ck);
+    teacherSlots.add(tk);
+  });
+
+  // 8. Warning: classes with very uneven theoretical weekly totals can still be valid, but harder.
+  ["V","VI","VII","VIII"].forEach(className=>{
+    const total=(state.assignments||[])
+      .filter(a=>a.className===className)
+      .reduce((sum,a)=>sum+Number(a.hours||0),0);
+
+    if(total>0 && total<20){
+      warnings.push(`Clasa ${className} are doar ${total} ore introduse în încadrare. Verifică dacă încadrarea este completă.`);
+    }
+  });
+
+  return {ok:errors.length===0,errors,warnings};
+}
+
+function showPreGenerationValidation(){
+  const result=validateBeforeGeneration();
+
+  const old=document.getElementById("generationValidationBox");
+  if(old) old.remove();
+
+  const box=document.createElement("div");
+  box.id="generationValidationBox";
+  box.className="card";
+  box.style.marginTop="12px";
+
+  if(result.ok){
+    box.innerHTML=`
+      <h3>✅ Verificare înainte de generare</h3>
+      <p>Nu am găsit conflicte care să împiedice generarea.</p>
+      ${result.warnings.length?`
+        <div class="muted"><strong>Atenționări:</strong><br>${result.warnings.map(x=>`• ${escapeHtml(x)}`).join("<br>")}</div>
+      `:""}
+    `;
+  }else{
+    box.innerHTML=`
+      <h3>⛔ Orarul nu poate fi generat încă</h3>
+      <p>Corectează următoarele probleme:</p>
+      <div>${result.errors.map(x=>`• ${escapeHtml(x)}`).join("<br>")}</div>
+      ${result.warnings.length?`
+        <div class="muted" style="margin-top:10px"><strong>Atenționări:</strong><br>${result.warnings.map(x=>`• ${escapeHtml(x)}`).join("<br>")}</div>
+      `:""}
+    `;
+  }
+
+  const target=document.getElementById("lockedHoursPreGenerationCard");
+  if(target){
+    target.insertAdjacentElement("afterend",box);
+  }else{
+    document.body.appendChild(box);
+  }
+
+  return result;
+}
+
+function canGenerateTimetable(){
+  const result=showPreGenerationValidation();
+  if(!result.ok){
+    alert("Există probleme care trebuie corectate înainte de generare.");
+    return false;
+  }
+  return true;
 }
 
 function scoreTimetablePreferences(timetableData=state.timetable){
