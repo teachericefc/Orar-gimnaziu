@@ -1102,6 +1102,59 @@
   transform:none!important;
 }
 
+
+.generator-actions{
+  display:flex!important;
+  flex-wrap:wrap!important;
+  gap:8px!important;
+  align-items:center!important;
+}
+.generator-teacher-btn{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  padding:10px 16px!important;
+  border:1px solid #d9b66f!important;
+  border-radius:12px!important;
+  background:linear-gradient(180deg,#fff7df 0%,#f7e9be 100%)!important;
+  color:#70511d!important;
+  font-weight:900!important;
+  letter-spacing:.1px!important;
+  box-shadow:0 4px 12px rgba(112,81,29,.10)!important;
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease!important;
+}
+.generator-teacher-btn:hover{
+  background:linear-gradient(180deg,#fff4d4 0%,#f3e1aa 100%)!important;
+  box-shadow:0 6px 16px rgba(112,81,29,.14)!important;
+  transform:translateY(-1px)!important;
+}
+.generator-teacher-btn:active{
+  transform:translateY(0)!important;
+}
+.generator-teacher-btn:disabled{
+  opacity:.72!important;
+  cursor:wait!important;
+  transform:none!important;
+}
+.undo-command-btn{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:6px!important;
+  padding:10px 14px!important;
+  border:1px solid #c9ced6!important;
+  border-radius:12px!important;
+  background:linear-gradient(180deg,#ffffff 0%,#f1f3f6 100%)!important;
+  color:#4b5563!important;
+  font-weight:900!important;
+  box-shadow:0 3px 9px rgba(75,85,99,.08)!important;
+}
+.undo-command-btn:hover{
+  background:linear-gradient(180deg,#ffffff 0%,#e9edf2 100%)!important;
+  transform:translateY(-1px)!important;
+}
+
 </style>
 </head>
 <body>
@@ -1404,7 +1457,11 @@
         <div class="page-head">
           <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase. Blocarea și deblocarea se fac direct din iconița 🔓 / 🔒 a fiecărei ore.</p></div>
           <div class="toolbar">
-            <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate()">✦ Generează orar după disciplină</button>
+            <div class="generator-actions">
+              <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate('disciplines')">✦ Generează orar după disciplină</button>
+              <button id="generateTeacherTimetableBtn" class="btn generator-teacher-btn" onclick="demoGenerate('teachers')">♟ Generează orar după profesori</button>
+              <button id="undoLastCommandBtn" class="btn undo-command-btn" onclick="undoLastCommand()">↶ Revenire</button>
+            </div>
             <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
               <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
               <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
@@ -1435,6 +1492,9 @@ const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
 const HOURS=["08:00–08:50","09:00–09:50","10:00–10:50","11:00–11:50","12:00–12:50","13:00–13:50","14:00–14:50"];
 const KEY="orar_gimnaziu_v1";
+const UNDO_KEY=KEY+"_undo";
+let isRestoringUndo=false;
+
 let state=JSON.parse(localStorage.getItem(KEY)||'null')||{teachers:[],subjects:[],assignments:[],timetable:{}};
 state.teachers ||= [];
 state.subjects ||= [];
@@ -1528,7 +1588,67 @@ function applyNationalCurriculumDefaultsOnce(){
 
 
 
-function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
+function save(){
+  const next=JSON.stringify(state);
+  const previous=localStorage.getItem(KEY);
+
+  if(!isRestoringUndo && previous && previous!==next){
+    localStorage.setItem(UNDO_KEY,previous);
+  }
+
+  localStorage.setItem(KEY,next);
+  updateStats();
+  updateUndoButtonState();
+}
+
+function updateUndoButtonState(){
+  const btn=document.getElementById("undoLastCommandBtn");
+  if(btn) btn.disabled=!localStorage.getItem(UNDO_KEY);
+}
+
+function undoLastCommand(){
+  const previous=localStorage.getItem(UNDO_KEY);
+  if(!previous){
+    appMessage("Nu există o comandă anterioară la care să revin.","error",1800);
+    return;
+  }
+
+  try{
+    const current=JSON.stringify(state);
+    const restored=JSON.parse(previous);
+
+    isRestoringUndo=true;
+    localStorage.setItem(KEY,previous);
+    localStorage.setItem(UNDO_KEY,current);
+
+    // Păstrăm aceeași referință globală acolo unde este posibil.
+    Object.keys(state).forEach(k=>delete state[k]);
+    Object.assign(state,restored);
+
+    generatedTimetableVariants=[];
+    activeGeneratedVariantIndex=-1;
+    selectedTeacherToken=null;
+    selectedDisciplineToken=null;
+    selectedTimetableActionSlot=null;
+    draggedTeacherToken=null;
+    draggedTimetableSlot=null;
+
+    renderTimetable();
+    renderTeachers();
+    renderSubjects();
+    renderClasses();
+    renderAssignmentSelectors();
+    updateStats();
+    updateUndoButtonState();
+
+    appMessage("Am revenit la starea anterioară.","success",1500);
+  }catch(err){
+    console.error("Undo:",err);
+    appMessage("Nu am putut reveni la comanda anterioară.","error",2800);
+  }finally{
+    isRestoringUndo=false;
+  }
+}
 applyNationalCurriculumDefaultsOnce();
 function showSection(id){
   document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));
@@ -1565,6 +1685,7 @@ function showSection(id){
 }
 document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>showSection(b.dataset.target)));
 showSection('timetable');
+setTimeout(updateUndoButtonState,0);
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function updateStats(){
@@ -5893,6 +6014,157 @@ function disciplineTokenInventory(){
   return inventory;
 }
 
+
+/*
+  INVENTAR PROFESORI = exact orele din încadrările profesorilor.
+  Fiecare oră din assignment devine un jeton concret:
+  profesor + disciplină + clasă.
+*/
+function teacherTokenInventory(){
+  const inventory={};
+  CLASSES.forEach(cls=>inventory[cls]=[]);
+
+  (state.assignments||[]).forEach(a=>{
+    if(!CLASSES.includes(a.className)) return;
+    const count=Math.max(0,Number(a.hours)||0);
+    const subjectName=solverSubjectName(a);
+
+    for(let i=0;i<count;i++){
+      inventory[a.className].push({
+        subjectId:a.subjectId||null,
+        subject:subjectName,
+        teacherId:a.teacherId||null,
+        teacher:solverTeacherName(a.teacherId),
+        unassigned:false
+      });
+    }
+  });
+
+  return inventory;
+}
+
+function teacherBusyAt(tt,teacherId,dayIndex,hourIndex,excludeClassName=null){
+  if(!teacherId) return false;
+  return CLASSES.some(className=>{
+    if(className===excludeClassName) return false;
+    return tt?.[className]?.[`${dayIndex}-${hourIndex}`]?.teacherId===teacherId;
+  });
+}
+
+function removeLockedTeacherTokensFromInventory(inventory,tt){
+  for(const className of CLASSES){
+    Object.values(tt[className]||{}).forEach(slot=>{
+      if(!slot) return;
+      const subjectName=String(
+        slot.subject ||
+        (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+        ""
+      ).trim();
+
+      let idx=inventory[className].findIndex(token=>
+        token.teacherId===slot.teacherId &&
+        String(token.subject||"").trim()===subjectName
+      );
+
+      // Fallback for older locked slots without teacher id.
+      if(idx<0){
+        idx=inventory[className].findIndex(token=>
+          String(token.subject||"").trim()===subjectName
+        );
+      }
+
+      if(idx<0){
+        throw new Error(
+          `Ora blocată „${subjectName||"Disciplină"}” din clasa ${className} nu mai corespunde încadrărilor profesorilor.`
+        );
+      }
+      inventory[className].splice(idx,1);
+    });
+  }
+}
+
+function buildTeacherVariant(){
+  const inventory=teacherTokenInventory();
+  const tt=disciplineLockedBase();
+
+  removeLockedTeacherTokensFromInventory(inventory,tt);
+
+  for(const className of randomShuffle(CLASSES)){
+    const totalRequired=(state.assignments||[])
+      .filter(a=>a.className===className)
+      .reduce((sum,a)=>sum+Math.max(0,Number(a.hours)||0),0);
+
+    const shape=compactDailyShape(totalRequired,className);
+    if(!shape){
+      return {
+        ok:false,
+        message:`Orele blocate ale clasei ${className} nu permit un orar compact fără ferestre.`
+      };
+    }
+
+    let pool=randomShuffle(inventory[className]);
+
+    for(let d=0;d<5;d++){
+      for(let h=0;h<shape[d];h++){
+        const key=`${d}-${h}`;
+        if(tt[className][key]) continue;
+
+        const usedToday=new Set();
+        for(let hh=0;hh<h;hh++){
+          const s=tt[className][`${d}-${hh}`];
+          if(s?.subject) usedToday.add(String(s.subject));
+        }
+
+        let candidates=pool
+          .map((token,index)=>({token,index}))
+          .filter(x=>
+            isTeacherAvailable(x.token.teacherId,DAYS[d],h+1) &&
+            !teacherBusyAt(tt,x.token.teacherId,d,h,className) &&
+            !usedToday.has(String(x.token.subject))
+          );
+
+        // Permitem aceeași disciplină de două ori în aceeași zi doar dacă e necesar,
+        // dar niciodată același profesor simultan la două clase.
+        if(!candidates.length){
+          candidates=pool
+            .map((token,index)=>({token,index}))
+            .filter(x=>
+              isTeacherAvailable(x.token.teacherId,DAYS[d],h+1) &&
+              !teacherBusyAt(tt,x.token.teacherId,d,h,className)
+            );
+        }
+
+        if(!candidates.length){
+          return {
+            ok:false,
+            message:`Nu pot așeza profesorii la ${DAYS[d]}, ora ${h+1}, fără suprapuneri.`
+          };
+        }
+
+        const picked=pickCandidateWithListPriority(candidates,h);
+        const token=pool.splice(picked.index,1)[0];
+
+        tt[className][key]={
+          ...token,
+          className,
+          day:DAYS[d],
+          hour:h+1,
+          generated:true
+        };
+      }
+    }
+
+    if(pool.length){
+      return {
+        ok:false,
+        message:`Au rămas ${pool.length} ore de profesor neplasate la clasa ${className}.`
+      };
+    }
+  }
+
+  return {ok:true,tt};
+}
+
 function disciplineLockedBase(){
   const tt={};
   CLASSES.forEach(cls=>tt[cls]={});
@@ -6136,28 +6408,35 @@ function applyGeneratedVariant(index){
   }
 }
 
-async function demoGenerate(){
-  const btn=document.getElementById("generateTimetableBtn");
-  const oldText=btn?.textContent||"Generează orar după disciplină";
+async function demoGenerate(mode="disciplines"){
+  mode=mode==="teachers" ? "teachers" : "disciplines";
+  const isTeachers=mode==="teachers";
+  const btn=document.getElementById(
+    isTeachers ? "generateTeacherTimetableBtn" : "generateTimetableBtn"
+  );
+  const oldText=btn?.textContent||(
+    isTeachers ? "♟ Generează orar după profesori" : "✦ Generează orar după disciplină"
+  );
 
   try{
-    // Generatorul lucrează exclusiv cu tabul Discipline.
-    switchTimetableTokenTab("disciplines");
+    switchTimetableTokenTab(isTeachers ? "teachers" : "disciplines");
 
     if(btn){
       btn.disabled=true;
-      btn.textContent="Amestec jetoanele…";
+      btn.textContent=isTeachers ? "Așez profesorii…" : "Amestec disciplinele…";
     }
 
     await new Promise(resolve=>setTimeout(resolve,30));
     normalizeLockedSlots();
 
-    const inventory=disciplineTokenInventory();
-    const totalTokens=CLASSES.reduce((sum,cls)=>sum+inventory[cls].length,0);
+    const inventory=isTeachers ? teacherTokenInventory() : disciplineTokenInventory();
+    const totalTokens=CLASSES.reduce((sum,cls)=>sum+(inventory[cls]?.length||0),0);
 
     if(totalTokens===0){
       appMessage(
-        "Nu există jetoane active în tabul Discipline. Mărește cel puțin o disciplină peste 0.",
+        isTeachers
+          ? "Nu există jetoane de profesori. Configurează mai întâi profesorii și încadrările."
+          : "Nu există jetoane active în tabul Discipline.",
         "error",
         4200
       );
@@ -6168,8 +6447,8 @@ async function demoGenerate(){
     const signatures=new Set();
     let lastError="Nu am putut construi orarul.";
 
-    for(let attempt=0;attempt<60 && variants.length<2;attempt++){
-      const result=buildDisciplineVariant();
+    for(let attempt=0;attempt<100 && variants.length<2;attempt++){
+      const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
         const sig=JSON.stringify(result.tt);
@@ -6203,15 +6482,17 @@ async function demoGenerate(){
     applyGeneratedVariant(0);
 
     appMessage(
-      `Am folosit ${totalTokens} jetoane din tabul Discipline și am creat 2 variante fără ferestre la elevi.`,
+      isTeachers
+        ? `Am folosit ${totalTokens} jetoane de profesori și am creat 2 variante fără ferestre și fără suprapuneri de profesori.`
+        : `Am folosit ${totalTokens} jetoane din Discipline și am creat 2 variante fără ferestre la elevi.`,
       "success",
-      3600
+      3800
     );
 
   }catch(err){
-    console.error("Generator Discipline:",err);
+    console.error("Generator:",err);
     appMessage(
-      "Generatorul Discipline s-a oprit: "+(err?.message||String(err)),
+      "Generatorul s-a oprit: "+(err?.message||String(err)),
       "error",
       6500
     );
@@ -6222,7 +6503,6 @@ async function demoGenerate(){
     }
   }
 }
-
 function clearTimetable(){
   let removed=0;
   let keptLocked=0;
