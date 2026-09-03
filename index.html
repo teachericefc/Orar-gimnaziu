@@ -134,6 +134,17 @@
       .teacher-card-grid{grid-template-columns:1fr}
     }
 
+
+    .rules-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+    .rule-card{border-left:5px solid #cbd5e1}
+    .rule-card h3{margin:5px 0 8px}
+    .rule-card p{margin:0;color:#64748b;line-height:1.5}
+    .mandatory-rule{border-left-color:#dc2626}
+    .preference-rule{border-left-color:#2563eb}
+    .rule-type{font-size:11px;font-weight:900;letter-spacing:.08em;color:#64748b}
+    .rule-status{margin-top:12px;font-weight:800;font-size:13px;color:#166534}
+    @media(max-width:850px){.rules-grid{grid-template-columns:1fr}}
+
 </style>
 </head>
 <body>
@@ -246,15 +257,52 @@
       </section>
 
       <section id="constraints" class="section">
-        <div class="page-head"><div><h2>Constrângeri</h2><p>Reguli care vor fi respectate de generator.</p></div></div>
-        <div class="card">
-          <p><b>Reguli pregătite pentru implementare:</b></p>
-          <p>• același profesor nu poate fi în două clase simultan;</p>
-          <p>• o clasă nu poate avea două discipline simultan;</p>
-          <p>• numărul de ore săptămânale trebuie respectat pentru fiecare disciplină;</p>
-          <p>• putem defini zile/ore în care un profesor nu este disponibil;</p>
-          <p>• putem evita ferestrele și prea multe ore consecutive;</p>
-          <p>• orele profesorilor care au și 1–2 ore la ciclul primar vor fi tratate separat, după stabilirea orarului de gimnaziu.</p>
+        <div class="page-head">
+          <div>
+            <h2>Reguli generator</h2>
+            <p>Regulile obligatorii trebuie respectate în orice variantă de orar. Preferințele sunt optimizate pe cât posibil.</p>
+          </div>
+        </div>
+
+        <div class="rules-grid">
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">OBLIGATORIU</div>
+            <h3>Fără ferestre pentru elevi</h3>
+            <p>Orele unei clase trebuie să fie consecutive în fiecare zi. Nu este permisă nicio oră liberă între două ore de curs.</p>
+            <div class="rule-status">✓ Activă permanent</div>
+          </div>
+
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">OBLIGATORIU</div>
+            <h3>Fără suprapuneri</h3>
+            <p>Un profesor nu poate preda simultan la două clase, iar o clasă nu poate avea două discipline în aceeași oră.</p>
+            <div class="rule-status">✓ Activă permanent</div>
+          </div>
+
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">OBLIGATORIU</div>
+            <h3>Respectă disponibilitatea</h3>
+            <p>Profesorul nu poate primi ore în intervalele marcate ca indisponibile.</p>
+            <div class="rule-status">✓ Activă permanent</div>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ PUTERNICĂ</div>
+            <h3>O oră din disciplină pe zi</h3>
+            <p>Generatorul încearcă să distribuie disciplina în cât mai multe zile, înainte de a pune două ore în aceeași zi.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ PUTERNICĂ</div>
+            <h3>Ferestre minime pentru profesori</h3>
+            <p>Se evită pe cât posibil programul fragmentat și situațiile de tipul ora 1 și ora 7 în aceeași zi.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ</div>
+            <h3>Prioritate titulari</h3>
+            <p>La variante echivalente, titularii primesc cu prioritate un program mai compact și cu mai puține ferestre.</p>
+          </div>
         </div>
       </section>
 
@@ -284,6 +332,12 @@ state.subjects ||= [];
 state.assignments ||= [];
 state.availability ||= {};
 state.timetable ||= {};
+state.generatorRules ||= {
+  noStudentGaps:true,
+  preferOneSubjectHourPerDay:true,
+  minimizeTeacherGaps:true,
+  prioritizeTenured:true
+};
 
 state.teachers.forEach(t=>{
   if(!("status" in t)) t.status="Titular";
@@ -699,6 +753,35 @@ function saveTeacherProfile(){
   save();
   renderTeachers();
   closeTeacherProfile();
+}
+
+
+function hasStudentGap(className, day, timetableData=state.timetable){
+  const occupied=[];
+  for(let hour=1;hour<=7;hour++){
+    const key=`${className}|${day}|${hour}`;
+    if(timetableData[key]) occupied.push(hour);
+  }
+  if(occupied.length<2) return false;
+  const first=Math.min(...occupied);
+  const last=Math.max(...occupied);
+  for(let h=first;h<=last;h++){
+    const key=`${className}|${day}|${h}`;
+    if(!timetableData[key]) return true;
+  }
+  return false;
+}
+
+function validateNoStudentGaps(timetableData=state.timetable){
+  const problems=[];
+  CLASSES.forEach(className=>{
+    ["Luni","Marți","Miercuri","Joi","Vineri"].forEach(day=>{
+      if(hasStudentGap(className,day,timetableData)){
+        problems.push({className,day});
+      }
+    });
+  });
+  return {ok:problems.length===0,problems};
 }
 
 function renderTimetable(){
