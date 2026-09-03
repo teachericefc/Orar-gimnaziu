@@ -24,7 +24,7 @@
     .logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#60a5fa);display:grid;place-items:center;color:#fff;font-size:24px}
     .brand h1{font-size:20px;margin:0}.brand small{color:var(--muted)}
     .schoolyear{padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
-    .layout{display:grid;grid-template-columns:230px 1fr;min-height:100vh}
+    .layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - 63px)}
     aside{background:#fff;border-right:1px solid var(--line);padding:18px 14px}
     .nav-btn{width:100%;border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;margin:3px 0;color:#334155}
     .nav-btn:hover,.nav-btn.active{background:#eaf2ff;color:#1d4ed8;font-weight:700}
@@ -1097,10 +1097,59 @@ td.move-swap-target{
 }
 .assign-teacher-choice:hover{background:#eef5ff;border-color:#b8cff5}
 
+
+.school-banner{
+  margin:0;
+  padding:12px 20px;
+  background:linear-gradient(135deg,#ffffff 0%,#f8fbff 55%,#eef5ff 100%);
+  border-bottom:1px solid #dbe3ef;
+  box-shadow:0 4px 14px rgba(15,23,42,.05);
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+.school-banner-icon{
+  width:38px;
+  height:38px;
+  border-radius:12px;
+  display:grid;
+  place-items:center;
+  background:#eaf2ff;
+  font-size:21px;
+  flex:0 0 auto;
+}
+.school-banner-title{
+  font-size:17px;
+  line-height:1.15;
+  font-weight:900;
+  letter-spacing:.01em;
+  color:#172033;
+}
+.school-banner-subtitle{
+  margin-top:3px;
+  font-size:11px;
+  color:#64748b;
+  font-weight:600;
+}
+@media(max-width:700px){
+  .school-banner{padding:10px 12px}
+  .school-banner-icon{width:34px;height:34px;font-size:19px}
+  .school-banner-title{font-size:15px}
+  .school-banner-subtitle{font-size:10px}
+}
+
 </style>
 </head>
 <body>
 <div class="app">
+
+<div class="school-banner">
+  <div class="school-banner-icon">🏫</div>
+  <div>
+    <div class="school-banner-title">Școala Gimnazială Dăneasa</div>
+    <div class="school-banner-subtitle">Orar gimnaziu • 2026–2027</div>
+  </div>
+</div>
 <div class="layout">
     <aside>
       <button class="nav-btn active" data-target="timetable">🗓️ Orar</button>
