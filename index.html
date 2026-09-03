@@ -765,6 +765,28 @@
   overflow-x:auto;
 }
 
+
+.teacher-assignment-token.token-selected{
+  outline:3px solid #2563eb;
+  outline-offset:2px;
+  box-shadow:0 0 0 4px rgba(37,99,235,.12);
+}
+.token-place-hint{
+  margin:8px 0 0;
+  padding:7px 9px;
+  border-radius:9px;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-size:11px;
+  font-weight:700;
+}
+td.token-click-target{
+  cursor:pointer;
+}
+td.token-click-target:hover{
+  background:#eff6ff;
+}
+
 </style>
 </head>
 <body>
@@ -3342,6 +3364,7 @@ function assignUnassignedSlot(className,dayIndex,hourIndex){
 
 let draggedTimetableSlot=null;
 let draggedTeacherToken=null;
+let selectedTeacherToken=null;
 
 function getNestedSlot(className,day,hour){
   const d=DAYS.indexOf(day);
@@ -3595,29 +3618,52 @@ function enableTimetableDragAndDrop(){
     const slot=getNestedSlot(cls,day,hour);
     const lesson=cell.querySelector(".lesson");
 
+    // Mobile / touch fallback: select token first, then tap destination cell.
+    cell.onclick=(e)=>{
+      // Don't intercept lesson buttons or already occupied cells.
+      if(e.target.closest("button")) return;
+      if(!selectedTeacherToken) return;
+
+      if(getNestedSlot(cls,day,hour)){
+        alert("Ora este deja ocupată.");
+        return;
+      }
+
+      placeTeacherTokenInTimetable(
+        selectedTeacherToken.assignmentIds,
+        {className:cls,day,hour}
+      );
+    };
+
     if(lesson && slot && !isSlotLocked(cls,day,hour)){
       lesson.setAttribute("draggable","true");
       lesson.ondragstart=(e)=>{
+        selectedTeacherToken=null;
         draggedTeacherToken=null;
         draggedTimetableSlot={className:cls,day,hour};
         lesson.classList.add("timetable-dragging");
         e.dataTransfer.effectAllowed="move";
-        try{ e.dataTransfer.setData("text/plain",JSON.stringify({type:"timetable-slot",...draggedTimetableSlot})); }catch(_){}
+        try{
+          e.dataTransfer.setData("text/plain",JSON.stringify({
+            type:"timetable-slot",
+            ...draggedTimetableSlot
+          }));
+        }catch(_){}
       };
       lesson.ondragend=()=>{
         lesson.classList.remove("timetable-dragging");
-        document.querySelectorAll(".timetable-drop-target,.teacher-token-drop-target").forEach(x=>{
-          x.classList.remove("timetable-drop-target","teacher-token-drop-target");
-        });
+        document.querySelectorAll(".timetable-drop-target,.teacher-token-drop-target")
+          .forEach(x=>x.classList.remove("timetable-drop-target","teacher-token-drop-target"));
         draggedTimetableSlot=null;
       };
     }
 
     cell.ondragover=(e)=>{
-      if(!draggedTimetableSlot && !draggedTeacherToken) return;
+      const tokenDrag=readTeacherTokenFromDragEvent(e);
+      if(!draggedTimetableSlot && !tokenDrag) return;
       e.preventDefault();
-      e.dataTransfer.dropEffect=draggedTeacherToken ? "copy" : "move";
-      cell.classList.add(draggedTeacherToken?"teacher-token-drop-target":"timetable-drop-target");
+      e.dataTransfer.dropEffect=tokenDrag ? "copy" : "move";
+      cell.classList.add(tokenDrag?"teacher-token-drop-target":"timetable-drop-target");
     };
 
     cell.ondragleave=()=>{
@@ -3626,17 +3672,20 @@ function enableTimetableDragAndDrop(){
 
     cell.ondrop=(e)=>{
       e.preventDefault();
+      e.stopPropagation();
       cell.classList.remove("timetable-drop-target","teacher-token-drop-target");
-      const to={className:cls,day,hour};
 
-      if(draggedTeacherToken){
-        const assignmentIds=draggedTeacherToken.assignmentIds||[];
+      const to={className:cls,day,hour};
+      const tokenDrag=readTeacherTokenFromDragEvent(e);
+
+      if(tokenDrag?.assignmentIds?.length){
         draggedTeacherToken=null;
-        placeTeacherTokenInTimetable(assignmentIds,to);
+        placeTeacherTokenInTimetable(tokenDrag.assignmentIds,to);
         return;
       }
 
       if(!draggedTimetableSlot) return;
+
       if(
         draggedTimetableSlot.className===to.className &&
         draggedTimetableSlot.day===to.day &&
@@ -3648,6 +3697,8 @@ function enableTimetableDragAndDrop(){
       else moveTimetableSlot(draggedTimetableSlot,to);
     };
   });
+
+  updateTeacherTokenSelectionUI();
 }
 function classDisplayHours(className){
   state.classDisplayHours ||= {};
@@ -3808,9 +3859,30 @@ function renderTeacherTimetableTokens(){
   }).join("");
 
   box.querySelectorAll('.teacher-assignment-token[draggable="true"]').forEach(token=>{
-    token.ondragstart=e=>{
-      const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
+    const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
+
+    token.onclick=()=>{
       if(!ids.length) return;
+
+      const same=selectedTeacherToken &&
+        JSON.stringify(selectedTeacherToken.assignmentIds)===JSON.stringify(ids);
+
+      document.querySelectorAll(".teacher-assignment-token.token-selected")
+        .forEach(x=>x.classList.remove("token-selected"));
+
+      if(same){
+        selectedTeacherToken=null;
+      }else{
+        selectedTeacherToken={assignmentIds:ids};
+        token.classList.add("token-selected");
+      }
+
+      updateTeacherTokenSelectionUI();
+    };
+
+    token.ondragstart=e=>{
+      if(!ids.length) return;
+      selectedTeacherToken=null;
       draggedTimetableSlot=null;
       draggedTeacherToken={assignmentIds:ids};
       token.classList.add("teacher-token-dragging");
@@ -3819,13 +3891,54 @@ function renderTeacherTimetableTokens(){
         e.dataTransfer.setData("text/plain",JSON.stringify({type:"teacher-token",assignmentIds:ids}));
       }catch(_){}
     };
+
     token.ondragend=()=>{
       token.classList.remove("teacher-token-dragging");
       document.querySelectorAll(".teacher-token-drop-target").forEach(x=>x.classList.remove("teacher-token-drop-target"));
       draggedTeacherToken=null;
     };
   });
+
+  updateTeacherTokenSelectionUI();
 }
+
+function updateTeacherTokenSelectionUI(){
+  const hintId="teacherTokenTapHint";
+  let hint=document.getElementById(hintId);
+  const panel=document.querySelector(".teacher-token-panel");
+
+  if(selectedTeacherToken){
+    if(panel && !hint){
+      hint=document.createElement("div");
+      hint.id=hintId;
+      hint.className="token-place-hint";
+      panel.insertBefore(hint,panel.querySelector("#teacherTimetableTokens"));
+    }
+    if(hint) hint.textContent="Jeton selectat — atinge acum o oră liberă din orar.";
+  }else if(hint){
+    hint.remove();
+  }
+
+  document.querySelectorAll("#allClassTimetables td[data-class][data-day][data-hour]")
+    .forEach(cell=>{
+      cell.classList.toggle("token-click-target",!!selectedTeacherToken);
+    });
+}
+
+function readTeacherTokenFromDragEvent(e){
+  if(draggedTeacherToken?.assignmentIds?.length) return draggedTeacherToken;
+
+  try{
+    const raw=e?.dataTransfer?.getData("text/plain");
+    if(!raw) return null;
+    const parsed=JSON.parse(raw);
+    if(parsed?.type==="teacher-token" && Array.isArray(parsed.assignmentIds)){
+      return {assignmentIds:parsed.assignmentIds};
+    }
+  }catch(_){}
+  return null;
+}
+
 function placeTeacherTokenInTimetable(assignmentIds,to){
   const ids=Array.isArray(assignmentIds)?assignmentIds:[assignmentIds];
   const candidates=(state.assignments||[]).filter(a=>ids.includes(a.id));
@@ -3884,6 +3997,11 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
 
   invalidateFinalSchedule();
   save();
+
+  // Clear tap selection only after a successful placement.
+  selectedTeacherToken=null;
+  draggedTeacherToken=null;
+
   renderTimetable();
   renderTeachers();
   renderGlobalHoursSummary();
