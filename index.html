@@ -2021,6 +2021,22 @@ function ensureTeacherAvailability(teacherId){
   }
 }
 
+
+function isTeacherAvailable(teacherId,day,hour){
+  if(!teacherId) return false;
+
+  // Availability is an explicit restriction system:
+  // only a stored FALSE means unavailable. Missing/new hours remain available.
+  const h=Number(hour);
+  const teacherAvailability=state.availability?.[teacherId];
+
+  if(!teacherAvailability) return true;
+  if(!teacherAvailability[day]) return true;
+
+  return teacherAvailability[day][h] !== false;
+}
+
+
 function openAvailability(teacherId){
   currentAvailabilityTeacherId=teacherId;
   ensureTeacherAvailability(teacherId);
@@ -4006,6 +4022,13 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
     hour:Number(to.hour),
     manual:true
   });
+
+  // Verify the write before saving/rerendering.
+  const writtenSlot=getNestedSlot(to.className,to.day,to.hour);
+  if(!writtenSlot){
+    alert("Ora nu a putut fi scrisă în orar. Reîncearcă.");
+    return;
+  }
 
   invalidateFinalSchedule();
   save();
