@@ -858,6 +858,110 @@ td.token-click-target:active{
   white-space:nowrap;
 }
 
+
+.app-message-overlay{
+  position:fixed;
+  inset:0;
+  z-index:100000;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:20px;
+  pointer-events:none;
+}
+.app-message{
+  width:min(88vw,480px);
+  padding:18px 20px;
+  border-radius:18px;
+  background:#fff;
+  border:2px solid #efb4b4;
+  box-shadow:0 20px 55px rgba(15,23,42,.28);
+  text-align:center;
+  color:#172033;
+  font-size:15px;
+  line-height:1.45;
+  font-weight:750;
+  white-space:pre-line;
+  pointer-events:auto;
+  animation:appMessagePop .18s ease-out;
+}
+.app-message.info{border-color:#bfd4f5}
+.app-message.success{border-color:#b5dfc2}
+.app-message-icon{
+  width:38px;height:38px;margin:0 auto 10px;
+  border-radius:50%;
+  display:grid;place-items:center;
+  background:#fff4f4;
+  font-size:21px;
+}
+.app-message.info .app-message-icon{background:#eff6ff}
+.app-message.success .app-message-icon{background:#ecfdf3}
+@keyframes appMessagePop{
+  from{opacity:0;transform:scale(.93)}
+  to{opacity:1;transform:scale(1)}
+}
+.placement-success-mark{
+  position:fixed;
+  z-index:100001;
+  pointer-events:none;
+  font-size:34px;
+  font-weight:1000;
+  color:#16a34a;
+  text-shadow:0 2px 8px rgba(22,163,74,.22);
+  transform:translate(-50%,-50%);
+  animation:successFloat .85s ease-out forwards;
+}
+@keyframes successFloat{
+  0%{opacity:0;transform:translate(-50%,-30%) scale(.65)}
+  18%{opacity:1;transform:translate(-50%,-50%) scale(1.08)}
+  100%{opacity:0;transform:translate(-50%,-115%) scale(.92)}
+}
+.lesson{
+  position:relative;
+}
+.lesson-tools{
+  position:absolute;
+  top:2px;
+  right:2px;
+  display:flex;
+  gap:2px;
+  z-index:4;
+}
+.lesson-tool{
+  width:20px!important;
+  height:20px!important;
+  min-width:20px!important;
+  padding:0!important;
+  border-radius:50%!important;
+  display:grid!important;
+  place-items:center!important;
+  font-size:13px!important;
+  line-height:1!important;
+  font-weight:900!important;
+  background:#fff!important;
+  box-shadow:0 1px 4px rgba(15,23,42,.15)!important;
+}
+.lesson-delete{
+  color:#c24141!important;
+  border:1px solid #efb4b4!important;
+}
+.lesson-move{
+  color:#2563eb!important;
+  border:1px solid #bfd4f5!important;
+}
+.lesson.action-selected{
+  outline:3px solid #2563eb;
+  outline-offset:-2px;
+}
+td.move-swap-target{
+  cursor:pointer;
+  box-shadow:inset 0 0 0 2px #93c5fd;
+}
+.teacher-assignment-token.token-selected{
+  outline:3px solid #2563eb;
+  outline-offset:2px;
+}
+
 </style>
 </head>
 <body>
@@ -1504,16 +1608,16 @@ function addTeacher(){
   const contractHours=Math.max(1,Number(document.getElementById("teacherContractHours")?.value||18));
   const color=document.getElementById("teacherColor")?.value||"#dbeafe";
 
-  if(!name) return alert("Introdu numele profesorului.");
-  if(!subjectName) return alert("Alege disciplina pentru încadrarea inițială.");
-  if(!classes.length) return alert("Bifează cel puțin o clasă.");
+  if(!name) return appMessage("Introdu numele profesorului.","error");
+  if(!subjectName) return appMessage("Alege disciplina pentru încadrarea inițială.","error");
+  if(!classes.length) return appMessage("Bifează cel puțin o clasă.","error");
 
   const missing=classes.filter(className=>!subjectEntry(className,subjectName));
   if(missing.length){
-    alert(
+    appMessage(
       "Disciplina trebuie mai întâi bifată și salvată la clasele selectate.\n\n"+
       "Lipsește la: "+missing.map(c=>`clasa ${c}`).join(", ")
-    );
+    ,"error");
     return;
   }
 
@@ -1522,10 +1626,10 @@ function addTeacher(){
     .filter(x=>x.owner);
 
   if(conflicts.length){
-    alert(
+    appMessage(
       "Nu pot fi împărțite orele aceleiași discipline din aceeași clasă între doi profesori.\n\n"+
       conflicts.map(x=>`Clasa ${x.className}: ${subjectName} este deja la ${x.owner.name}.`).join("\n")
-    );
+    ,"error");
     return;
   }
 
@@ -1709,7 +1813,7 @@ function setSubjectEnabled(className,name,enabled){
     );
 
     if(used){
-      alert(`${name} la clasa ${className} este deja încadrată unui profesor. Elimină mai întâi încadrarea profesorului.`);
+      appMessage(`${name} la clasa ${className} este deja încadrată unui profesor. Elimină mai întâi încadrarea profesorului.`,"error");
       renderSubjects();
       return;
     }
@@ -1787,7 +1891,7 @@ function setSubjectHoursForClass(className,name,value,inputEl=null){
 
 function saveSubjectClassPanel(className){
   const panel=document.querySelector(`.subject-class-panel[data-class="${className}"]`);
-  if(!panel) return alert("Nu am găsit panoul clasei.");
+  if(!panel) return appMessage("Nu am găsit panoul clasei.","error");
 
   const rows=[...panel.querySelectorAll(".subject-config-row")];
   const nextSubjects=[];
@@ -1819,7 +1923,7 @@ function saveSubjectClassPanel(className){
   });
 
   if(conflicts.length){
-    alert("Nu pot debifa aceste discipline deoarece sunt deja atribuite unui profesor: "+conflicts.join(", "));
+    appMessage("Nu pot debifa aceste discipline deoarece sunt deja atribuite unui profesor: "+conflicts.join(", "),"error");
     renderSubjects();
     return;
   }
@@ -1853,7 +1957,7 @@ function saveSubjectClassPanel(className){
 function addCustomSubjectToClass(className){
   const name=(document.getElementById(`newSubject-${className}`)?.value||"").trim();
   const hours=Math.max(1,Number(document.getElementById(`newSubjectHours-${className}`)?.value||1));
-  if(!name)return alert("Introdu denumirea disciplinei.");
+  if(!name)return appMessage("Introdu denumirea disciplinei.","error");
 
   let existing=subjectEntry(className,name);
   if(existing){
@@ -1965,12 +2069,12 @@ function addAssignment(){
   const className=assignmentClass.value;
   const hours=Number(assignmentHours.value);
 
-  if(!teacherId)return alert("Alege profesorul.");
-  if(!subjectId)return alert("Alege disciplina.");
-  if(!hours || hours<1)return alert("Introdu numărul de ore pe săptămână.");
+  if(!teacherId)return appMessage("Alege profesorul.","error");
+  if(!subjectId)return appMessage("Alege disciplina.","error");
+  if(!hours || hours<1)return appMessage("Introdu numărul de ore pe săptămână.","error");
 
   const subject=state.subjects.find(s=>s.id===subjectId);
-  if(!subject)return alert("Disciplina nu mai există.");
+  if(!subject)return appMessage("Disciplina nu mai există.","error");
 
   const existing=state.assignments.find(a =>
     a.teacherId===teacherId &&
@@ -2231,7 +2335,7 @@ function updateProfileAssignment(assignmentId,field,value){
   }else if(field==="className"){
     const owner=assignmentOwnerForSubjectClass(a.subjectName||"",value,currentTeacherProfileId);
     if(owner){
-      alert(`${a.subjectName} la clasa ${value} este deja atribuită integral profesorului ${owner.name}.`);
+      appMessage(`${a.subjectName} la clasa ${value} este deja atribuită integral profesorului ${owner.name}.`,"error");
       return renderTeacherProfileAssignments();
     }
     a.className=value;
@@ -2243,7 +2347,7 @@ function updateProfileAssignment(assignmentId,field,value){
 
     const owner=assignmentOwnerForSubjectClass(clean,a.className,currentTeacherProfileId);
     if(owner){
-      alert(`${clean} la clasa ${a.className} este deja atribuită integral profesorului ${owner.name}.`);
+      appMessage(`${clean} la clasa ${a.className} este deja atribuită integral profesorului ${owner.name}.`,"error");
       return renderTeacherProfileAssignments();
     }
 
@@ -2265,15 +2369,15 @@ function addTeacherProfileAssignment(){
   const subjectName=(document.getElementById("profileNewSubject")?.value||"").trim();
   const classes=checkedClassValues("profileNewClasses");
 
-  if(!subjectName)return alert("Alege disciplina.");
-  if(!classes.length)return alert("Bifează cel puțin o clasă.");
+  if(!subjectName)return appMessage("Alege disciplina.","error");
+  if(!classes.length)return appMessage("Bifează cel puțin o clasă.","error");
 
   const missing=classes.filter(className=>!subjectEntry(className,subjectName));
   if(missing.length){
-    alert(
+    appMessage(
       "Disciplina trebuie mai întâi bifată și salvată la clasele selectate.\n\n"+
       "Lipsește la: "+missing.map(c=>`clasa ${c}`).join(", ")
-    );
+    ,"error");
     return;
   }
 
@@ -2285,10 +2389,10 @@ function addTeacherProfileAssignment(){
     .filter(x=>x.owner);
 
   if(conflicts.length){
-    alert(
+    appMessage(
       "Disciplina unei clase trebuie să rămână integral la un singur profesor.\n\n"+
       conflicts.map(x=>`Clasa ${x.className}: ${subjectName} este deja la ${x.owner.name}.`).join("\n")
-    );
+    ,"error");
     return;
   }
 
@@ -2347,7 +2451,7 @@ function saveTeacherProfile(){
   if(!teacher)return;
 
   const newName=(document.getElementById("profileTeacherName").value||"").trim();
-  if(!newName)return alert("Numele profesorului nu poate fi gol.");
+  if(!newName)return appMessage("Numele profesorului nu poate fi gol.","error");
 
   teacher.name=newName;
   teacher.note=(document.getElementById("profileTeacherNote").value||"").trim();
@@ -2855,7 +2959,7 @@ function showPreGenerationValidation(){
 function canGenerateTimetable(){
   const result=showPreGenerationValidation();
   if(!result.ok){
-    alert("Există probleme care trebuie corectate înainte de generare.");
+    appMessage("Există probleme care trebuie corectate înainte de generare.","error");
     return false;
   }
   return true;
@@ -2961,7 +3065,7 @@ function addPreGenerationLockedHour(){
   const hour=Number(document.getElementById("lockedHourSelect")?.value);
 
   if(!teacherId || !subjectId || !className || !day || !hour){
-    alert("Completează profesorul, disciplina, clasa, ziua și ora.");
+    appMessage("Completează profesorul, disciplina, clasa, ziua și ora.","error");
     return;
   }
 
@@ -2973,12 +3077,12 @@ function addPreGenerationLockedHour(){
   );
 
   if(!validAssignment){
-    alert("Profesorul nu are această disciplină încadrată la clasa aleasă.");
+    appMessage("Profesorul nu are această disciplină încadrată la clasa aleasă.","error");
     return;
   }
 
   if(!isTeacherAvailable(teacherId,day,hour)){
-    alert("Profesorul este marcat indisponibil în această zi/oră.");
+    appMessage("Profesorul este marcat indisponibil în această zi/oră.","error");
     return;
   }
 
@@ -2992,7 +3096,7 @@ function addPreGenerationLockedHour(){
     l.className!==className
   );
   if(teacherConflict){
-    alert("Profesorul este deja blocat la altă clasă în aceeași zi și oră.");
+    appMessage("Profesorul este deja blocat la altă clasă în aceeași zi și oră.","error");
     return;
   }
 
@@ -3058,7 +3162,7 @@ function lockSlot(className,day,hour){
   const slot=state.timetable?.[className]?.[`${d}-${Number(hour)-1}`];
 
   if(!slot){
-    alert("Poți bloca doar o oră care conține deja o disciplină.");
+    appMessage("Poți bloca doar o oră care conține deja o disciplină.","error");
     return;
   }
 
@@ -3398,7 +3502,7 @@ function assignUnassignedSlot(className,dayIndex,hourIndex){
   );
 
   if(!candidates.length){
-    alert(`Nu există încă niciun profesor încadrat pentru ${slot.subject||"această oră"} la clasa ${className}. Adaugă mai întâi încadrarea.`);
+    appMessage(`Nu există încă niciun profesor încadrat pentru ${slot.subject||"această oră"} la clasa ${className}. Adaugă mai întâi încadrarea.`,"error");
     return;
   }
 
@@ -3411,21 +3515,21 @@ function assignUnassignedSlot(className,dayIndex,hourIndex){
   if(answer===null) return;
   const idx=Number(answer)-1;
   const chosen=candidates[idx];
-  if(!chosen) return alert("Opțiune invalidă.");
+  if(!chosen) return appMessage("Opțiune invalidă.","error");
 
   const teacher=state.teachers.find(t=>t.id===chosen.teacherId);
   const day=DAYS[dayIndex];
   const hour=hourIndex+1;
 
   if(!isTeacherAvailable(chosen.teacherId,day,hour)){
-    return alert(`${teacher?.name||"Profesorul"} este indisponibil în ${day}, ora ${hour}.`);
+    return appMessage(`${teacher?.name||"Profesorul"} este indisponibil în ${day}, ora ${hour}.`,"error");
   }
 
   // No teacher double booking.
   for(const cls of CLASSES){
     const other=state.timetable?.[cls]?.[key];
     if(cls!==className && other?.teacherId===chosen.teacherId){
-      return alert(`${teacher?.name||"Profesorul"} are deja oră la clasa ${cls} în acest interval.`);
+      return appMessage(`${teacher?.name||"Profesorul"} are deja oră la clasa ${cls} în acest interval.`,"error");
     }
   }
 
@@ -3451,6 +3555,7 @@ function assignUnassignedSlot(className,dayIndex,hourIndex){
 let draggedTimetableSlot=null;
 let draggedTeacherToken=null;
 let selectedTeacherToken=null;
+let selectedTimetableActionSlot=null;
 
 function getNestedSlot(className,day,hour){
   const d=DAYS.indexOf(day);
@@ -3639,7 +3744,7 @@ function canSwapTimetableSlots(a,b){
 function swapTimetableSlots(a,b){
   const check=canSwapTimetableSlots(a,b);
   if(!check.ok){
-    alert(check.message);
+    appMessage(check.message,"error");
     return false;
   }
 
@@ -3655,6 +3760,7 @@ function swapTimetableSlots(a,b){
   invalidateFinalSchedule();
   save();
   renderTimetable();
+  renderTeacherTimetableTokens();
   renderTeachers();
   renderGlobalHoursSummary();
 
@@ -3666,7 +3772,7 @@ function swapTimetableSlots(a,b){
 function moveTimetableSlot(from,to){
   const check=canMoveTimetableSlot(from,to);
   if(!check.ok){
-    alert(check.message);
+    appMessage(check.message,"error");
     return false;
   }
 
@@ -3679,10 +3785,85 @@ function moveTimetableSlot(from,to){
   invalidateFinalSchedule();
   save();
   renderTimetable();
+  renderTeacherTimetableTokens();
   renderTeachers();
   renderGlobalHoursSummary();
   return true;
 }
+
+
+function selectLessonForMove(className,day,hour){
+  const slot=getNestedSlot(className,day,hour);
+  if(!slot) return appMessage("Ora selectată nu mai există.","error");
+  if(isSlotLocked(className,day,hour)) return appMessage("Ora este blocată 🔒 și nu poate fi mutată.","error");
+
+  selectedTimetableActionSlot={className,day,hour:Number(hour)};
+  markMoveSwapSelection();
+}
+
+function markMoveSwapSelection(){
+  document.querySelectorAll(".lesson.action-selected").forEach(x=>x.classList.remove("action-selected"));
+  document.querySelectorAll("td.move-swap-target").forEach(x=>x.classList.remove("move-swap-target"));
+
+  if(!selectedTimetableActionSlot) return;
+
+  const {className,day,hour}=selectedTimetableActionSlot;
+  const source=document.querySelector(
+    `#allClassTimetables td[data-class="${CSS.escape(String(className))}"][data-day="${CSS.escape(String(day))}"][data-hour="${Number(hour)}"] .lesson`
+  );
+  if(source) source.classList.add("action-selected");
+
+  document.querySelectorAll("#allClassTimetables td[data-class][data-day][data-hour]").forEach(td=>{
+    const same=td.dataset.class===String(className) &&
+      td.dataset.day===String(day) &&
+      Number(td.dataset.hour)===Number(hour);
+    if(!same) td.classList.add("move-swap-target");
+  });
+}
+
+function removeScheduledLesson(className,day,hour){
+  if(isSlotLocked(className,day,hour)){
+    return appMessage("Ora este blocată 🔒 și nu poate fi eliminată.","error");
+  }
+  const slot=getNestedSlot(className,day,hour);
+  if(!slot) return;
+
+  setNestedSlot(className,day,hour,null);
+  selectedTimetableActionSlot=null;
+  invalidateFinalSchedule();
+  save();
+  renderTimetable();
+  renderTeachers();
+  renderGlobalHoursSummary();
+  appMessage("Ora a fost eliminată din orar.","success",1700);
+}
+
+function moveOrSwapSelectedLesson(to){
+  if(!selectedTimetableActionSlot) return false;
+
+  const from={...selectedTimetableActionSlot};
+  const same=from.className===to.className &&
+    from.day===to.day &&
+    Number(from.hour)===Number(to.hour);
+
+  if(same){
+    selectedTimetableActionSlot=null;
+    markMoveSwapSelection();
+    return true;
+  }
+
+  const target=getNestedSlot(to.className,to.day,to.hour);
+  const ok=target
+    ? swapTimetableSlots(from,to)
+    : moveTimetableSlot(from,to);
+
+  if(ok){
+    selectedTimetableActionSlot=null;
+    showPlacementSuccess(to);
+  }
+  return true;
+}
+
 
 function enableTimetableDragAndDrop(){
   const table=document.getElementById("allClassTimetables");
@@ -3697,41 +3878,45 @@ function enableTimetableDragAndDrop(){
     const slot=getNestedSlot(cls,day,hour);
     const lesson=cell.querySelector(".lesson");
 
-    // PRIMARY METHOD: selected token + click/tap on empty timetable cell.
+    // Same method on phone and laptop:
+    // select teacher once, then click/tap repeatedly to "seed" hours.
     cell.onclick=(e)=>{
       if(e.target.closest("button")) return;
-      if(!selectedTeacherToken) return;
 
-      if(getNestedSlot(cls,day,hour)){
-        alert("Ora este deja ocupată.");
+      const to={className:cls,day,hour};
+
+      // Move/swap mode has priority for one action.
+      if(selectedTimetableActionSlot){
+        moveOrSwapSelectedLesson(to);
         return;
       }
 
-      placeTeacherTokenInTimetable(
-        selectedTeacherToken.assignmentIds,
-        {className:cls,day,hour}
-      );
+      if(!selectedTeacherToken) return;
+
+      if(getNestedSlot(cls,day,hour)){
+        appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
+        return;
+      }
+
+      placeTeacherTokenInTimetable(selectedTeacherToken.assignmentIds,to);
     };
 
-    // Existing timetable lesson move/swap by drag.
+    // Keep drag support as secondary convenience on desktop.
     if(lesson && slot && !isSlotLocked(cls,day,hour)){
       lesson.setAttribute("draggable","true");
       lesson.ondragstart=e=>{
-        selectedTeacherToken=null;
         draggedTeacherToken=null;
         draggedTimetableSlot={className:cls,day,hour};
         e.dataTransfer.effectAllowed="move";
         try{
           e.dataTransfer.setData("text/plain",JSON.stringify({
-            type:"timetable-slot",
-            ...draggedTimetableSlot
+            type:"timetable-slot",...draggedTimetableSlot
           }));
         }catch(_){}
       };
       lesson.ondragend=()=>{ draggedTimetableSlot=null; };
     }
 
-    // Optional desktop drop support for teacher tokens.
     cell.ondragover=e=>{
       if(draggedTeacherToken || draggedTimetableSlot){
         e.preventDefault();
@@ -3747,7 +3932,6 @@ function enableTimetableDragAndDrop(){
       e.preventDefault();
       e.stopPropagation();
       cell.classList.remove("teacher-token-drop-target","timetable-drop-target");
-
       const to={className:cls,day,hour};
 
       if(draggedTeacherToken?.assignmentIds?.length){
@@ -3758,14 +3942,14 @@ function enableTimetableDragAndDrop(){
       }
 
       if(!draggedTimetableSlot) return;
-
-      const targetSlot=getNestedSlot(to.className,to.day,to.hour);
-      if(targetSlot) swapTimetableSlots(draggedTimetableSlot,to);
+      const target=getNestedSlot(to.className,to.day,to.hour);
+      if(target) swapTimetableSlots(draggedTimetableSlot,to);
       else moveTimetableSlot(draggedTimetableSlot,to);
     };
   });
 
   markTimetableCellsForTokenSelection();
+  markMoveSwapSelection();
 }
 function classDisplayHours(className){
   state.classDisplayHours ||= {};
@@ -3846,7 +4030,18 @@ function renderSingleClassTimetable(className){
             <strong>${subject}</strong>
             <span>${teacher}</span>
             ${locked ? '<span>🔒 Oră blocată</span>' : ""}
-            ${slot.unassigned ? `<button onclick="assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie</button>` : ""}
+            ${!locked && !slot.unassigned ? `
+              <div class="lesson-tools">
+                <button class="lesson-tool lesson-move"
+                        title="Mută / schimbă"
+                        aria-label="Mută sau schimbă ora"
+                        onclick="event.stopPropagation();selectLessonForMove('${className}','${day}',${h+1})">↻</button>
+                <button class="lesson-tool lesson-delete"
+                        title="Elimină"
+                        aria-label="Elimină ora"
+                        onclick="event.stopPropagation();removeScheduledLesson('${className}','${day}',${h+1})">×</button>
+              </div>` : ""}
+            ${slot.unassigned ? `<button onclick="event.stopPropagation();assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie</button>` : ""}
           </div>`;
       }
 
@@ -3949,10 +4144,7 @@ function renderTeacherTimetableTokens(){
     const selectToken=()=>{
       if(!ids.length) return;
 
-      const same=selectedTeacherToken &&
-        JSON.stringify(selectedTeacherToken.assignmentIds||[])===JSON.stringify(ids);
-
-      selectedTeacherToken=same ? null : {assignmentIds:ids};
+      selectedTeacherToken={assignmentIds:ids};
 
       renderTeacherTimetableTokens();
       markTimetableCellsForTokenSelection();
@@ -4035,7 +4227,7 @@ function markTimetableCellsForTokenSelection(){
       hint=document.createElement("div");
       hint.id="teacherTokenTapHint";
       hint.className="token-place-hint";
-      hint.textContent="Jeton selectat — apasă acum pe o celulă liberă din orar.";
+      hint.textContent="Profesor selectat — apasă succesiv pe orele libere pentru a-i așeza programul.";
       panel.insertBefore(hint,panel.querySelector("#teacherTimetableTokens"));
     }
   }else if(hint){
@@ -4044,34 +4236,55 @@ function markTimetableCellsForTokenSelection(){
 }
 
 
+
+
+
+function appMessage(message,type="error",duration=2600){
+  document.querySelectorAll(".app-message-overlay").forEach(x=>x.remove());
+
+  const overlay=document.createElement("div");
+  overlay.className="app-message-overlay";
+
+  const box=document.createElement("div");
+  box.className=`app-message ${type}`;
+  const icon=type==="success"?"✓":type==="info"?"ℹ":"!";
+  box.innerHTML=`<div class="app-message-icon">${icon}</div><div>${esc(String(message||""))}</div>`;
+  overlay.appendChild(box);
+  document.body.appendChild(overlay);
+
+  const close=()=>overlay.remove();
+  overlay.onclick=close;
+  box.onclick=e=>e.stopPropagation();
+
+  if(duration>0) setTimeout(close,duration);
+}
+
 function classLabelRomanian(className){
-  const map={
-    "V":"a V-a",
-    "VI":"a VI-a",
-    "VII":"a VII-a",
-    "VIII":"a VIII-a"
-  };
+  const map={"V":"a V-a","VI":"a VI-a","VII":"a VII-a","VIII":"a VIII-a"};
   return map[className] || className;
 }
 
-function showNiceMessage(message,icon="ℹ️"){
-  document.querySelectorAll(".app-toast").forEach(x=>x.remove());
-
-  const toast=document.createElement("div");
-  toast.className="app-toast";
-  toast.innerHTML=`
-    <div class="app-toast-icon">${icon}</div>
-    <div class="app-toast-text">${esc(message)}</div>
-  `;
-
-  document.body.appendChild(toast);
-
-  setTimeout(()=>{
-    toast.style.opacity="0";
-    toast.style.transition="opacity .2s ease";
-    setTimeout(()=>toast.remove(),220);
-  },3200);
+function showPlacementSuccess(to){
+  requestAnimationFrame(()=>{
+    const cell=document.querySelector(
+      `#allClassTimetables td[data-class="${CSS.escape(String(to.className))}"][data-day="${CSS.escape(String(to.day))}"][data-hour="${Number(to.hour)}"]`
+    );
+    if(!cell) return;
+    const r=cell.getBoundingClientRect();
+    const mark=document.createElement("div");
+    mark.className="placement-success-mark";
+    mark.textContent="✓";
+    mark.style.left=(r.left+r.width/2)+"px";
+    mark.style.top=(r.top+r.height/2)+"px";
+    document.body.appendChild(mark);
+    setTimeout(()=>mark.remove(),900);
+  });
 }
+
+function showNiceMessage(message,icon){
+  appMessage(message, icon==="✓" ? "error" : "info");
+}
+
 
 function placeTeacherTokenInTimetable(assignmentIds,to){
   const ids=Array.isArray(assignmentIds)?assignmentIds:[assignmentIds];
@@ -4080,34 +4293,34 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
 
   if(!a){
     const cls=[...new Set(candidates.map(x=>x.className))].join(", ");
-    return alert(`Acest jeton poate fi folosit la clasele: ${cls}.`);
+    return appMessage(`Acest jeton poate fi folosit la clasele: ${cls}.`,"error");
   }
 
   if(remainingUnassignedHoursForAssignment(a)<=0){
     const subjectName=a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
-    showNiceMessage(
+    appMessage(
       `S-a atins limita maximă de ore de ${subjectName} la clasa ${classLabelRomanian(a.className)}.`,
-      "✓"
+      "error"
     );
     return;
   }
 
   if(getNestedSlot(to.className,to.day,to.hour)){
-    return alert("Ora este deja ocupată.");
+    return appMessage("Ora este deja ocupată.","error");
   }
 
   if(isSlotLocked(to.className,to.day,to.hour)){
-    return alert("Ora este blocată 🔒.");
+    return appMessage("Ora este blocată 🔒.","error");
   }
 
   if(!isTeacherAvailable(a.teacherId,to.day,Number(to.hour))){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
-    return alert(`${teacher?.name||"Profesorul"} este indisponibil în ${to.day}, ora ${to.hour}.`);
+    return appMessage(`${teacher?.name||"Profesorul"} este indisponibil în ${to.day}, ora ${to.hour}.`,"error");
   }
 
   if(teacherHasConflictAt(a.teacherId,to.day,to.hour)){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
-    return alert(`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`);
+    return appMessage(`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`,"error");
   }
 
   const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
@@ -4127,7 +4340,7 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   // Verify the write before saving/rerendering.
   const writtenSlot=getNestedSlot(to.className,to.day,to.hour);
   if(!writtenSlot){
-    alert("Ora nu a putut fi scrisă în orar. Reîncearcă.");
+    appMessage("Ora nu a putut fi scrisă în orar. Reîncearcă.","error");
     return;
   }
 
@@ -4135,13 +4348,13 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   save();
 
   // Clear tap selection only after a successful placement.
-  selectedTeacherToken=null;
   draggedTeacherToken=null;
 
   renderTimetable();
   renderTeacherTimetableTokens();
   renderTeachers();
   renderGlobalHoursSummary();
+  showPlacementSuccess(to);
 }
 function renderTimetable(){
   const box=document.getElementById("allClassTimetables");
@@ -4702,14 +4915,14 @@ function finalizationSummary(){
 
 function finalizeSchedule(){
   if(!scheduleHasAnyHours()){
-    alert("Nu există încă un orar de finalizat.");
+    appMessage("Nu există încă un orar de finalizat.","error");
     return;
   }
 
   const check=finalizationSummary();
   if(check.hard.length){
     renderScheduleReport();
-    alert(`Orarul nu poate fi finalizat: există ${check.hard.length} problemă/probleme obligatorii. Vezi raportul de verificare.`);
+    appMessage(`Orarul nu poate fi finalizat: există ${check.hard.length} problemă/probleme obligatorii. Vezi raportul de verificare.`,"error");
     return;
   }
 
@@ -4786,7 +4999,7 @@ function renderFinalScheduleStatus(){
 function printTeacherSchedule(){
   const teachers=(state.teachers||[]).filter(t=>scheduledHoursForTeacher(t.id,state.timetable)>0);
   if(!teachers.length){
-    alert("Nu există profesori cu ore repartizate.");
+    appMessage("Nu există profesori cu ore repartizate.","error");
     return;
   }
 
@@ -4795,7 +5008,7 @@ function printTeacherSchedule(){
   if(answer===null) return;
   const idx=Number(answer)-1;
   if(!Number.isInteger(idx) || idx<0 || idx>=teachers.length){
-    alert("Selecție invalidă.");
+    appMessage("Selecție invalidă.","error");
     return;
   }
 
@@ -4914,13 +5127,13 @@ function demoGenerate(){
 
   const hasSubjects=(state.subjects||[]).some(s=>Number(s.hours||0)>0);
   if(!hasSubjects){
-    alert("Adaugă mai întâi disciplinele și numărul de ore săptămânale.");
+    appMessage("Adaugă mai întâi disciplinele și numărul de ore săptămânale.","error");
     return;
   }
 
   const targets=solverTargetsForAllClasses();
   if(!targets){
-    alert("Orele blocate nu permit construirea unui program consecutiv pentru toate clasele. Verifică pozițiile 🔒.");
+    appMessage("Orele blocate nu permit construirea unui program consecutiv pentru toate clasele. Verifică pozițiile 🔒.","error");
     return;
   }
 
@@ -4940,7 +5153,7 @@ function demoGenerate(){
   }
 
   if(!best){
-    alert("Nu a putut fi construită nicio variantă de orar.");
+    appMessage("Nu a putut fi construită nicio variantă de orar.","error");
     return;
   }
 
@@ -4971,7 +5184,7 @@ function demoGenerate(){
   if(!unassignedClasses.length && !remainingTeachers.length){
     msg+="\n\nToate orele prevăzute și toate orele deja repartizate pe discipline au fost plasate în orar.";
   }
-  alert(msg);
+  appMessage(msg,"error");
 }
 
 function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
