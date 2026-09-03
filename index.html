@@ -787,6 +787,28 @@ td.token-click-target:hover{
   background:#eff6ff;
 }
 
+
+.teacher-assignment-token.token-selected{
+  outline:3px solid #2563eb;
+  outline-offset:2px;
+}
+td.token-click-target{
+  cursor:pointer;
+}
+td.token-click-target:hover,
+td.token-click-target:active{
+  background:#eff6ff !important;
+}
+.token-place-hint{
+  margin:8px 0 10px;
+  padding:8px 10px;
+  border-radius:9px;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-size:11px;
+  font-weight:800;
+}
+
 </style>
 </head>
 <body>
@@ -1121,7 +1143,6 @@ td.token-click-target:hover{
 <button type="button" onclick="unlockAllSlots()" class="secondary">🔓 Deblochează toate orele</button>
 </div><p>Vizualizare săptămânală pe clase.</p></div>
           <div class="toolbar">
-            <select id="viewClass" onchange="renderTimetable()"><option>V</option><option>VI</option><option>VII</option><option>VIII</option></select>
             <button class="btn btn-primary" onclick="demoGenerate()">Generează orarul automat</button>
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
@@ -3603,6 +3624,7 @@ function enableTimetableDragAndDrop(){
   if(!table) return;
 
   const cells=table.querySelectorAll("td[data-class][data-day][data-hour]");
+
   cells.forEach(cell=>{
     const cls=cell.dataset.class;
     const day=cell.dataset.day;
@@ -3610,9 +3632,8 @@ function enableTimetableDragAndDrop(){
     const slot=getNestedSlot(cls,day,hour);
     const lesson=cell.querySelector(".lesson");
 
-    // Mobile / touch fallback: select token first, then tap destination cell.
+    // PRIMARY METHOD: selected token + click/tap on empty timetable cell.
     cell.onclick=(e)=>{
-      // Don't intercept lesson buttons or already occupied cells.
       if(e.target.closest("button")) return;
       if(!selectedTeacherToken) return;
 
@@ -3627,13 +3648,13 @@ function enableTimetableDragAndDrop(){
       );
     };
 
+    // Existing timetable lesson move/swap by drag.
     if(lesson && slot && !isSlotLocked(cls,day,hour)){
       lesson.setAttribute("draggable","true");
-      lesson.ondragstart=(e)=>{
+      lesson.ondragstart=e=>{
         selectedTeacherToken=null;
         draggedTeacherToken=null;
         draggedTimetableSlot={className:cls,day,hour};
-        lesson.classList.add("timetable-dragging");
         e.dataTransfer.effectAllowed="move";
         try{
           e.dataTransfer.setData("text/plain",JSON.stringify({
@@ -3642,47 +3663,36 @@ function enableTimetableDragAndDrop(){
           }));
         }catch(_){}
       };
-      lesson.ondragend=()=>{
-        lesson.classList.remove("timetable-dragging");
-        document.querySelectorAll(".timetable-drop-target,.teacher-token-drop-target")
-          .forEach(x=>x.classList.remove("timetable-drop-target","teacher-token-drop-target"));
-        draggedTimetableSlot=null;
-      };
+      lesson.ondragend=()=>{ draggedTimetableSlot=null; };
     }
 
-    cell.ondragover=(e)=>{
-      const tokenDrag=readTeacherTokenFromDragEvent(e);
-      if(!draggedTimetableSlot && !tokenDrag) return;
-      e.preventDefault();
-      e.dataTransfer.dropEffect=tokenDrag ? "copy" : "move";
-      cell.classList.add(tokenDrag?"teacher-token-drop-target":"timetable-drop-target");
+    // Optional desktop drop support for teacher tokens.
+    cell.ondragover=e=>{
+      if(draggedTeacherToken || draggedTimetableSlot){
+        e.preventDefault();
+        cell.classList.add(draggedTeacherToken?"teacher-token-drop-target":"timetable-drop-target");
+      }
     };
 
     cell.ondragleave=()=>{
-      cell.classList.remove("timetable-drop-target","teacher-token-drop-target");
+      cell.classList.remove("teacher-token-drop-target","timetable-drop-target");
     };
 
-    cell.ondrop=(e)=>{
+    cell.ondrop=e=>{
       e.preventDefault();
       e.stopPropagation();
-      cell.classList.remove("timetable-drop-target","teacher-token-drop-target");
+      cell.classList.remove("teacher-token-drop-target","timetable-drop-target");
 
       const to={className:cls,day,hour};
-      const tokenDrag=readTeacherTokenFromDragEvent(e);
 
-      if(tokenDrag?.assignmentIds?.length){
+      if(draggedTeacherToken?.assignmentIds?.length){
+        const ids=draggedTeacherToken.assignmentIds;
         draggedTeacherToken=null;
-        placeTeacherTokenInTimetable(tokenDrag.assignmentIds,to);
+        placeTeacherTokenInTimetable(ids,to);
         return;
       }
 
       if(!draggedTimetableSlot) return;
-
-      if(
-        draggedTimetableSlot.className===to.className &&
-        draggedTimetableSlot.day===to.day &&
-        Number(draggedTimetableSlot.hour)===Number(to.hour)
-      ) return;
 
       const targetSlot=getNestedSlot(to.className,to.day,to.hour);
       if(targetSlot) swapTimetableSlots(draggedTimetableSlot,to);
@@ -3690,7 +3700,7 @@ function enableTimetableDragAndDrop(){
     };
   });
 
-  updateTeacherTokenSelectionUI();
+  markTimetableCellsForTokenSelection();
 }
 function classDisplayHours(className){
   state.classDisplayHours ||= {};
@@ -3823,15 +3833,17 @@ function renderTeacherTimetableTokens(){
         const rem=remainingUnassignedHoursForAssignment(a);
         return `<span class="token-class-pill">Clasa ${esc(a.className)} · ${rem}h rămase</span>`;
       }).join("");
-
-      // One draggable group per discipline. The exact class is chosen by the target cell.
       const ids=arr.map(a=>a.id).join(",");
 
-      return `<div class="teacher-assignment-token ${remaining<=0?"empty":""}"
+      const selected=selectedTeacherToken &&
+        JSON.stringify(selectedTeacherToken.assignmentIds||[])===JSON.stringify(arr.map(a=>a.id));
+
+      return `<div class="teacher-assignment-token ${remaining<=0?"empty":""} ${selected?"token-selected":""}"
                    data-assignment-ids="${esc(ids)}"
-                   draggable="${remaining>0?"true":"false"}">
+                   ${remaining>0?'role="button" tabindex="0"':""}>
         <strong>${esc(subjectName)} ${subjectName===t.primarySubject?'<span style="font-size:9px">PRINCIPALĂ</span>':""}</strong>
         <div class="token-classes">${classPills}</div>
+        ${remaining>0?'<div style="margin-top:6px;font-size:10px;color:#1d4ed8;font-weight:700">Apasă pentru selectare</div>':""}
       </div>`;
     }).join("") || '<div class="muted" style="margin-top:8px">Fără încadrări.</div>';
 
@@ -3850,50 +3862,46 @@ function renderTeacherTimetableTokens(){
     </div>`;
   }).join("");
 
-  box.querySelectorAll('.teacher-assignment-token[draggable="true"]').forEach(token=>{
+  box.querySelectorAll(".teacher-assignment-token:not(.empty)").forEach(token=>{
     const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
-
-    token.onclick=()=>{
+    const selectToken=()=>{
       if(!ids.length) return;
 
       const same=selectedTeacherToken &&
-        JSON.stringify(selectedTeacherToken.assignmentIds)===JSON.stringify(ids);
+        JSON.stringify(selectedTeacherToken.assignmentIds||[])===JSON.stringify(ids);
 
-      document.querySelectorAll(".teacher-assignment-token.token-selected")
-        .forEach(x=>x.classList.remove("token-selected"));
+      selectedTeacherToken=same ? null : {assignmentIds:ids};
 
-      if(same){
-        selectedTeacherToken=null;
-      }else{
-        selectedTeacherToken={assignmentIds:ids};
-        token.classList.add("token-selected");
-      }
-
-      updateTeacherTokenSelectionUI();
+      renderTeacherTimetableTokens();
+      markTimetableCellsForTokenSelection();
     };
 
+    token.onclick=(e)=>{
+      e.preventDefault();
+      e.stopPropagation();
+      selectToken();
+    };
+
+    token.onkeydown=(e)=>{
+      if(e.key==="Enter" || e.key===" "){
+        e.preventDefault();
+        selectToken();
+      }
+    };
+
+    // Keep desktop drag-and-drop optional.
+    token.setAttribute("draggable","true");
     token.ondragstart=e=>{
-      if(!ids.length) return;
-      selectedTeacherToken=null;
       draggedTimetableSlot=null;
       draggedTeacherToken={assignmentIds:ids};
-      token.classList.add("teacher-token-dragging");
       e.dataTransfer.effectAllowed="copy";
       try{
         e.dataTransfer.setData("text/plain",JSON.stringify({type:"teacher-token",assignmentIds:ids}));
       }catch(_){}
     };
-
-    token.ondragend=()=>{
-      token.classList.remove("teacher-token-dragging");
-      document.querySelectorAll(".teacher-token-drop-target").forEach(x=>x.classList.remove("teacher-token-drop-target"));
-      draggedTeacherToken=null;
-    };
+    token.ondragend=()=>{ draggedTeacherToken=null; };
   });
-
-  updateTeacherTokenSelectionUI();
 }
-
 function updateTeacherTokenSelectionUI(){
   const hintId="teacherTokenTapHint";
   let hint=document.getElementById(hintId);
@@ -3929,6 +3937,28 @@ function readTeacherTokenFromDragEvent(e){
     }
   }catch(_){}
   return null;
+}
+
+
+function markTimetableCellsForTokenSelection(){
+  document.querySelectorAll("#allClassTimetables td[data-class][data-day][data-hour]").forEach(cell=>{
+    cell.classList.toggle("token-click-target",!!selectedTeacherToken);
+  });
+
+  let hint=document.getElementById("teacherTokenTapHint");
+  const panel=document.querySelector(".teacher-token-panel");
+
+  if(selectedTeacherToken){
+    if(panel && !hint){
+      hint=document.createElement("div");
+      hint.id="teacherTokenTapHint";
+      hint.className="token-place-hint";
+      hint.textContent="Jeton selectat — apasă acum pe o celulă liberă din orar.";
+      panel.insertBefore(hint,panel.querySelector("#teacherTimetableTokens"));
+    }
+  }else if(hint){
+    hint.remove();
+  }
 }
 
 function placeTeacherTokenInTimetable(assignmentIds,to){
@@ -3985,6 +4015,7 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   draggedTeacherToken=null;
 
   renderTimetable();
+  renderTeacherTimetableTokens();
   renderTeachers();
   renderGlobalHoursSummary();
 }
