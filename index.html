@@ -58,6 +58,7 @@
     .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
     .stat strong{font-size:26px;display:block}.stat span{color:var(--muted);font-size:13px}
     @media(max-width:900px){
+      #assignments .form-row{grid-template-columns:1fr !important}
       .layout{grid-template-columns:1fr} aside{border-right:0;border-bottom:1px solid var(--line);display:flex;overflow:auto;gap:5px;padding:10px}
       .nav-btn{min-width:max-content}.grid,.statgrid{grid-template-columns:repeat(2,1fr)}
       main{padding:16px}.form-row{grid-template-columns:1fr}
@@ -84,6 +85,7 @@
       <button class="nav-btn" data-target="classes">🏫 Clase</button>
       <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
       <button class="nav-btn" data-target="subjects">📚 Discipline</button>
+      <button class="nav-btn" data-target="assignments">🧩 Încadrare</button>
       <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
       <button class="nav-btn" data-target="timetable">🗓️ Orar</button>
     </aside>
@@ -139,6 +141,34 @@
         <div id="subjectsTable"></div>
       </section>
 
+
+      <section id="assignments" class="section">
+        <div class="page-head">
+          <div>
+            <h2>Încadrare</h2>
+            <p>Asociază profesorii cu disciplinele, clasele și numărul de ore pe săptămână.</p>
+          </div>
+        </div>
+
+        <div class="note">
+          Profesorii și disciplinele pot fi adăugate oricând. Încadrarea poate fi modificată fără să refacem aplicația.
+        </div>
+
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row" style="grid-template-columns:1.2fr 1.2fr .7fr .8fr auto">
+            <select id="assignmentTeacher"></select>
+            <select id="assignmentSubject"></select>
+            <select id="assignmentClass">
+              <option>V</option><option>VI</option><option>VII</option><option>VIII</option>
+            </select>
+            <input id="assignmentHours" type="number" min="1" max="10" value="1" placeholder="Ore/săptămână">
+            <button class="btn btn-primary" onclick="addAssignment()">Adaugă</button>
+          </div>
+        </div>
+
+        <div id="assignmentsTable"></div>
+      </section>
+
       <section id="constraints" class="section">
         <div class="page-head"><div><h2>Constrângeri</h2><p>Reguli care vor fi respectate de generator.</p></div></div>
         <div class="card">
@@ -172,7 +202,11 @@ const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
 const HOURS=["08:00–08:50","09:00–09:50","10:00–10:50","11:00–11:50","12:00–12:50","13:00–13:50","14:00–14:50"];
 const KEY="orar_gimnaziu_v1";
-let state=JSON.parse(localStorage.getItem(KEY)||'null')||{teachers:[],subjects:[],timetable:{}};
+let state=JSON.parse(localStorage.getItem(KEY)||'null')||{teachers:[],subjects:[],assignments:[],timetable:{}};
+state.teachers ||= [];
+state.subjects ||= [];
+state.assignments ||= [];
+state.timetable ||= {};
 
 function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
 function showSection(id){
@@ -180,6 +214,7 @@ function showSection(id){
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.target===id));
   if(id==="teachers")renderTeachers();
   if(id==="subjects")renderSubjects();
+  if(id==="assignments"){renderAssignmentSelectors();renderAssignments();}
   if(id==="classes")renderClasses();
   if(id==="timetable")renderTimetable();
 }
@@ -206,7 +241,11 @@ function addTeacher(){
   state.teachers.push({id:crypto.randomUUID(),name,note:teacherNote.value.trim()});
   teacherName.value="";teacherNote.value="";save();renderTeachers();
 }
-function deleteTeacher(id){state.teachers=state.teachers.filter(t=>t.id!==id);save();renderTeachers()}
+function deleteTeacher(id){
+  state.teachers=state.teachers.filter(t=>t.id!==id);
+  state.assignments=state.assignments.filter(a=>a.teacherId!==id);
+  save();renderTeachers();renderAssignmentSelectors();renderAssignments();
+}
 function renderTeachers(){
   if(!state.teachers.length){teachersTable.innerHTML='<div class="card empty">Nu ai adăugat încă profesori.</div>';return}
   teachersTable.innerHTML=`<table><thead><tr><th>Profesor</th><th>Observații</th><th></th></tr></thead><tbody>${
@@ -220,13 +259,123 @@ function addSubject(){
   state.subjects.push({id:crypto.randomUUID(),name,className:subjectClass.value,hours});
   subjectName.value="";subjectHours.value=1;save();renderSubjects();
 }
-function deleteSubject(id){state.subjects=state.subjects.filter(s=>s.id!==id);save();renderSubjects()}
+function deleteSubject(id){
+  state.subjects=state.subjects.filter(s=>s.id!==id);
+  state.assignments=state.assignments.filter(a=>a.subjectId!==id);
+  save();renderSubjects();renderAssignmentSelectors();renderAssignments();
+}
 function renderSubjects(){
   if(!state.subjects.length){subjectsTable.innerHTML='<div class="card empty">Nu ai adăugat încă discipline.</div>';return}
   const rows=[...state.subjects].sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)||a.name.localeCompare(b.name,'ro'));
   subjectsTable.innerHTML=`<table><thead><tr><th>Clasa</th><th>Disciplina</th><th>Ore/săptămână</th><th></th></tr></thead><tbody>${
     rows.map(s=>`<tr><td><span class="badge">Clasa ${esc(s.className)}</span></td><td><b>${esc(s.name)}</b></td><td>${s.hours}</td><td style="width:90px"><button class="btn btn-danger" onclick="deleteSubject('${s.id}')">Șterge</button></td></tr>`).join('')
   }</tbody></table>`
+}
+
+
+function renderAssignmentSelectors(){
+  const teacherSel=document.getElementById("assignmentTeacher");
+  const subjectSel=document.getElementById("assignmentSubject");
+  if(!teacherSel||!subjectSel)return;
+
+  teacherSel.innerHTML=state.teachers.length
+    ? `<option value="">Alege profesorul</option>`+state.teachers
+        .slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"))
+        .map(t=>`<option value="${t.id}">${esc(t.name)}</option>`).join("")
+    : `<option value="">Adaugă mai întâi profesori</option>`;
+
+  const uniqueSubjects=Array.from(
+    new Map(state.subjects.map(s=>[s.name.trim().toLocaleLowerCase("ro"),s])).values()
+  );
+
+  subjectSel.innerHTML=uniqueSubjects.length
+    ? `<option value="">Alege disciplina</option>`+uniqueSubjects
+        .sort((a,b)=>a.name.localeCompare(b.name,"ro"))
+        .map(s=>`<option value="${s.id}">${esc(s.name)}</option>`).join("")
+    : `<option value="">Adaugă mai întâi discipline</option>`;
+}
+
+function addAssignment(){
+  const teacherId=assignmentTeacher.value;
+  const subjectId=assignmentSubject.value;
+  const className=assignmentClass.value;
+  const hours=Number(assignmentHours.value);
+
+  if(!teacherId)return alert("Alege profesorul.");
+  if(!subjectId)return alert("Alege disciplina.");
+  if(!hours || hours<1)return alert("Introdu numărul de ore pe săptămână.");
+
+  const subject=state.subjects.find(s=>s.id===subjectId);
+  if(!subject)return alert("Disciplina nu mai există.");
+
+  const existing=state.assignments.find(a =>
+    a.teacherId===teacherId &&
+    a.subjectName===subject.name &&
+    a.className===className
+  );
+
+  if(existing){
+    existing.hours=hours;
+  }else{
+    state.assignments.push({
+      id:crypto.randomUUID(),
+      teacherId,
+      subjectId,
+      subjectName:subject.name,
+      className,
+      hours
+    });
+  }
+
+  assignmentHours.value=1;
+  save();
+  renderAssignments();
+}
+
+function deleteAssignment(id){
+  state.assignments=state.assignments.filter(a=>a.id!==id);
+  save();
+  renderAssignments();
+}
+
+function renderAssignments(){
+  const box=document.getElementById("assignmentsTable");
+  if(!box)return;
+
+  if(!state.assignments.length){
+    box.innerHTML='<div class="card empty">Nu există încă nicio încadrare. Adaugă profesorii și disciplinele, apoi completează aici.</div>';
+    return;
+  }
+
+  const rows=state.assignments.map(a=>{
+    const teacher=state.teachers.find(t=>t.id===a.teacherId);
+    return {...a,teacherName:teacher?.name||"Profesor șters"};
+  }).sort((a,b)=>
+    CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className) ||
+    a.subjectName.localeCompare(b.subjectName,"ro") ||
+    a.teacherName.localeCompare(b.teacherName,"ro")
+  );
+
+  box.innerHTML=`<table>
+    <thead>
+      <tr>
+        <th>Profesor</th>
+        <th>Disciplina</th>
+        <th>Clasa</th>
+        <th>Ore/săptămână</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(a=>`<tr>
+        <td><b>${esc(a.teacherName)}</b></td>
+        <td>${esc(a.subjectName)}</td>
+        <td><span class="badge">Clasa ${esc(a.className)}</span></td>
+        <td><b>${a.hours}</b></td>
+        <td style="width:90px"><button class="btn btn-danger" onclick="deleteAssignment('${a.id}')">Șterge</button></td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
 }
 
 function renderTimetable(){
@@ -258,7 +407,7 @@ function demoGenerate(){
 }
 function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
 
-updateStats();renderClasses();renderTeachers();renderSubjects();renderTimetable();
+updateStats();renderClasses();renderTeachers();renderSubjects();renderAssignmentSelectors();renderAssignments();renderTimetable();
 </script>
 </body>
 </html>
