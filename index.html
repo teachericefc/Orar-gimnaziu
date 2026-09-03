@@ -175,6 +175,39 @@
   width:auto;
 }
 
+
+.unassigned-lesson{
+  border:2px dashed #f59e0b;
+  background:#fff7ed;
+  color:#9a3412;
+}
+.unassigned-lesson b{display:block}
+.free-hours-banner{
+  margin:12px 0;
+  padding:12px 14px;
+  border-radius:12px;
+  background:#fff7ed;
+  border:1px solid #fdba74;
+  font-weight:700;
+}
+.extra-hours-badge{
+  display:inline-flex;
+  align-items:center;
+  margin-left:7px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:#dcfce7;
+  color:#15803d;
+  font-size:12px;
+  font-weight:800;
+  vertical-align:middle;
+}
+.assign-free-btn{
+  margin-top:6px;
+  padding:5px 8px;
+  font-size:12px;
+}
+
 </style>
 </head>
 <body>
@@ -308,6 +341,19 @@
         <div class="rules-grid">
           
           
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">GENERARE PERMISĂ</div>
+            <h3>Ore neacoperite de profesori</h3>
+            <p>Lipsa profesorilor pentru toate orele prevăzute nu blochează generarea. Orele fără profesor rămân marcate „neatribuite”, iar aplicația afișează câte ore libere au rămas la fiecare clasă. Ele pot fi atribuite ulterior.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">EVIDENȚĂ DINAMICĂ</div>
+            <h3>Ore suplimentare +1h</h3>
+            <p>Dacă un profesor primește în orarul efectiv mai multe ore decât are în încadrarea aprobată, pe jeton apare diferența cu verde (+1h, +2h etc.). Marcajul se recalculează automat și dispare dacă totalul revine la numărul aprobat.</p>
+          </div>
+
           <div class="card rule-card mandatory-rule">
             <div class="rule-type">CONTROL ÎNAINTE DE GENERARE</div>
             <h3>Validarea imposibilităților</h3>
@@ -589,6 +635,9 @@ function renderTeachers(){
       const rows=state.assignments
         .filter(a=>a.teacherId===t.id)
         .map(a=>({...a, subjectName:a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name || "Disciplină"}));
+      const approvedTotal=rows.reduce((s,a)=>s+Number(a.hours||0),0);
+      const scheduledTotal=scheduledHoursForTeacher(t.id);
+      const extraTotal=Math.max(0,scheduledTotal-approvedTotal);
 
       const grouped={};
       rows.forEach(a=>{
@@ -628,7 +677,7 @@ function renderTeachers(){
             <h3>${esc(t.name)}</h3>
             <div class="teacher-status">${esc(t.status||"Titular")}</div>
           </div>
-          <div class="teacher-total">${rows.reduce((s,a)=>s+Number(a.hours||0),0)} h</div>
+          <div class="teacher-total">${approvedTotal} h${extraTotal>0?`<span class="extra-hours-badge">+${extraTotal}h</span>`:""}</div>
         </div>
 
         <div class="teacher-token-body">${assignmentHtml}</div>
@@ -1346,14 +1395,20 @@ function validateBeforeGeneration(){
   const lockedCheck=validateLockedHours();
   if(!lockedCheck.ok) errors.push(lockedCheck.message);
 
-  // 2. Class weekly load must fit in 5 days x 7 periods.
+  // 2. Required class timetable must physically fit in 5 days x 7 periods.
+  // A shortage of assigned teachers is allowed: those periods remain "neatribuite".
   ["V","VI","VII","VIII"].forEach(className=>{
-    const total=(state.assignments||[])
+    const required=requiredHoursForClass(className);
+    const covered=(state.assignments||[])
       .filter(a=>a.className===className)
       .reduce((sum,a)=>sum+Number(a.hours||0),0);
 
-    if(total>35){
-      errors.push(`Clasa ${className} are ${total} ore/săptămână, dar poate avea maximum 35 (5 zile × 7 ore).`);
+    if(required>35){
+      errors.push(`Clasa ${className} are prevăzute ${required} ore/săptămână, dar poate avea maximum 35 (5 zile × 7 ore).`);
+    }
+
+    if(required>covered){
+      warnings.push(`Clasa ${className}: ${required-covered}h nu sunt încă acoperite de încadrarea profesorilor. Orarul poate fi generat, iar aceste ore vor rămâne neatribuite.`);
     }
   });
 
@@ -1451,14 +1506,15 @@ function validateBeforeGeneration(){
     teacherSlots.add(tk);
   });
 
-  // 8. Warning: classes with very uneven theoretical weekly totals can still be valid, but harder.
+  // 8. Missing teacher coverage is informational, not a generation blocker.
   ["V","VI","VII","VIII"].forEach(className=>{
-    const total=(state.assignments||[])
+    const required=requiredHoursForClass(className);
+    const covered=(state.assignments||[])
       .filter(a=>a.className===className)
       .reduce((sum,a)=>sum+Number(a.hours||0),0);
 
-    if(total>0 && total<20){
-      warnings.push(`Clasa ${className} are doar ${total} ore introduse în încadrare. Verifică dacă încadrarea este completă.`);
+    if(required>0 && covered===0){
+      warnings.push(`Clasa ${className} nu are încă ore acoperite de profesori; generatorul poate crea structura cu ore neatribuite.`);
     }
   });
 
@@ -1672,7 +1728,20 @@ function addPreGenerationLockedHour(){
 
   // Put it directly into timetable too, even before a full generation.
   if(!state.timetable || typeof state.timetable!=="object") state.timetable={};
-  state.timetable[key]=slot;
+  state.timetable[className] ||= {};
+  const dayIndex=DAYS.indexOf(day);
+  state.timetable[className][`${dayIndex}-${hour-1}`]={
+    subject:(state.subjects||[]).find(s=>s.id===subjectId)?.name||"Disciplină",
+    subjectId,
+    teacher:(state.teachers||[]).find(t=>t.id===teacherId)?.name||"",
+    teacherId,
+    className,
+    day,
+    hour,
+    unassigned:false,
+    locked:true,
+    source:"manual-lock"
+  };
 
   saveState();
   renderLockedHoursList();
@@ -1694,7 +1763,8 @@ function isSlotLocked(className,day,hour){
 
 function lockSlot(className,day,hour){
   const key=timetableSlotKey(className,day,hour);
-  const slot=state.timetable?.[key];
+  const d=DAYS.indexOf(day);
+  const slot=state.timetable?.[className]?.[`${d}-${Number(hour)-1}`];
 
   if(!slot){
     alert("Poți bloca doar o oră care conține deja o disciplină.");
@@ -1833,32 +1903,276 @@ function enhanceTimetableLockUI(){
   });
 }
 
+
+function requiredHoursForClass(className){
+  return (state.subjects||[])
+    .filter(s=>s.className===className)
+    .reduce((sum,s)=>sum+Number(s.hours||0),0);
+}
+
+function approvedHoursForTeacher(teacherId){
+  return (state.assignments||[])
+    .filter(a=>a.teacherId===teacherId)
+    .reduce((sum,a)=>sum+Number(a.hours||0),0);
+}
+
+function scheduledHoursForTeacher(teacherId,timetableData=state.timetable){
+  let count=0;
+  CLASSES.forEach(cls=>{
+    const data=timetableData?.[cls]||{};
+    Object.values(data).forEach(slot=>{
+      if(slot && !slot.unassigned && slot.teacherId===teacherId) count++;
+    });
+  });
+  return count;
+}
+
+function extraHoursForTeacher(teacherId,timetableData=state.timetable){
+  return Math.max(0,scheduledHoursForTeacher(teacherId,timetableData)-approvedHoursForTeacher(teacherId));
+}
+
+function classUnassignedHours(className,timetableData=state.timetable){
+  const data=timetableData?.[className]||{};
+  return Object.values(data).filter(slot=>slot?.unassigned).length;
+}
+
+function classScheduledHours(className,timetableData=state.timetable){
+  return Object.values(timetableData?.[className]||{}).filter(Boolean).length;
+}
+
+function subjectRequiredHours(className,subjectName){
+  return (state.subjects||[])
+    .filter(s=>s.className===className && s.name===subjectName)
+    .reduce((sum,s)=>sum+Number(s.hours||0),0);
+}
+
+function subjectApprovedCoverage(className,subjectName){
+  return (state.assignments||[])
+    .filter(a=>a.className===className && a.subjectName===subjectName)
+    .reduce((sum,a)=>sum+Number(a.hours||0),0);
+}
+
+function renderFreeHoursBanner(className){
+  const box=document.getElementById("freeHoursBanner");
+  if(!box) return;
+
+  const free=classUnassignedHours(className);
+  if(free>0){
+    box.innerHTML=`<div class="free-hours-banner">⚠️ Au rămas ${free}h libere în orar, clasa ${escapeHtml(className)}. Aceste ore pot fi atribuite și după generare.</div>`;
+  }else{
+    box.innerHTML="";
+  }
+}
+
+function assignmentForTeacherSubjectClass(teacherId,subjectName,className){
+  return (state.assignments||[]).find(a=>
+    a.teacherId===teacherId &&
+    a.subjectName===subjectName &&
+    a.className===className
+  );
+}
+
+function assignUnassignedSlot(className,dayIndex,hourIndex){
+  const data=state.timetable?.[className]||{};
+  const key=`${dayIndex}-${hourIndex}`;
+  const slot=data[key];
+  if(!slot || !slot.unassigned) return;
+
+  const candidates=(state.assignments||[]).filter(a=>
+    a.className===className &&
+    (!slot.subject || a.subjectName===slot.subject)
+  );
+
+  if(!candidates.length){
+    alert(`Nu există încă niciun profesor încadrat pentru ${slot.subject||"această oră"} la clasa ${className}. Adaugă mai întâi încadrarea.`);
+    return;
+  }
+
+  const options=candidates.map((a,i)=>{
+    const t=state.teachers.find(x=>x.id===a.teacherId);
+    return `${i+1}. ${t?.name||"Profesor"} — ${a.subjectName}`;
+  }).join("\n");
+
+  const answer=prompt(`Alege profesorul pentru ${slot.subject||"ora liberă"}:\n\n${options}\n\nScrie numărul opțiunii.`);
+  if(answer===null) return;
+  const idx=Number(answer)-1;
+  const chosen=candidates[idx];
+  if(!chosen) return alert("Opțiune invalidă.");
+
+  const teacher=state.teachers.find(t=>t.id===chosen.teacherId);
+  const day=DAYS[dayIndex];
+  const hour=hourIndex+1;
+
+  if(!isTeacherAvailable(chosen.teacherId,day,hour)){
+    return alert(`${teacher?.name||"Profesorul"} este indisponibil în ${day}, ora ${hour}.`);
+  }
+
+  // No teacher double booking.
+  for(const cls of CLASSES){
+    const other=state.timetable?.[cls]?.[key];
+    if(cls!==className && other?.teacherId===chosen.teacherId){
+      return alert(`${teacher?.name||"Profesorul"} are deja oră la clasa ${cls} în acest interval.`);
+    }
+  }
+
+  data[key]={
+    subject:chosen.subjectName,
+    subjectId:chosen.subjectId,
+    teacher:teacher?.name||"",
+    teacherId:chosen.teacherId,
+    className,
+    day,
+    hour,
+    unassigned:false,
+    manual:true
+  };
+
+  state.timetable[className]=data;
+  save();
+  renderTimetable();
+  renderTeachers();
+}
+
 function renderTimetable(){
   const cls=viewClass.value;
   const data=state.timetable[cls]||{};
   timetableTable.innerHTML=`<thead><tr><th style="width:110px">Ora</th>${DAYS.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${
     HOURS.map((h,i)=>`<tr><th>${i+1}<br><small>${h}</small></th>${DAYS.map((d,j)=>{
       const x=data[`${j}-${i}`];
-      return `<td>${x?`<div class="lesson"><b>${esc(x.subject)}</b>${esc(x.teacher||"")}</div>`:""}</td>`
+      const locked=isSlotLocked(cls,d,i+1);
+      const content=x
+        ? x.unassigned
+          ? `<div class="lesson unassigned-lesson"><b>${esc(x.subject||"Oră neatribuită")}</b><span>Profesor neatribuit</span><button class="btn assign-free-btn" onclick="event.stopPropagation();assignUnassignedSlot('${cls}',${j},${i})">Atribuie</button></div>`
+          : `<div class="lesson"><b>${esc(x.subject)}</b>${esc(x.teacher||"")}${extraHoursForTeacher(x.teacherId)>0?`<span class="extra-hours-badge">+${extraHoursForTeacher(x.teacherId)}h</span>`:""}</div>`
+        : "";
+      return `<td data-class="${cls}" data-day="${d}" data-hour="${i+1}" class="${locked?"locked-slot":""}">${content}</td>`
     }).join('')}</tr>`).join('')
-  }</tbody>`
+  }</tbody>`;
+  renderFreeHoursBanner(cls);
+  setTimeout(enhanceTimetableLockUI,0);
 }
 
 function demoGenerate(){
+  if(!canGenerateTimetable()) return;
+
   const cls=viewClass.value;
   const subjects=state.subjects.filter(s=>s.className===cls);
   if(!subjects.length)return alert(`Adaugă mai întâi discipline pentru clasa ${cls}.`);
+
+  // Preserve locked slots for this class.
+  const existing=state.timetable?.[cls]||{};
+  const out={};
+  Object.entries(state.lockedSlots||{}).forEach(([lockKey,lock])=>{
+    if(lock.className!==cls) return;
+    const d=DAYS.indexOf(lock.day);
+    const h=Number(lock.hour)-1;
+    if(d<0 || h<0) return;
+    const current=existing[`${d}-${h}`] || lock.snapshot;
+    if(current) out[`${d}-${h}`]=JSON.parse(JSON.stringify(current));
+  });
+
+  // Build a balanced list of usable positions: first periods of each day first.
+  // This naturally favors roughly 6-6-6-5-5 instead of loading one day completely.
+  const target=requiredHoursForClass(cls);
+  const dailyBase=Math.floor(target/5);
+  const remainder=target%5;
+  const dailyTargets=DAYS.map((_,d)=>dailyBase+(d<remainder?1:0));
+
   const slots=[];
-  for(let d=0;d<5;d++)for(let h=0;h<7;h++)slots.push([d,h]);
-  let p=0; const out={};
-  for(const s of subjects){
-    for(let k=0;k<s.hours;k++){
-      if(p>=slots.length)break;
-      const [d,h]=slots[p++];
-      out[`${d}-${h}`]={subject:s.name,teacher:""};
+  for(let h=0;h<7;h++){
+    for(let d=0;d<5;d++){
+      if(h<dailyTargets[d]) slots.push([d,h]);
     }
   }
-  state.timetable[cls]=out;save();renderTimetable();
+
+  const isTaken=(d,h)=>!!out[`${d}-${h}`];
+  const takeNextSlot=()=>{
+    while(slots.length){
+      const [d,h]=slots.shift();
+      if(!isTaken(d,h)) return [d,h];
+    }
+    return null;
+  };
+
+  // Schedule only hours actually covered by teacher assignments.
+  const assignments=(state.assignments||[]).filter(a=>a.className===cls);
+  for(const a of assignments){
+    const teacher=state.teachers.find(t=>t.id===a.teacherId);
+    const maxForSubject=subjectRequiredHours(cls,a.subjectName);
+    let already=Object.values(out).filter(x=>x?.subject===a.subjectName && !x.unassigned).length;
+    let toPlace=Math.min(Number(a.hours||0),Math.max(0,maxForSubject-already));
+
+    for(let k=0;k<toPlace;k++){
+      const pos=takeNextSlot();
+      if(!pos) break;
+      const [d,h]=pos;
+
+      // In demo mode, if teacher unavailable at this position, find another position.
+      if(!isTeacherAvailable(a.teacherId,DAYS[d],h+1)){
+        slots.push([d,h]);
+        let found=null;
+        for(let z=0;z<slots.length;z++){
+          const [dd,hh]=slots[z];
+          if(isTeacherAvailable(a.teacherId,DAYS[dd],hh+1)){
+            found=slots.splice(z,1)[0];
+            break;
+          }
+        }
+        if(!found) continue;
+        const [dd,hh]=found;
+        out[`${dd}-${hh}`]={
+          subject:a.subjectName,
+          subjectId:a.subjectId,
+          teacher:teacher?.name||"",
+          teacherId:a.teacherId,
+          className:cls,
+          day:DAYS[dd],
+          hour:hh+1,
+          unassigned:false
+        };
+      }else{
+        out[`${d}-${h}`]={
+          subject:a.subjectName,
+          subjectId:a.subjectId,
+          teacher:teacher?.name||"",
+          teacherId:a.teacherId,
+          className:cls,
+          day:DAYS[d],
+          hour:h+1,
+          unassigned:false
+        };
+      }
+    }
+  }
+
+  // Fill remaining required curriculum hours as unassigned placeholders,
+  // preserving subject-level deficits where possible.
+  for(const s of subjects){
+    const required=Number(s.hours||0);
+    const placed=Object.values(out).filter(x=>x?.subject===s.name).length;
+    const missing=Math.max(0,required-placed);
+
+    for(let k=0;k<missing;k++){
+      const pos=takeNextSlot();
+      if(!pos) break;
+      const [d,h]=pos;
+      out[`${d}-${h}`]={
+        subject:s.name,
+        subjectId:s.id,
+        teacher:"",
+        teacherId:null,
+        className:cls,
+        day:DAYS[d],
+        hour:h+1,
+        unassigned:true
+      };
+    }
+  }
+
+  state.timetable[cls]=out;
+  save();
+  renderTimetable();
+  renderTeachers();
 }
 function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
 
