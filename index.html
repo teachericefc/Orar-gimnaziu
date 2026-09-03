@@ -613,6 +613,75 @@
   user-select:none;
 }
 
+
+.teacher-profile-card .teacher-profile-form{
+  grid-template-columns:minmax(220px,1.4fr) minmax(180px,.9fr);
+}
+.teacher-profile-card #profileTeacherContractHours{
+  width:92px;
+  max-width:92px;
+}
+.teacher-profile-card .teacher-color-field{
+  margin-top:8px;
+}
+.teacher-profile-card #profileTeacherColor{
+  width:54px;
+  min-width:54px;
+  max-width:54px;
+  height:34px;
+  padding:2px;
+  border-radius:8px;
+}
+.profile-assignment-editor{
+  table-layout:fixed;
+}
+.profile-assignment-editor th:nth-child(1),
+.profile-assignment-editor td:nth-child(1){
+  width:auto;
+}
+.profile-assignment-editor th:nth-child(2),
+.profile-assignment-editor td:nth-child(2){
+  width:86px;
+}
+.profile-assignment-editor th:nth-child(3),
+.profile-assignment-editor td:nth-child(3){
+  width:105px;
+}
+.profile-assignment-editor th:nth-child(4),
+.profile-assignment-editor td:nth-child(4){
+  width:82px;
+}
+.profile-assignment-editor .profile-subject-readonly{
+  display:flex;
+  align-items:center;
+  min-height:38px;
+  padding:8px 10px;
+  border:1px solid #dbe3ef;
+  border-radius:10px;
+  background:#f8fafc;
+  color:#172033;
+  font-weight:600;
+}
+.profile-assignment-editor .profile-hours-input{
+  width:72px!important;
+  min-width:72px!important;
+  max-width:72px!important;
+  text-align:center;
+}
+.profile-assignment-editor .profile-class-select{
+  width:72px!important;
+  min-width:72px!important;
+  max-width:72px!important;
+}
+@media(max-width:700px){
+  .teacher-profile-card .teacher-profile-form{
+    grid-template-columns:1fr;
+  }
+  .profile-assignment-editor{
+    min-width:560px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -667,7 +736,7 @@
                 </div>
                 <label style="margin:0">
   <span style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">Total ore în încadrare</span>
-  <input id="teacherContractHours" type="number" min="1" value="18">
+  <input id="teacherContractHours" type="number" min="1" value="18" style="width:92px;max-width:92px">
 </label>
                 <button class="btn btn-primary" onclick="addTeacher()">Adaugă profesor</button>
               </div>
@@ -1971,14 +2040,13 @@ function renderTeacherProfileAssignments(){
     </thead>
     <tbody>
       ${rows.map(a=>`<tr>
-        <td><input value="${esc(a.subjectName||state.subjects.find(s=>s.id===a.subjectId)?.name||"")}"
-          onchange="updateProfileAssignment('${a.id}','subject',this.value)"></td>
+        <td><div class="profile-subject-readonly">${esc(a.subjectName||state.subjects.find(s=>s.id===a.subjectId)?.name||"")}</div></td>
         <td>
-          <select onchange="updateProfileAssignment('${a.id}','className',this.value)">
+          <select class="profile-class-select" onchange="updateProfileAssignment('${a.id}','className',this.value)">
             ${CLASSES.map(c=>`<option value="${c}" ${c===a.className?"selected":""}>${c}</option>`).join("")}
           </select>
         </td>
-        <td><input type="number" min="1" value="${Number(a.hours||1)}"
+        <td><input class="profile-hours-input" type="number" min="1" value="${Number(a.hours||1)}"
           onchange="updateProfileAssignment('${a.id}','hours',this.value)"></td>
         <td><button class="btn btn-danger" onclick="deleteProfileAssignment('${a.id}')">Șterge</button></td>
       </tr>`).join("")}
@@ -5234,19 +5302,21 @@ document.addEventListener("DOMContentLoaded",()=>{
         <input id="profileTeacherName">
       </label>
 
-      <label>
-        <span>Statut</span>
-        <select id="profileTeacherStatus">
-          <option value="Titular">Titular</option>
-          <option value="Suplinitor">Suplinitor</option>
-          <option value="Asociat">Asociat / plata cu ora</option>
-          <option value="Altul">Alt statut</option>
-        </select>
-          <label class="teacher-color-field">
-            <span>Culoare profesor</span>
-            <input id="profileTeacherColor" type="color" value="#dbeafe">
-          </label>
-      </label>
+      <div>
+        <label>
+          <span>Statut</span>
+          <select id="profileTeacherStatus">
+            <option value="Titular">Titular</option>
+            <option value="Suplinitor">Suplinitor</option>
+            <option value="Asociat">Asociat / plata cu ora</option>
+            <option value="Altul">Alt statut</option>
+          </select>
+        </label>
+        <label class="teacher-color-field">
+          <span>Culoare profesor</span>
+          <input id="profileTeacherColor" type="color" value="#dbeafe" title="Culoarea profesorului">
+        </label>
+      </div>
 
       <label>
         <span>Observație</span>
