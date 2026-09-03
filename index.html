@@ -1104,19 +1104,13 @@ td.move-swap-target{
 <div class="layout">
     <aside>
       <button class="nav-btn active" data-target="timetable">🗓️ Orar</button>
-      <button class="nav-btn" data-target="classes">🏫 Clase</button>
-      <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
+<button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
       <button class="nav-btn" data-target="subjects">📚 Discipline</button>
       <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
     </aside>
 
     <main>
-<section id="classes" class="section">
-        <div class="page-head"><div><h2>Clase</h2><p>Clasele pentru care va fi construit orarul.</p></div></div>
-        <div class="grid" id="classesGrid"></div>
-      </section>
-
-      <section id="teachers" class="section">
+<section id="teachers" class="section">
         <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorul împreună cu încadrarea inițială. Datele pot fi ajustate oricând din Fișă profesor.</p></div></div>
         <div class="card" style="margin-bottom:16px">
           <div class="teacher-complete-form">
@@ -1525,13 +1519,18 @@ showSection('timetable');
 
 function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 function updateStats(){
-  document.getElementById('statTeachers').textContent=state.teachers.length;
-  document.getElementById('statSubjects').textContent=state.subjects.length;
-  document.getElementById('statHours').textContent=state.subjects.reduce((a,s)=>a+(Number(s.hours)||0),0);
+  const statTeachers=document.getElementById('statTeachers');
+  const statSubjects=document.getElementById('statSubjects');
+  const statHours=document.getElementById('statHours');
+  if(statTeachers) statTeachers.textContent=state.teachers.length;
+  if(statSubjects) statSubjects.textContent=state.subjects.length;
+  if(statHours) statHours.textContent=state.subjects.reduce((a,s)=>a+(Number(s.hours)||0),0);
 }
 function openClass(cls){showSection('subjects')}
 
 function renderClasses(){
+  const classesGrid=document.getElementById('classesGrid');
+  if(!classesGrid) return;
   classesGrid.innerHTML=CLASSES.map(c=>{
     const list=state.subjects.filter(s=>s.className===c);
     const hours=list.reduce((a,s)=>a+Number(s.hours||0),0);
@@ -5574,7 +5573,7 @@ synchronizeAssignmentsWithSubjects();
 ensureTeacherContractHours();
 ensureTeacherColors();
 refreshTeacherSubjectSuggestions();
-updateStats();renderClasses();renderTeachers();renderSubjects();renderAssignmentSelectors();renderAssignments();renderTimetable();
+updateStats();renderTeachers();renderSubjects();renderAssignmentSelectors();renderAssignments();renderTimetable();
 
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape" && document.getElementById("availabilityModal")?.style.display!=="none"){
