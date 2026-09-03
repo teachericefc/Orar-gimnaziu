@@ -145,6 +145,12 @@
     .rule-status{margin-top:12px;font-weight:800;font-size:13px;color:#166534}
     @media(max-width:850px){.rules-grid{grid-template-columns:1fr}}
 
+
+    .priority-check,.priority-toggle{
+      display:inline-flex;align-items:center;gap:8px;cursor:pointer;font-weight:700
+    }
+    .priority-check input,.priority-toggle input{width:18px;height:18px}
+
 </style>
 </head>
 <body>
@@ -218,13 +224,22 @@
       <section id="subjects" class="section">
         <div class="page-head"><div><h2>Discipline</h2><p>Curriculum național + discipline la decizia școlii.</p></div></div>
         <div class="card" style="margin-bottom:16px">
-          <div class="form-row">
-            <input id="subjectName" placeholder="Denumire disciplină">
-            <select id="subjectClass"><option>V</option><option>VI</option><option>VII</option><option>VIII</option></select>
+          <div class="form-row subject-form" style="grid-template-columns:1.3fr .8fr .8fr auto auto">
+            <input id="subjectName" placeholder="Denumirea disciplinei">
+            <select id="subjectClass">
+              <option>V</option><option>VI</option><option>VII</option><option>VIII</option>
+            </select>
             <input id="subjectHours" type="number" min="1" max="10" value="1" placeholder="Ore/săptămână">
-            <button class="btn btn-primary" onclick="addSubject()">Adaugă</button>
+            <label class="priority-check">
+              <input id="subjectPrioritized" type="checkbox">
+              <span>Prioritizare</span>
+            </label>
+            <button class="btn btn-primary" onclick="addSubject()">Adaugă disciplină</button>
           </div>
-        </div>
+          <div class="note" style="margin-top:12px">
+            „Prioritizare” favorizează disciplina în primele ore ale zilei, fără a deveni o regulă obligatorie.
+          </div>
+</div>
         <div id="subjectsTable"></div>
       </section>
 
@@ -292,10 +307,17 @@
             <p>Generatorul încearcă să distribuie disciplina în cât mai multe zile, înainte de a pune două ore în aceeași zi.</p>
           </div>
 
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ FOARTE PUTERNICĂ</div>
+            <h3>Ferestre profesor – penalizare progresivă</h3>
+            <p>0 ferestre este ideal. O singură fereastră de 1 oră poate fi acceptată. Ferestrele de 2 ore sunt puternic penalizate, iar cele de 3–4 ore sau două ferestre în aceeași zi sunt evitate aproape complet. Situațiile de tipul ora 1 și ora 7 primesc penalizare foarte mare.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">PREFERINȚĂ PUTERNICĂ</div>
             <h3>Ferestre minime pentru profesori</h3>
-            <p>Se evită pe cât posibil programul fragmentat și situațiile de tipul ora 1 și ora 7 în aceeași zi.</p>
+            <p>Se evită pe cât posibil programul fragmentat și situațiile de tipul ora 1 și ora 7 în aceeași zi. Patru ore consecutive sunt preferate față de două ore + fereastră + două ore.</p>
           </div>
 
           <div class="card rule-card preference-rule">
@@ -322,6 +344,13 @@
             <div class="rule-type">PREFERINȚĂ PUTERNICĂ</div>
             <h3>Distribuție echilibrată pentru clase</h3>
             <p>Orele săptămânale sunt împărțite cât mai uniform între cele 5 zile. De exemplu, 28 de ore favorizează o distribuție apropiată de 6–6–6–5–5.</p>
+          </div>
+
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ CONFIGURABILĂ</div>
+            <h3>Prioritizare disciplină</h3>
+            <p>Disciplinele bifate cu „Prioritizare” sunt favorizate în primele ore ale zilei. Generatorul poate folosi și ore mai târzii dacă astfel obține un orar general mai bun.</p>
           </div>
 
           <div class="card rule-card preference-rule">
@@ -366,8 +395,14 @@ state.generatorRules ||= {
   classesStartAtFirstHour:true,
   maxClassHoursPerDay:7,
   balanceClassDays:true,
-  spreadTeachersAcrossAvailableWeek:true
+  spreadTeachersAcrossAvailableWeek:true,
+  progressiveTeacherGapPenalty:true
 };
+
+
+state.subjects.forEach(s=>{
+  if(!("prioritized" in s)) s.prioritized=false;
+});
 
 state.teachers.forEach(t=>{
   if(!("status" in t)) t.status="Titular";
@@ -498,10 +533,25 @@ function renderTeachers(){
 }
 
 function addSubject(){
-  const name=subjectName.value.trim(); const hours=Number(subjectHours.value);
-  if(!name||!hours)return alert("Completează disciplina și numărul de ore.");
-  state.subjects.push({id:crypto.randomUUID(),name,className:subjectClass.value,hours});
-  subjectName.value="";subjectHours.value=1;save();renderSubjects();
+  const name=(subjectName.value||"").trim();
+  const className=subjectClass.value;
+  const hours=Number(subjectHours.value);
+  const prioritized=!!document.getElementById("subjectPrioritized")?.checked;
+  if(!name)return alert("Introdu denumirea disciplinei.");
+  if(!hours || hours<1)return alert("Introdu numărul de ore pe săptămână.");
+  state.subjects.push({
+    id:crypto.randomUUID(),
+    name,
+    className,
+    hours,
+    prioritized
+  });
+  subjectName.value="";
+  subjectHours.value=1;
+  if(document.getElementById("subjectPrioritized")) subjectPrioritized.checked=false;
+  save();
+  renderSubjects();
+  renderAssignmentSelectors();
 }
 function deleteSubject(id){
   state.subjects=state.subjects.filter(s=>s.id!==id);
@@ -509,11 +559,47 @@ function deleteSubject(id){
   save();renderSubjects();renderAssignmentSelectors();renderAssignments();
 }
 function renderSubjects(){
-  if(!state.subjects.length){subjectsTable.innerHTML='<div class="card empty">Nu ai adăugat încă discipline.</div>';return}
-  const rows=[...state.subjects].sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)||a.name.localeCompare(b.name,'ro'));
-  subjectsTable.innerHTML=`<table><thead><tr><th>Clasa</th><th>Disciplina</th><th>Ore/săptămână</th><th></th></tr></thead><tbody>${
-    rows.map(s=>`<tr><td><span class="badge">Clasa ${esc(s.className)}</span></td><td><b>${esc(s.name)}</b></td><td>${s.hours}</td><td style="width:90px"><button class="btn btn-danger" onclick="deleteSubject('${s.id}')">Șterge</button></td></tr>`).join('')
-  }</tbody></table>`
+  const box=document.getElementById("subjectsTable");
+  if(!box)return;
+
+  if(!state.subjects.length){
+    box.innerHTML='<div class="card empty">Nu există încă discipline adăugate.</div>';
+    return;
+  }
+
+  const rows=state.subjects.slice().sort((a,b)=>
+    CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className) ||
+    a.name.localeCompare(b.name,"ro")
+  );
+
+  box.innerHTML=`<table>
+    <thead>
+      <tr>
+        <th>Disciplina</th>
+        <th>Clasa</th>
+        <th>Ore/săptămână</th>
+        <th>Prioritizare</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      ${rows.map(s=>`<tr>
+        <td><b>${esc(s.name)}</b></td>
+        <td><span class="badge">Clasa ${esc(s.className)}</span></td>
+        <td><b>${s.hours}</b></td>
+        <td>
+          <label class="priority-toggle">
+            <input type="checkbox" ${s.prioritized?"checked":""}
+              onchange="toggleSubjectPriority('${s.id}',this.checked)">
+            <span>${s.prioritized?"Prioritară":"Normală"}</span>
+          </label>
+        </td>
+        <td style="width:90px">
+          <button class="btn btn-danger" onclick="deleteSubject('${s.id}')">Șterge</button>
+        </td>
+      </tr>`).join("")}
+    </tbody>
+  </table>`;
 }
 
 
@@ -862,6 +948,123 @@ function teacherAssignedDays(teacherId,timetableData=state.timetable){
     }
   });
   return [...days];
+}
+
+
+function toggleSubjectPriority(id,value){
+  const subject=state.subjects.find(s=>s.id===id);
+  if(!subject)return;
+  subject.prioritized=!!value;
+  save();
+  renderSubjects();
+}
+
+function subjectPriorityPenalty(subjectId,hour){
+  const subject=state.subjects.find(s=>s.id===subjectId);
+  if(!subject?.prioritized)return 0;
+  if(hour<=3)return 0;
+  if(hour===4)return 2;
+  if(hour===5)return 5;
+  if(hour===6)return 8;
+  return 12;
+}
+
+
+function teacherDayHoursFromSlots(teacherId,day,timetableData=state.timetable){
+  const hours=[];
+  Object.entries(timetableData).forEach(([key,slot])=>{
+    if(!slot || typeof slot!=="object") return;
+    if(slot.teacherId!==teacherId) return;
+
+    let slotDay=slot.day;
+    let slotHour=slot.hour;
+
+    // Backward-compatible fallback for keys like "V|Luni|3"
+    if((!slotDay || !slotHour) && typeof key==="string"){
+      const parts=key.split("|");
+      if(parts.length>=3){
+        slotDay ||= parts[1];
+        slotHour ||= Number(parts[2]);
+      }
+    }
+
+    if(slotDay===day && Number.isFinite(Number(slotHour))){
+      hours.push(Number(slotHour));
+    }
+  });
+
+  return [...new Set(hours)].sort((a,b)=>a-b);
+}
+
+function getGapSegments(hours){
+  if(!hours || hours.length<2) return [];
+  const sorted=[...new Set(hours)].sort((a,b)=>a-b);
+  const gaps=[];
+  for(let i=0;i<sorted.length-1;i++){
+    const size=sorted[i+1]-sorted[i]-1;
+    if(size>0){
+      gaps.push({
+        start:sorted[i]+1,
+        end:sorted[i+1]-1,
+        size
+      });
+    }
+  }
+  return gaps;
+}
+
+function progressiveGapPenaltyForDay(hours){
+  if(!hours || hours.length<2) return 0;
+
+  const sorted=[...new Set(hours)].sort((a,b)=>a-b);
+  const gaps=getGapSegments(sorted);
+  if(!gaps.length) return 0;
+
+  let penalty=0;
+
+  // Progressive penalty per gap size.
+  gaps.forEach(g=>{
+    if(g.size===1) penalty += 12;
+    else if(g.size===2) penalty += 40;
+    else if(g.size===3) penalty += 90;
+    else if(g.size===4) penalty += 150;
+    else penalty += 150 + (g.size-4)*70;
+  });
+
+  // Multiple gaps in the same day are especially undesirable.
+  if(gaps.length>=2){
+    penalty += 110 + (gaps.length-2)*80;
+  }
+
+  // Very large daily span with few actual teaching hours is heavily penalized.
+  const span=sorted[sorted.length-1]-sorted[0]+1;
+  const teaching=sorted.length;
+  const idle=span-teaching;
+
+  if(sorted[0]===1 && sorted[sorted.length-1]===7){
+    penalty += 140;
+  }else if(span>=6 && idle>=2){
+    penalty += 70;
+  }
+
+  return penalty;
+}
+
+function teacherGapPenalty(teacherId,timetableData=state.timetable){
+  return AVAIL_DAYS.reduce((total,day)=>{
+    const hours=teacherDayHoursFromSlots(teacherId,day,timetableData);
+    return total + progressiveGapPenaltyForDay(hours);
+  },0);
+}
+
+function describeTeacherGapsForDay(teacherId,day,timetableData=state.timetable){
+  const hours=teacherDayHoursFromSlots(teacherId,day,timetableData);
+  const gaps=getGapSegments(hours);
+  return {
+    hours,
+    gaps,
+    penalty:progressiveGapPenaltyForDay(hours)
+  };
 }
 
 function renderTimetable(){
