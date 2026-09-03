@@ -1155,6 +1155,60 @@
   transform:translateY(-1px)!important;
 }
 
+
+.school-banner{
+  display:flex!important;
+  align-items:center!important;
+}
+.history-controls{
+  margin-left:auto!important;
+  display:flex!important;
+  gap:7px!important;
+  align-items:center!important;
+  padding-right:4px!important;
+}
+.history-btn{
+  border:1px solid #cbd5e1!important;
+  border-radius:10px!important;
+  background:#ffffff!important;
+  color:#475569!important;
+  padding:6px 10px!important;
+  min-height:34px!important;
+  font-size:12px!important;
+  font-weight:900!important;
+  box-shadow:0 2px 7px rgba(71,85,105,.08)!important;
+}
+.history-btn:hover:not(:disabled){
+  background:#f8fafc!important;
+  transform:translateY(-1px)!important;
+}
+.history-btn:disabled{
+  opacity:.38!important;
+  cursor:not-allowed!important;
+  box-shadow:none!important;
+}
+.timetable-actions-head{
+  justify-content:flex-end!important;
+  margin-bottom:10px!important;
+}
+.timetable-actions-head .toolbar{
+  width:100%!important;
+  justify-content:flex-end!important;
+}
+@media(max-width:760px){
+  .school-banner{
+    gap:7px!important;
+  }
+  .history-controls{
+    gap:4px!important;
+  }
+  .history-btn{
+    padding:5px 7px!important;
+    min-height:31px!important;
+    font-size:11px!important;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1165,6 +1219,10 @@
   <div>
     <div class="school-banner-title">Școala Gimnazială Dăneasa</div>
     <div class="school-banner-subtitle">Orar gimnaziu • 2026–2027</div>
+  </div>
+  <div class="history-controls">
+    <button id="undoLastCommandBtn" class="history-btn" onclick="undoLastCommand()" title="Anulează ultima comandă">↶ Undo</button>
+    <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ redo</button>
   </div>
 </div>
 <div class="layout">
@@ -1454,13 +1512,11 @@
       </section>
 
       <section id="timetable" class="section active">
-        <div class="page-head">
-          <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase. Blocarea și deblocarea se fac direct din iconița 🔓 / 🔒 a fiecărei ore.</p></div>
+        <div class="page-head timetable-actions-head">
           <div class="toolbar">
             <div class="generator-actions">
               <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate('disciplines')">✦ Generează orar după disciplină</button>
               <button id="generateTeacherTimetableBtn" class="btn generator-teacher-btn" onclick="demoGenerate('teachers')">♟ Generează orar după profesori</button>
-              <button id="undoLastCommandBtn" class="btn undo-command-btn" onclick="undoLastCommand()">↶ Revenire</button>
             </div>
             <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
               <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
@@ -1469,7 +1525,6 @@
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
         </div>
-        <p class="muted"><b>Generator automat:</b> folosește exclusiv jetoanele din tabul Discipline. Numărul din paranteză reprezintă câte ore din acel jeton poate plasa la clasa respectivă. Creează 2 variante fără ferestre la elevi și fără aceeași disciplină simultan la două clase. Disciplinele aflate mai sus în listă sunt favorizate la primele ore.</p>
         <div class="orar-workspace">
           <div id="allClassTimetables" class="all-class-timetables"></div>
           <aside class="card teacher-token-panel">
@@ -1492,8 +1547,10 @@ const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
 const HOURS=["08:00–08:50","09:00–09:50","10:00–10:50","11:00–11:50","12:00–12:50","13:00–13:50","14:00–14:50"];
 const KEY="orar_gimnaziu_v1";
-const UNDO_KEY=KEY+"_undo";
-let isRestoringUndo=false;
+const UNDO_STACK_KEY=KEY+"_undo_stack";
+const REDO_STACK_KEY=KEY+"_redo_stack";
+const HISTORY_LIMIT=40;
+let isRestoringHistory=false;
 
 let state=JSON.parse(localStorage.getItem(KEY)||'null')||{teachers:[],subjects:[],assignments:[],timetable:{}};
 state.teachers ||= [];
@@ -1588,12 +1645,30 @@ function applyNationalCurriculumDefaultsOnce(){
 
 
 
+function readHistoryStack(key){
+  try{
+    const value=JSON.parse(localStorage.getItem(key)||"[]");
+    return Array.isArray(value) ? value : [];
+  }catch{
+    return [];
+  }
+}
+
+function writeHistoryStack(key,stack){
+  localStorage.setItem(key,JSON.stringify(stack.slice(-HISTORY_LIMIT)));
+}
+
 function save(){
   const next=JSON.stringify(state);
   const previous=localStorage.getItem(KEY);
 
-  if(!isRestoringUndo && previous && previous!==next){
-    localStorage.setItem(UNDO_KEY,previous);
+  if(!isRestoringHistory && previous && previous!==next){
+    const undoStack=readHistoryStack(UNDO_STACK_KEY);
+    undoStack.push(previous);
+    writeHistoryStack(UNDO_STACK_KEY,undoStack);
+
+    // Orice comandă nouă după undo invalidează istoricul redo.
+    writeHistoryStack(REDO_STACK_KEY,[]);
   }
 
   localStorage.setItem(KEY,next);
@@ -1602,51 +1677,88 @@ function save(){
 }
 
 function updateUndoButtonState(){
-  const btn=document.getElementById("undoLastCommandBtn");
-  if(btn) btn.disabled=!localStorage.getItem(UNDO_KEY);
+  const undoBtn=document.getElementById("undoLastCommandBtn");
+  const redoBtn=document.getElementById("redoLastCommandBtn");
+  if(undoBtn) undoBtn.disabled=readHistoryStack(UNDO_STACK_KEY).length===0;
+  if(redoBtn) redoBtn.disabled=readHistoryStack(REDO_STACK_KEY).length===0;
+}
+
+function restoreHistorySnapshot(snapshot){
+  const restored=JSON.parse(snapshot);
+
+  Object.keys(state).forEach(k=>delete state[k]);
+  Object.assign(state,restored);
+
+  generatedTimetableVariants=[];
+  activeGeneratedVariantIndex=-1;
+  selectedTeacherToken=null;
+  selectedDisciplineToken=null;
+  selectedTimetableActionSlot=null;
+  draggedTeacherToken=null;
+  draggedTimetableSlot=null;
+
+  localStorage.setItem(KEY,JSON.stringify(state));
+
+  renderTimetable();
+  renderTeachers();
+  renderSubjects();
+  renderClasses();
+  renderAssignmentSelectors();
+  updateStats();
+  updateUndoButtonState();
 }
 
 function undoLastCommand(){
-  const previous=localStorage.getItem(UNDO_KEY);
-  if(!previous){
-    appMessage("Nu există o comandă anterioară la care să revin.","error",1800);
+  const undoStack=readHistoryStack(UNDO_STACK_KEY);
+  if(!undoStack.length){
+    appMessage("Nu mai există nimic de anulat.","error",1600);
     return;
   }
 
   try{
     const current=JSON.stringify(state);
-    const restored=JSON.parse(previous);
+    const previous=undoStack.pop();
+    const redoStack=readHistoryStack(REDO_STACK_KEY);
+    redoStack.push(current);
 
-    isRestoringUndo=true;
-    localStorage.setItem(KEY,previous);
-    localStorage.setItem(UNDO_KEY,current);
+    isRestoringHistory=true;
+    writeHistoryStack(UNDO_STACK_KEY,undoStack);
+    writeHistoryStack(REDO_STACK_KEY,redoStack);
+    restoreHistorySnapshot(previous);
 
-    // Păstrăm aceeași referință globală acolo unde este posibil.
-    Object.keys(state).forEach(k=>delete state[k]);
-    Object.assign(state,restored);
-
-    generatedTimetableVariants=[];
-    activeGeneratedVariantIndex=-1;
-    selectedTeacherToken=null;
-    selectedDisciplineToken=null;
-    selectedTimetableActionSlot=null;
-    draggedTeacherToken=null;
-    draggedTimetableSlot=null;
-
-    renderTimetable();
-    renderTeachers();
-    renderSubjects();
-    renderClasses();
-    renderAssignmentSelectors();
-    updateStats();
-    updateUndoButtonState();
-
-    appMessage("Am revenit la starea anterioară.","success",1500);
+    appMessage("Ultima comandă a fost anulată.","success",1200);
   }catch(err){
     console.error("Undo:",err);
-    appMessage("Nu am putut reveni la comanda anterioară.","error",2800);
+    appMessage("Nu am putut anula ultima comandă.","error",2400);
   }finally{
-    isRestoringUndo=false;
+    isRestoringHistory=false;
+  }
+}
+
+function redoLastCommand(){
+  const redoStack=readHistoryStack(REDO_STACK_KEY);
+  if(!redoStack.length){
+    appMessage("Nu există o comandă de refăcut.","error",1600);
+    return;
+  }
+
+  try{
+    const current=JSON.stringify(state);
+    const next=redoStack.pop();
+    const undoStack=readHistoryStack(UNDO_STACK_KEY);
+    undoStack.push(current);
+
+    isRestoringHistory=true;
+    writeHistoryStack(UNDO_STACK_KEY,undoStack);
+    writeHistoryStack(REDO_STACK_KEY,redoStack);
+    restoreHistorySnapshot(next);
+
+    appMessage("Comanda anulată a fost refăcută.","success",1200);
+  }catch(err){
+    console.error("Redo:",err);
+    appMessage("Nu am putut reface comanda.","error",2400);
+  }finally{
+    isRestoringHistory=false;
   }
 }
 applyNationalCurriculumDefaultsOnce();
