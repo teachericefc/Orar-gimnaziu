@@ -1412,7 +1412,7 @@
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
         </div>
-        <p class="muted"><b>Generator automat:</b> folosește exclusiv jetoanele din tabul Discipline. Numărul din paranteză reprezintă câte ore din acel jeton poate plasa la clasa respectivă. Creează 2 variante fără ferestre la elevi.</p>
+        <p class="muted"><b>Generator automat:</b> folosește exclusiv jetoanele din tabul Discipline. Numărul din paranteză reprezintă câte ore din acel jeton poate plasa la clasa respectivă. Creează 2 variante fără ferestre la elevi și fără aceeași disciplină simultan la două clase. Disciplinele aflate mai sus în listă sunt favorizate la primele ore.</p>
         <div class="orar-workspace">
           <div id="allClassTimetables" class="all-class-timetables"></div>
           <aside class="card teacher-token-panel">
@@ -1912,10 +1912,10 @@ function renderTeachers(){
 
 const DEFAULT_GYMNASIUM_SUBJECTS=[
   "Limba și literatura română",
+  "Matematică",
   "Limba engleză",
   "Limba franceză",
   "Elemente de limbă latină și de cultură romanică",
-  "Matematică",
   "Istorie",
   "Geografie",
   "Biologie",
@@ -5978,6 +5978,53 @@ function compactDailyShape(total,className){
   return counts;
 }
 
+
+function disciplineUsedAtSameTime(tt,subjectName,dayIndex,hourIndex,excludeClassName=null){
+  const target=String(subjectName||"").trim().toLocaleLowerCase("ro");
+  if(!target) return false;
+
+  return CLASSES.some(className=>{
+    if(className===excludeClassName) return false;
+    const slot=tt?.[className]?.[`${dayIndex}-${hourIndex}`];
+    if(!slot) return false;
+
+    const existing=String(
+      slot.subject ||
+      (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+      ""
+    ).trim().toLocaleLowerCase("ro");
+
+    return existing===target;
+  });
+}
+
+
+function disciplinePriorityIndex(subjectName){
+  const target=String(subjectName||"").trim().toLocaleLowerCase("ro");
+  const idx=(DEFAULT_GYMNASIUM_SUBJECTS||[]).findIndex(name=>
+    String(name||"").trim().toLocaleLowerCase("ro")===target
+  );
+  // Disciplinele personalizate vin după cele din lista principală.
+  return idx>=0 ? idx : 999;
+}
+
+function pickCandidateWithListPriority(candidates,hourIndex){
+  if(!candidates.length) return null;
+
+  // Prioritate mai puternică la primele ore, mai relaxată spre finalul zilei.
+  const sorted=candidates.slice().sort((a,b)=>
+    disciplinePriorityIndex(a.token.subject)-disciplinePriorityIndex(b.token.subject)
+  );
+
+  let poolSize;
+  if(hourIndex<=1) poolSize=Math.min(2,sorted.length);      // orele 1-2
+  else if(hourIndex<=3) poolSize=Math.min(4,sorted.length); // orele 3-4
+  else poolSize=Math.min(6,sorted.length);                  // restul zilei
+
+  const preferred=sorted.slice(0,poolSize);
+  return preferred[Math.floor(Math.random()*preferred.length)];
+}
+
 function buildDisciplineVariant(){
   const inventory=disciplineTokenInventory();
   const tt=disciplineLockedBase();
@@ -6023,13 +6070,27 @@ function buildDisciplineVariant(){
 
         let candidates=pool
           .map((token,index)=>({token,index}))
-          .filter(x=>!usedToday.has(String(x.token.subject)));
+          .filter(x=>
+            !usedToday.has(String(x.token.subject)) &&
+            !disciplineUsedAtSameTime(tt,x.token.subject,d,h,className)
+          );
 
+        // Dacă nu putem evita repetarea în aceeași zi, permitem repetarea în zi,
+        // dar NU permitem aceeași disciplină simultan la două clase.
         if(!candidates.length){
-          candidates=pool.map((token,index)=>({token,index}));
+          candidates=pool
+            .map((token,index)=>({token,index}))
+            .filter(x=>!disciplineUsedAtSameTime(tt,x.token.subject,d,h,className));
         }
 
-        const picked=candidates[Math.floor(Math.random()*candidates.length)];
+        if(!candidates.length){
+          return {
+            ok:false,
+            message:`Nu pot evita repetarea simultană a disciplinelor la ${DAYS[d]}, ora ${h+1}. Reîncerc generarea cu altă distribuție.`
+          };
+        }
+
+        const picked=pickCandidateWithListPriority(candidates,h);
         const token=pool.splice(picked.index,1)[0];
 
         tt[className][key]={
