@@ -208,6 +208,27 @@
   font-size:12px;
 }
 
+
+.unassigned-teacher-badge{
+  display:inline-flex;
+  align-items:center;
+  margin-left:7px;
+  padding:2px 7px;
+  border-radius:999px;
+  background:#fef3c7;
+  color:#92400e;
+  font-size:12px;
+  font-weight:800;
+  vertical-align:middle;
+}
+.teacher-remaining-card{
+  border:1px dashed #f59e0b;
+  background:#fffbeb;
+  border-radius:12px;
+  padding:10px 12px;
+  margin-top:8px;
+}
+
 </style>
 </head>
 <body>
@@ -342,6 +363,13 @@
           
           
           
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">GENERARE PERMISĂ</div>
+            <h3>Ore de profesor rămase neatribuite</h3>
+            <p>Dacă generatorul nu poate plasa toate orele prevăzute în încadrarea unui profesor, orarul se generează totuși. Pe jetonul profesorului rămâne afișat numărul de ore neatribuite, inclusiv disciplina și clasa, pentru ca directorul să știe exact ce mai trebuie introdus manual.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">GENERARE PERMISĂ</div>
             <h3>Ore neacoperite de profesori</h3>
@@ -638,6 +666,8 @@ function renderTeachers(){
       const approvedTotal=rows.reduce((s,a)=>s+Number(a.hours||0),0);
       const scheduledTotal=scheduledHoursForTeacher(t.id);
       const extraTotal=Math.max(0,scheduledTotal-approvedTotal);
+      const remainingTotal=Math.max(0,approvedTotal-scheduledTotal);
+      const remainingRows=teacherRemainingAssignments(t.id);
 
       const grouped={};
       rows.forEach(a=>{
@@ -677,7 +707,7 @@ function renderTeachers(){
             <h3>${esc(t.name)}</h3>
             <div class="teacher-status">${esc(t.status||"Titular")}</div>
           </div>
-          <div class="teacher-total">${approvedTotal} h${extraTotal>0?`<span class="extra-hours-badge">+${extraTotal}h</span>`:""}</div>
+          <div class="teacher-total">${approvedTotal} h${extraTotal>0?`<span class="extra-hours-badge">+${extraTotal}h</span>`:""}${remainingTotal>0?`<span class="unassigned-teacher-badge">${remainingTotal}h neatribuite</span>`:""}</div>
         </div>
 
         <div class="teacher-token-body">${assignmentHtml}</div>
@@ -1518,6 +1548,22 @@ function validateBeforeGeneration(){
     }
   });
 
+
+  // 9. Teacher hours that cannot yet be placed are allowed.
+  // They remain visible on the teacher token as "h neatribuite".
+  (state.teachers||[]).forEach(t=>{
+    const approved=approvedHoursForTeacher(t.id);
+    const theoreticalCapacity=AVAIL_DAYS.reduce((sum,day)=>{
+      let c=0;
+      for(let h=1;h<=7;h++) if(isTeacherAvailable(t.id,day,h)) c++;
+      return sum+c;
+    },0);
+
+    if(approved>0 && theoreticalCapacity>0 && approved<=theoreticalCapacity){
+      // No blocking error: any unplaced hours after generation remain on the side as pending.
+    }
+  });
+
   return {ok:errors.length===0,errors,warnings};
 }
 
@@ -1908,6 +1954,42 @@ function requiredHoursForClass(className){
   return (state.subjects||[])
     .filter(s=>s.className===className)
     .reduce((sum,s)=>sum+Number(s.hours||0),0);
+}
+
+
+function remainingUnassignedHoursForTeacher(teacherId,timetableData=state.timetable){
+  return Math.max(0,approvedHoursForTeacher(teacherId)-scheduledHoursForTeacher(teacherId,timetableData));
+}
+
+function remainingUnassignedHoursForAssignment(assignment,timetableData=state.timetable){
+  if(!assignment) return 0;
+  let scheduled=0;
+
+  CLASSES.forEach(cls=>{
+    const data=timetableData?.[cls]||{};
+    Object.values(data).forEach(slot=>{
+      if(!slot || slot.unassigned) return;
+      if(
+        slot.teacherId===assignment.teacherId &&
+        slot.subjectId===assignment.subjectId &&
+        cls===assignment.className
+      ){
+        scheduled++;
+      }
+    });
+  });
+
+  return Math.max(0,Number(assignment.hours||0)-scheduled);
+}
+
+function teacherRemainingAssignments(teacherId,timetableData=state.timetable){
+  return (state.assignments||[])
+    .filter(a=>a.teacherId===teacherId)
+    .map(a=>({
+      ...a,
+      remaining:remainingUnassignedHoursForAssignment(a,timetableData)
+    }))
+    .filter(a=>a.remaining>0);
 }
 
 function approvedHoursForTeacher(teacherId){
