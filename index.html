@@ -1017,6 +1017,49 @@
   overflow:visible!important;
 }
 
+
+.lock-glyph{
+  position:relative;
+  display:block;
+  width:12px;
+  height:10px;
+  margin-top:6px;
+  border-radius:2px;
+  background:#f5b52f;
+}
+.lock-glyph::before{
+  content:"";
+  position:absolute;
+  width:8px;
+  height:9px;
+  border:2px solid #9bb8d0;
+  border-bottom:0;
+  border-radius:7px 7px 0 0;
+  box-sizing:border-box;
+}
+.lock-glyph-open::before{
+  left:-1px;
+  top:-8px;
+  transform:translateX(-3px);
+}
+.lock-glyph-closed::before{
+  left:2px;
+  top:-7px;
+}
+.lock-glyph::after{
+  content:"";
+  position:absolute;
+  left:5px;
+  top:3px;
+  width:2px;
+  height:4px;
+  border-radius:2px;
+  background:#334155;
+}
+.lesson-lock{
+  overflow:visible!important;
+}
+
 </style>
 </head>
 <body>
@@ -4318,7 +4361,7 @@ function renderSingleClassTimetable(className){
               <button class="lesson-tool lesson-lock ${locked ? "is-locked" : ""}"
                       title="${locked ? "Deblochează ora" : "Blochează ora"}"
                       aria-label="${locked ? "Deblochează ora" : "Blochează ora"}"
-                      onclick="event.stopPropagation();toggleSlotLock('${className}','${day}',${h+1})">${locked ? "🔒" : "🔓"}</button>
+                      onclick="event.stopPropagation();toggleSlotLock('${className}','${day}',${h+1})">${locked ? '<span class="lock-glyph lock-glyph-closed"></span>' : '<span class="lock-glyph lock-glyph-open"></span>'}</button>
               <button class="lesson-tool lesson-move ${locked ? "is-locked" : ""}"
                       title="${locked ? "Deblochează ora înainte de mutare" : "Mută / schimbă"}"
                       aria-label="Mută sau schimbă ora"
@@ -5674,9 +5717,9 @@ function clearTimetable(){
     if(!classSlots) return;
 
     Object.keys(classSlots).forEach(key=>{
-      const [dayIndexRaw,hourIndexRaw]=String(key).split("-");
-      const dayIndex=Number(dayIndexRaw);
-      const hour=Number(hourIndexRaw)+1;
+      const parts=String(key).split("-");
+      const dayIndex=Number(parts[0]);
+      const hour=Number(parts[1])+1;
       const day=DAYS[dayIndex];
 
       if(day && isSlotLocked(className,day,hour)){
