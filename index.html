@@ -962,6 +962,24 @@ td.move-swap-target{
   outline-offset:2px;
 }
 
+
+.teacher-contract-line{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:6px;
+  white-space:nowrap;
+}
+.teacher-extra-hours{
+  color:#15803d;
+  background:#ecfdf3;
+  border:1px solid #bbf7d0;
+  border-radius:999px;
+  padding:1px 6px;
+  font-size:11px;
+  font-weight:900;
+}
+
 </style>
 </head>
 <body>
@@ -4094,6 +4112,7 @@ function renderTeacherTimetableTokens(){
     const assigned=teacherAssignedCurriculumHours(t.id);
     const contract=teacherContractHours(t.id);
     const scheduled=teacherScheduledHours(t.id);
+    const extraHours=Math.max(0,scheduled-contract);
     const toComplete=Math.max(0,contract-assigned);
 
     const groups={};
@@ -4130,7 +4149,10 @@ function renderTeacherTimetableTokens(){
           <div class="teacher-prof-status">${esc(t.status||"")}</div>
         </div>
         <div class="teacher-prof-load">
-          <div>${contract}h încadrare</div>
+          <div class="teacher-contract-line">
+            <span>${contract}h încadrare</span>
+            ${extraHours>0?`<span class="teacher-extra-hours">+${extraHours}h</span>`:""}
+          </div>
           <div class="teacher-prof-scheduled">${scheduled}h atribuite</div>
           ${toComplete>0?`<span class="teacher-prof-complete">${toComplete}h de completat</span>`:""}
         </div>
