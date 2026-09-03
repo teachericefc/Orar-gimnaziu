@@ -1373,7 +1373,7 @@
         <div class="page-head">
           <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase. Blocarea și deblocarea se fac direct din iconița 🔓 / 🔒 a fiecărei ore.</p></div>
           <div class="toolbar">
-            <button id="generateTimetableBtn" class="btn btn-primary" onclick="demoGenerate()">Generează 2 variante</button>
+            <button id="generateTimetableBtn" class="btn btn-primary" onclick="demoGenerate()">Generează din Discipline</button>
             <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
               <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
               <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
@@ -1381,7 +1381,7 @@
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
         </div>
-        <p class="muted"><b>Generator automat:</b> folosește jetoanele din tabul selectat — Profesori sau Discipline — le împrăștie aleatoriu și creează 2 variante fără ferestre la elevi.</p>
+        <p class="muted"><b>Generator automat:</b> folosește exclusiv jetoanele din tabul Discipline. Numărul din paranteză reprezintă câte ore din acel jeton poate plasa la clasa respectivă. Creează 2 variante fără ferestre la elevi.</p>
         <div class="orar-workspace">
           <div id="allClassTimetables" class="all-class-timetables"></div>
           <aside class="card teacher-token-panel">
@@ -5815,6 +5815,7 @@ function renderScheduleReport(){
 }
 
 async 
+
 function randomShuffle(list){
   const a=list.slice();
   for(let i=a.length-1;i>0;i--){
@@ -5824,49 +5825,46 @@ function randomShuffle(list){
   return a;
 }
 
-function currentGeneratorMode(){
-  return activeTimetableTokenTab==="disciplines" ? "disciplines" : "teachers";
-}
+/*
+  INVENTARUL GENERATORULUI = exact aceeași informație afișată în tabul Discipline.
+  Ex.: "Matematică  V (4)" => 4 jetoane Matematică pentru clasa V.
+  Curriculumul orientativ NU este consultat aici.
+*/
+function disciplineTokenInventory(){
+  const inventory={};
+  CLASSES.forEach(cls=>inventory[cls]=[]);
 
-function generatorItemsForMode(mode){
-  const items=[];
+  const names=[...new Set(
+    (state.subjects||[])
+      .map(s=>String(s.name||"").trim())
+      .filter(Boolean)
+  )];
 
-  if(mode==="teachers"){
-    (state.assignments||[]).forEach(a=>{
-      const hours=Math.max(0,Number(a.hours)||0);
-      for(let i=0;i<hours;i++){
-        items.push({
-          className:a.className,
-          teacherId:a.teacherId,
-          teacher:solverTeacherName(a.teacherId),
-          subjectId:a.subjectId||null,
-          subject:solverSubjectName(a),
-          unassigned:false
+  names.forEach(subjectName=>{
+    CLASSES.forEach(className=>{
+      const count=Math.max(0,subjectRequiredHours(className,subjectName));
+      for(let i=0;i<count;i++){
+        const subject=(state.subjects||[]).find(s=>
+          s.className===className &&
+          String(s.name||"").trim()===subjectName
+        );
+        inventory[className].push({
+          subjectId:subject?.id||null,
+          subject:subjectName,
+          teacherId:null,
+          teacher:"Profesor neatribuit",
+          unassigned:true
         });
       }
     });
-    return items;
-  }
-
-  (state.subjects||[]).forEach(s=>{
-    const hours=Math.max(0,Number(s.hours)||0);
-    for(let i=0;i<hours;i++){
-      items.push({
-        className:s.className,
-        teacherId:null,
-        teacher:"Profesor neatribuit",
-        subjectId:s.id,
-        subject:s.name,
-        unassigned:true
-      });
-    }
   });
-  return items;
+
+  return inventory;
 }
 
-function lockedBaseForRandomGenerator(){
+function disciplineLockedBase(){
   const tt={};
-  CLASSES.forEach(c=>tt[c]={});
+  CLASSES.forEach(cls=>tt[cls]={});
 
   Object.values(state.lockedSlots||{}).forEach(lock=>{
     if(!lock || typeof lock!=="object") return;
@@ -5874,158 +5872,138 @@ function lockedBaseForRandomGenerator(){
     const h=Number(lock.hour)-1;
     if(d<0 || h<0 || !CLASSES.includes(lock.className)) return;
 
-    const source=state.timetable?.[lock.className]?.[`${d}-${h}`] || lock.snapshot;
-    if(source) tt[lock.className][`${d}-${h}`]=JSON.parse(JSON.stringify(source));
+    const current=state.timetable?.[lock.className]?.[`${d}-${h}`];
+    const source=current || lock.snapshot;
+    if(source){
+      tt[lock.className][`${d}-${h}`]={
+        ...JSON.parse(JSON.stringify(source)),
+        className:lock.className,
+        day:lock.day,
+        hour:h+1
+      };
+    }
   });
+
   return tt;
 }
 
-function classLockedMaxByDay(className){
-  const out=[0,0,0,0,0];
-  Object.values(state.lockedSlots||{}).forEach(lock=>{
-    if(!lock || lock.className!==className) return;
-    const d=DAYS.indexOf(lock.day);
-    if(d>=0) out[d]=Math.max(out[d],Number(lock.hour)||0);
-  });
-  return out;
+function removeLockedTokensFromInventory(inventory,tt){
+  for(const className of CLASSES){
+    Object.entries(tt[className]||{}).forEach(([key,slot])=>{
+      if(!slot) return;
+
+      const subjectName=String(
+        slot.subject ||
+        (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+        ""
+      ).trim();
+
+      const idx=inventory[className].findIndex(token=>
+        String(token.subject||"").trim()===subjectName
+      );
+
+      if(idx<0){
+        throw new Error(
+          `Ora blocată „${subjectName||"Disciplină"}” din clasa ${className} nu mai există între jetoanele configurate.`
+        );
+      }
+      inventory[className].splice(idx,1);
+    });
+  }
 }
 
-function randomDailyCounts(total,className){
-  const lockedMin=classLockedMaxByDay(className);
+function compactDailyShape(total,className){
+  // Distribuție aleatoare, dar echilibrată: toate orele unei zile pornesc de la ora 1.
   const counts=[0,0,0,0,0];
-  let remaining=total;
-
-  // Random balanced distribution.
   const order=randomShuffle([0,1,2,3,4]);
-  while(remaining>0){
-    let changed=false;
-    for(const d of order){
-      if(remaining<=0) break;
-      if(counts[d] >= 7) continue;
-      counts[d]++;
-      remaining--;
-      changed=true;
-    }
-    if(!changed) break;
+
+  for(let i=0;i<total;i++){
+    const min=Math.min(...counts);
+    const choices=order.filter(d=>counts[d]===min);
+    const d=choices[Math.floor(Math.random()*choices.length)];
+    counts[d]++;
   }
 
-  // A locked lesson at hour N requires hours 1..N to exist that day:
-  // that guarantees no student gaps.
-  for(let d=0;d<5;d++){
-    if(lockedMin[d]>counts[d]){
-      let need=lockedMin[d]-counts[d];
-      counts[d]=lockedMin[d];
+  // Dacă există o oră blocată mai târziu în zi, ziua trebuie să ajungă cel puțin până acolo.
+  const lockedMax=[0,0,0,0,0];
+  Object.values(state.lockedSlots||{}).forEach(lock=>{
+    if(lock?.className!==className) return;
+    const d=DAYS.indexOf(lock.day);
+    if(d>=0) lockedMax[d]=Math.max(lockedMax[d],Number(lock.hour)||0);
+  });
 
-      // take hours from the fullest other days
-      while(need>0){
-        const donors=[0,1,2,3,4]
-          .filter(x=>x!==d && counts[x]>Math.max(0,lockedMin[x]))
-          .sort((a,b)=>counts[b]-counts[a]);
-        if(!donors.length) return null;
-        counts[donors[0]]--;
-        need--;
-      }
+  for(let d=0;d<5;d++){
+    while(counts[d]<lockedMax[d]){
+      const donors=[0,1,2,3,4]
+        .filter(x=>x!==d && counts[x]>lockedMax[x])
+        .sort((a,b)=>counts[b]-counts[a]);
+
+      if(!donors.length) return null;
+      counts[donors[0]]--;
+      counts[d]++;
     }
   }
 
   return counts;
 }
 
-function teacherBusyInTimetable(tt,teacherId,d,h){
-  if(!teacherId) return false;
-  return CLASSES.some(cls=>tt?.[cls]?.[`${d}-${h}`]?.teacherId===teacherId);
-}
+function buildDisciplineVariant(){
+  const inventory=disciplineTokenInventory();
+  const tt=disciplineLockedBase();
 
-function buildRandomVariant(mode){
-  const items=generatorItemsForMode(mode);
-  if(!items.length) return {ok:false,message:mode==="teachers"
-    ? "Nu există jetoane de profesori de plasat. Adaugă mai întâi profesori și încadrări."
-    : "Nu există ore active la discipline."
-  };
+  removeLockedTokensFromInventory(inventory,tt);
 
-  const tt=lockedBaseForRandomGenerator();
+  for(const className of CLASSES){
+    const totalRequired=(state.subjects||[])
+      .filter(s=>s.className===className)
+      .reduce((sum,s)=>sum+Math.max(0,Number(s.hours)||0),0);
 
-  // Remove from the pool lessons already represented by locked slots.
-  const remaining=items.slice();
-  Object.values(state.lockedSlots||{}).forEach(lock=>{
-    if(!lock || typeof lock!=="object") return;
-    const d=DAYS.indexOf(lock.day);
-    const h=Number(lock.hour)-1;
-    const slot=tt?.[lock.className]?.[`${d}-${h}`];
-    if(!slot) return;
+    const shape=compactDailyShape(totalRequired,className);
+    if(!shape){
+      return {
+        ok:false,
+        message:`Orele blocate ale clasei ${className} nu permit un orar compact fără ferestre.`
+      };
+    }
 
-    const idx=remaining.findIndex(item=>{
-      if(item.className!==lock.className) return false;
-      if(mode==="teachers"){
-        return item.teacherId===slot.teacherId &&
-          String(item.subjectId||"")===String(slot.subjectId||"");
-      }
-      return String(item.subjectId||"")===String(slot.subjectId||"");
-    });
-    if(idx>=0) remaining.splice(idx,1);
-  });
+    let pool=randomShuffle(inventory[className]);
 
-  const byClass={};
-  CLASSES.forEach(c=>byClass[c]=[]);
-  remaining.forEach(item=>{
-    if(CLASSES.includes?.(item.className)) byClass[item.className].push(item);
-  });
-
-  // The line above intentionally avoids assumptions on malformed class data;
-  // normalize any valid class values explicitly.
-  CLASSES.forEach(c=>{
-    byClass[c]=remaining.filter(x=>x.className===c);
-  });
-
-  // Daily compact shapes based on TOTAL required items, including locks.
-  const targets={};
-  for(const cls of CLASSES){
-    const total=generatorItemsForMode(mode).filter(x=>x.className===cls).length;
-    const counts=randomDailyCounts(total,cls);
-    if(!counts) return {ok:false,message:`Orele blocate ale clasei ${cls} nu permit un program compact fără ferestre.`};
-    targets[cls]=counts;
-  }
-
-  // Fill class by class, but randomize class order to make variants genuinely different.
-  for(const cls of randomShuffle(CLASSES)){
-    let pool=randomShuffle(byClass[cls]);
-
+    // Așezăm numai pe pozițiile 1...N ale fiecărei zile.
+    // Asta garantează lipsa ferestrelor la elevi.
     for(let d=0;d<5;d++){
-      const count=targets[cls][d]||0;
+      for(let h=0;h<shape[d];h++){
+        const key=`${d}-${h}`;
 
-      for(let h=0;h<count;h++){
-        if(tt[cls][`${d}-${h}`]) continue;
+        if(tt[className][key]) continue;
 
-        let chosenIndex=-1;
-
-        if(mode==="teachers"){
-          // Randomly choose among teachers that are available and not simultaneously busy.
-          const candidates=[];
-          pool.forEach((item,i)=>{
-            if(
-              isTeacherAvailable(item.teacherId,DAYS[d],h+1) &&
-              !teacherBusyInTimetable(tt,item.teacherId,d,h)
-            ){
-              candidates.push(i);
-            }
-          });
-          if(candidates.length){
-            chosenIndex=candidates[Math.floor(Math.random()*candidates.length)];
-          }
-        }else if(pool.length){
-          chosenIndex=Math.floor(Math.random()*pool.length);
+        if(!pool.length){
+          return {
+            ok:false,
+            message:`Nu mai există suficiente jetoane Discipline pentru clasa ${className}.`
+          };
         }
 
-        if(chosenIndex<0){
-          // For professor mode, inability to fit a teacher is a failed candidate,
-          // not a student gap.
-          return {ok:false,message:`Nu am putut așeza toate jetoanele fără suprapuneri și fără ferestre. Încearcă din nou sau verifică disponibilitatea profesorilor.`};
+        // Evităm pe cât posibil aceeași disciplină de două ori în aceeași zi.
+        const usedToday=new Set();
+        for(let hh=0;hh<h;hh++){
+          const s=tt[className][`${d}-${hh}`];
+          if(s?.subject) usedToday.add(String(s.subject));
         }
 
-        const item=pool.splice(chosenIndex,1)[0];
-        tt[cls][`${d}-${h}`]={
-          ...item,
-          className:cls,
+        let candidates=pool
+          .map((token,index)=>({token,index}))
+          .filter(x=>!usedToday.has(String(x.token.subject)));
+
+        if(!candidates.length){
+          candidates=pool.map((token,index)=>({token,index}));
+        }
+
+        const picked=candidates[Math.floor(Math.random()*candidates.length)];
+        const token=pool.splice(picked.index,1)[0];
+
+        tt[className][key]={
+          ...token,
+          className,
           day:DAYS[d],
           hour:h+1,
           generated:true
@@ -6034,15 +6012,14 @@ function buildRandomVariant(mode){
     }
 
     if(pool.length){
-      return {ok:false,message:`Au rămas ${pool.length} ore neplasate la clasa ${cls}.`};
+      return {
+        ok:false,
+        message:`Au rămas ${pool.length} jetoane nefolosite la clasa ${className}.`
+      };
     }
   }
 
   return {ok:true,tt};
-}
-
-function variantSignature(tt){
-  return JSON.stringify(tt);
 }
 
 function applyGeneratedVariant(index){
@@ -6057,75 +6034,95 @@ function applyGeneratedVariant(index){
 
   const b1=document.getElementById("variantBtn1");
   const b2=document.getElementById("variantBtn2");
-  if(b1) b1.classList.toggle("btn-primary",index===0);
-  if(b2) b2.classList.toggle("btn-primary",index===1);
-
-  appMessage(`Varianta ${index+1} este afișată.`,"success",1400);
+  if(b1){
+    b1.classList.toggle("btn-primary",index===0);
+    b1.classList.toggle("btn-light",index!==0);
+  }
+  if(b2){
+    b2.classList.toggle("btn-primary",index===1);
+    b2.classList.toggle("btn-light",index!==1);
+  }
 }
 
 async function demoGenerate(){
-  const mode=currentGeneratorMode();
-  const modeLabel=mode==="teachers" ? "Profesori" : "Discipline";
   const btn=document.getElementById("generateTimetableBtn");
-  const oldText=btn?.textContent||"Generează 2 variante";
+  const oldText=btn?.textContent||"Generează din Discipline";
 
   try{
+    // Generatorul lucrează exclusiv cu tabul Discipline.
+    switchTimetableTokenTab("disciplines");
+
     if(btn){
       btn.disabled=true;
-      btn.textContent=`Generez din ${modeLabel}…`;
+      btn.textContent="Amestec jetoanele…";
     }
-    await new Promise(r=>setTimeout(r,20));
 
+    await new Promise(resolve=>setTimeout(resolve,30));
     normalizeLockedSlots();
+
+    const inventory=disciplineTokenInventory();
+    const totalTokens=CLASSES.reduce((sum,cls)=>sum+inventory[cls].length,0);
+
+    if(totalTokens===0){
+      appMessage(
+        "Nu există jetoane active în tabul Discipline. Mărește cel puțin o disciplină peste 0.",
+        "error",
+        4200
+      );
+      return;
+    }
 
     const variants=[];
     const signatures=new Set();
-    let lastError="Nu am putut construi variantele.";
+    let lastError="Nu am putut construi orarul.";
 
-    // Try enough randomized candidates to find two different valid schedules.
-    for(let attempt=0;attempt<80 && variants.length<2;attempt++){
-      const result=buildRandomVariant(mode);
-      if(!result.ok){
-        lastError=result.message||lastError;
-      }else{
-        const sig=variantSignature(result.tt);
+    for(let attempt=0;attempt<60 && variants.length<2;attempt++){
+      const result=buildDisciplineVariant();
+
+      if(result.ok){
+        const sig=JSON.stringify(result.tt);
         if(!signatures.has(sig)){
           signatures.add(sig);
           variants.push(result.tt);
         }
+      }else{
+        lastError=result.message||lastError;
       }
 
-      if(attempt>0 && attempt%8===0){
-        await new Promise(r=>setTimeout(r,0));
+      if(attempt>0 && attempt%10===0){
+        await new Promise(resolve=>setTimeout(resolve,0));
       }
     }
 
     if(!variants.length){
-      appMessage(lastError,"error",5200);
+      appMessage(lastError,"error",5500);
       return;
     }
 
-    // If only one unique valid variant was possible, keep a second copy
-    // but tell the user why.
     if(variants.length===1){
       variants.push(JSON.parse(JSON.stringify(variants[0])));
     }
 
     generatedTimetableVariants=variants;
+
     const controls=document.getElementById("generatedVariantControls");
     if(controls) controls.style.display="flex";
 
     applyGeneratedVariant(0);
 
     appMessage(
-      `Am generat 2 variante folosind jetoanele din tabul „${modeLabel}”. `+
-      `Orele fiecărei clase sunt consecutive, fără ferestre.`,
+      `Am folosit ${totalTokens} jetoane din tabul Discipline și am creat 2 variante fără ferestre la elevi.`,
       "success",
       3600
     );
+
   }catch(err){
-    console.error("Generator aleator:",err);
-    appMessage("Generatorul a întâmpinat o eroare: "+(err?.message||String(err)),"error",6000);
+    console.error("Generator Discipline:",err);
+    appMessage(
+      "Generatorul Discipline s-a oprit: "+(err?.message||String(err)),
+      "error",
+      6500
+    );
   }finally{
     if(btn){
       btn.disabled=false;
