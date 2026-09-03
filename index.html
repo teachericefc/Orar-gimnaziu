@@ -309,8 +309,8 @@
           
           <div class="card rule-card mandatory-rule">
             <div class="rule-type">OBLIGATORIU</div>
-            <h3>Ore blocate manual</h3>
-            <p>O oră marcată cu 🔒 rămâne fixă la regenerare. Generatorul reconstruiește restul orarului în jurul tuturor orelor blocate și nu are voie să le mute.</p>
+            <h3>🔒 Oră blocată</h3>
+            <p>„Oră blocată” este aceeași funcție înainte și după generare. O oră marcată cu 🔒 rămâne pe poziția aleasă, iar generatorul construiește sau reconstruiește restul orarului în jurul ei.</p>
           </div>
 
           <div class="card rule-card mandatory-rule">
@@ -420,7 +420,54 @@
         </div>
         <div class="card timetable-wrap"><table class="timetable" id="timetableTable"></table></div>
       </section>
-    </main>
+    
+        <div class="card" id="lockedHoursPreGenerationCard">
+          <h3>🔒 Oră blocată</h3>
+          <p class="muted">Poți stabili o oră blocată înainte de generarea orarului. Aceeași funcție se folosește și după generare.</p>
+          <div class="form-grid">
+            <label>Profesor
+              <select id="lockedTeacherSelect"></select>
+            </label>
+            <label>Disciplină
+              <select id="lockedSubjectSelect"></select>
+            </label>
+            <label>Clasa
+              <select id="lockedClassSelect">
+                <option value="V">V</option>
+                <option value="VI">VI</option>
+                <option value="VII">VII</option>
+                <option value="VIII">VIII</option>
+              </select>
+            </label>
+            <label>Ziua
+              <select id="lockedDaySelect">
+                <option value="Luni">Luni</option>
+                <option value="Marți">Marți</option>
+                <option value="Miercuri">Miercuri</option>
+                <option value="Joi">Joi</option>
+                <option value="Vineri">Vineri</option>
+              </select>
+            </label>
+            <label>Ora
+              <select id="lockedHourSelect">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+                <option value="5">5</option>
+                <option value="6">6</option>
+                <option value="7">7</option>
+              </select>
+            </label>
+          </div>
+          <div class="lock-actions">
+            <button type="button" onclick="addPreGenerationLockedHour()">🔒 Adaugă oră blocată</button>
+            <button type="button" class="secondary" onclick="unlockAllSlots()">🔓 Deblochează toate orele</button>
+          </div>
+          <div id="lockedHoursList" style="margin-top:12px"></div>
+        </div>
+
+</main>
   </div>
 </div>
 
@@ -1318,6 +1365,140 @@ function compareTimetablePreferenceScores(a,b){
 }
 
 
+
+function populateLockedHourSelectors(){
+  const teacherSel=document.getElementById("lockedTeacherSelect");
+  const subjectSel=document.getElementById("lockedSubjectSelect");
+  if(!teacherSel || !subjectSel) return;
+
+  const currentTeacher=teacherSel.value;
+  const currentSubject=subjectSel.value;
+
+  teacherSel.innerHTML='<option value="">Alege profesorul</option>' +
+    (state.teachers||[]).map(t=>`<option value="${t.id}">${escapeHtml(t.name||"Profesor")}</option>`).join("");
+
+  subjectSel.innerHTML='<option value="">Alege disciplina</option>' +
+    (state.subjects||[]).map(s=>`<option value="${s.id}">${escapeHtml(s.name||"Disciplină")}</option>`).join("");
+
+  if([...teacherSel.options].some(o=>o.value===currentTeacher)) teacherSel.value=currentTeacher;
+  if([...subjectSel.options].some(o=>o.value===currentSubject)) subjectSel.value=currentSubject;
+}
+
+function renderLockedHoursList(){
+  const box=document.getElementById("lockedHoursList");
+  if(!box) return;
+
+  const locks=Object.entries(state.lockedSlots||{});
+  if(!locks.length){
+    box.innerHTML='<p class="muted">Nu există ore blocate.</p>';
+    return;
+  }
+
+  box.innerHTML=locks
+    .sort((a,b)=>{
+      const A=a[1], B=b[1];
+      const da=AVAIL_DAYS.indexOf(A.day), db=AVAIL_DAYS.indexOf(B.day);
+      if(da!==db) return da-db;
+      if(Number(A.hour)!==Number(B.hour)) return Number(A.hour)-Number(B.hour);
+      return String(A.className).localeCompare(String(B.className));
+    })
+    .map(([key,lock])=>{
+      const teacher=(state.teachers||[]).find(t=>t.id===lock.teacherId);
+      const subject=(state.subjects||[]).find(s=>s.id===lock.subjectId);
+      const tname=teacher?.name||"Profesor";
+      const sname=subject?.name||"Disciplină";
+      return `
+        <div class="assignment-row" style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+          <div><strong>🔒 ${escapeHtml(lock.day)}, ora ${lock.hour}</strong> · Clasa ${escapeHtml(lock.className)} · ${escapeHtml(sname)} · ${escapeHtml(tname)}</div>
+          <button type="button" class="secondary" onclick="unlockSlot('${escapeJs(lock.className)}','${escapeJs(lock.day)}',${Number(lock.hour)})">Deblochează</button>
+        </div>`;
+    }).join("");
+}
+
+function escapeJs(value){
+  return String(value??"")
+    .replace(/\\/g,"\\\\")
+    .replace(/'/g,"\\'");
+}
+
+function addPreGenerationLockedHour(){
+  const teacherId=document.getElementById("lockedTeacherSelect")?.value;
+  const subjectId=document.getElementById("lockedSubjectSelect")?.value;
+  const className=document.getElementById("lockedClassSelect")?.value;
+  const day=document.getElementById("lockedDaySelect")?.value;
+  const hour=Number(document.getElementById("lockedHourSelect")?.value);
+
+  if(!teacherId || !subjectId || !className || !day || !hour){
+    alert("Completează profesorul, disciplina, clasa, ziua și ora.");
+    return;
+  }
+
+  // Must correspond to an existing assignment for this teacher/subject/class.
+  const validAssignment=(state.assignments||[]).some(a=>
+    a.teacherId===teacherId &&
+    a.subjectId===subjectId &&
+    a.className===className
+  );
+
+  if(!validAssignment){
+    alert("Profesorul nu are această disciplină încadrată la clasa aleasă.");
+    return;
+  }
+
+  if(!isTeacherAvailable(teacherId,day,hour)){
+    alert("Profesorul este marcat indisponibil în această zi/oră.");
+    return;
+  }
+
+  const key=timetableSlotKey(className,day,hour);
+
+  // Same teacher cannot be locked in two classes at the same time.
+  const teacherConflict=Object.values(state.lockedSlots||{}).some(l=>
+    l.teacherId===teacherId &&
+    l.day===day &&
+    Number(l.hour)===hour &&
+    l.className!==className
+  );
+  if(teacherConflict){
+    alert("Profesorul este deja blocat la altă clasă în aceeași zi și oră.");
+    return;
+  }
+
+  if(!state.lockedSlots || typeof state.lockedSlots!=="object") state.lockedSlots={};
+
+  const slot={
+    className,
+    day,
+    hour,
+    teacherId,
+    subjectId,
+    locked:true,
+    source:"manual-lock"
+  };
+
+  state.lockedSlots[key]={
+    className,
+    day,
+    hour,
+    teacherId,
+    subjectId,
+    snapshot:JSON.parse(JSON.stringify(slot))
+  };
+
+  // Put it directly into timetable too, even before a full generation.
+  if(!state.timetable || typeof state.timetable!=="object") state.timetable={};
+  state.timetable[key]=slot;
+
+  saveState();
+  renderLockedHoursList();
+  renderTimetable();
+}
+
+function refreshLockedHourUI(){
+  populateLockedHourSelectors();
+  renderLockedHoursList();
+}
+
 function timetableSlotKey(className,day,hour){
   return `${className}|${day}|${hour}`;
 }
@@ -1350,6 +1531,7 @@ function lockSlot(className,day,hour){
 
   saveState();
   renderTimetable();
+  renderLockedHoursList();
 }
 
 function unlockSlot(className,day,hour){
@@ -1358,6 +1540,7 @@ function unlockSlot(className,day,hour){
     delete state.lockedSlots[key];
     saveState();
     renderTimetable();
+    renderLockedHoursList();
   }
 }
 
@@ -1369,6 +1552,7 @@ function unlockAllSlots(){
     state.lockedSlots={};
     saveState();
     renderTimetable();
+    renderLockedHoursList();
   }
 }
 
@@ -1388,7 +1572,37 @@ function restoreLockedSlots(targetTimetable){
   return targetTimetable;
 }
 
+
+function validateLockedHours(){
+  const locks=Object.values(state.lockedSlots||{});
+  const seenClass=new Set();
+  const seenTeacher=new Set();
+
+  for(const l of locks){
+    const ck=`${l.className}|${l.day}|${l.hour}`;
+    const tk=`${l.teacherId}|${l.day}|${l.hour}`;
+
+    if(seenClass.has(ck)){
+      return {ok:false,message:`Clasa ${l.className} are două ore blocate simultan (${l.day}, ora ${l.hour}).`};
+    }
+    if(seenTeacher.has(tk)){
+      return {ok:false,message:`Un profesor are două ore blocate simultan (${l.day}, ora ${l.hour}).`};
+    }
+    if(!isTeacherAvailable(l.teacherId,l.day,Number(l.hour))){
+      return {ok:false,message:`Există o oră blocată într-un interval în care profesorul este indisponibil (${l.day}, ora ${l.hour}).`};
+    }
+
+    seenClass.add(ck);
+    seenTeacher.add(tk);
+  }
+
+  return {ok:true};
+}
+
 function lockedSlotHardConstraint(candidateTimetable){
+  const precheck=validateLockedHours();
+  if(!precheck.ok) return false;
+
   const locks=state.lockedSlots||{};
 
   for(const [key,lock] of Object.entries(locks)){
@@ -1487,7 +1701,7 @@ document.addEventListener("DOMContentLoaded",()=>{
   const root=document.body;
   if(root){
     timetableLockObserver.observe(root,{childList:true,subtree:true});
-    setTimeout(enhanceTimetableLockUI,0);
+    setTimeout(()=>{ enhanceTimetableLockUI(); refreshLockedHourUI(); },0);
   }
 });
 
