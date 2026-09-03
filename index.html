@@ -3332,7 +3332,7 @@ function addPreGenerationLockedHour(){
     source:"manual-lock"
   };
 
-  saveState();
+  save();
   renderLockedHoursList();
   renderTimetable();
 }
@@ -3373,7 +3373,7 @@ function lockSlot(className,day,hour){
     snapshot:JSON.parse(JSON.stringify(slot))
   };
 
-  saveState();
+  save();
   renderTimetable();
   renderLockedHoursList();
 }
@@ -3382,7 +3382,7 @@ function unlockSlot(className,day,hour){
   const key=timetableSlotKey(className,day,hour);
   if(state.lockedSlots?.[key]){
     delete state.lockedSlots[key];
-    saveState();
+    save();
     renderTimetable();
     renderLockedHoursList();
   }
@@ -3426,7 +3426,7 @@ function toggleSlotLock(className,day,hour,buttonEl){
     };
   }
 
-  saveState();
+  save();
 
   // Re-randare în următorul frame, după feedback-ul instant.
   requestAnimationFrame(()=>{
@@ -3448,7 +3448,7 @@ function unlockAllSlots(){
 
   if(confirm(`Deblochezi toate cele ${count} ore fixate?`)){
     state.lockedSlots={};
-    saveState();
+    save();
     renderTimetable();
     renderLockedHoursList();
   }
@@ -3512,7 +3512,7 @@ function normalizeLockedSlots(){
     changed=true;
   });
 
-  if(changed) saveState();
+  if(changed) save();
 }
 
 function validateLockedHours(){
