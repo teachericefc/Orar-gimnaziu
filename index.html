@@ -308,6 +308,18 @@
           </div>
 
           
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">ORDINE OFICIALĂ DE OPTIMIZARE</div>
+            <h3>Priorități generator</h3>
+            <p>1. Echilibrarea numărului de ore al clasei între zile<br>
+            2. Distribuirea profesorului pe toate zilele disponibile<br>
+            3. Ferestre cât mai mici pentru profesori<br>
+            4. Avantaj pentru titulari<br>
+            5. Preferabil o singură oră din aceeași disciplină pe zi<br>
+            6. Disciplinele marcate „Prioritizare” cât mai devreme în program.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">PREFERINȚĂ FOARTE PUTERNICĂ</div>
             <h3>Ferestre profesor – penalizare progresivă</h3>
@@ -396,7 +408,15 @@ state.generatorRules ||= {
   maxClassHoursPerDay:7,
   balanceClassDays:true,
   spreadTeachersAcrossAvailableWeek:true,
-  progressiveTeacherGapPenalty:true
+  progressiveTeacherGapPenalty:true,
+  preferencePriority:{
+    balanceClassDays:1,
+    spreadTeachersAcrossAvailableWeek:2,
+    minimizeTeacherGaps:3,
+    prioritizeTenured:4,
+    preferOneSubjectHourPerDay:5,
+    prioritizeSubjectsEarly:6
+  }
 };
 
 
@@ -1065,6 +1085,200 @@ function describeTeacherGapsForDay(teacherId,day,timetableData=state.timetable){
     gaps,
     penalty:progressiveGapPenaltyForDay(hours)
   };
+}
+
+
+const GENERATOR_PREFERENCE_WEIGHTS = {
+  balanceClassDays: 1000,
+  spreadTeachersAcrossAvailableWeek: 650,
+  minimizeTeacherGaps: 450,
+  prioritizeTenured: 260,
+  preferOneSubjectHourPerDay: 150,
+  prioritizeSubjectsEarly: 80
+};
+
+function classBalancePenalty(timetableData=state.timetable){
+  let penalty=0;
+
+  ["V","VI","VII","VIII"].forEach(className=>{
+    const counts=AVAIL_DAYS.map(day=>{
+      let c=0;
+      Object.entries(timetableData).forEach(([key,slot])=>{
+        if(!slot || typeof slot!=="object") return;
+
+        let slotClass=slot.className || slot.class || slot.clasa;
+        let slotDay=slot.day;
+
+        if((!slotClass || !slotDay) && typeof key==="string"){
+          const parts=key.split("|");
+          if(parts.length>=3){
+            slotClass ||= parts[0];
+            slotDay ||= parts[1];
+          }
+        }
+
+        if(slotClass===className && slotDay===day) c++;
+      });
+      return c;
+    });
+
+    const total=counts.reduce((a,b)=>a+b,0);
+    if(!total) return;
+
+    const avg=total/counts.length;
+
+    // Primary objective: keep class days as even as possible.
+    counts.forEach(c=>{
+      penalty += Math.pow(c-avg,2);
+    });
+
+    // Extra penalty for unnecessarily extreme daily differences.
+    const max=Math.max(...counts);
+    const min=Math.min(...counts);
+    if(max-min>=2) penalty += (max-min-1)*4;
+    if(max-min>=3) penalty += (max-min-2)*8;
+  });
+
+  return penalty;
+}
+
+function teacherSpreadPenalty(timetableData=state.timetable){
+  let penalty=0;
+
+  (state.teachers||[]).forEach(teacher=>{
+    const teacherId=teacher.id;
+    const availableDays=AVAIL_DAYS.filter(day=>{
+      // Day counts as available if at least one period is available.
+      for(let h=1; h<=7; h++){
+        if(isTeacherAvailable(teacherId,day,h)) return true;
+      }
+      return false;
+    });
+
+    if(availableDays.length<2) return;
+
+    const taughtDays=availableDays.filter(day=>
+      teacherDayHoursFromSlots(teacherId,day,timetableData).length>0
+    );
+
+    // If a teacher is available all week, favor using all five days.
+    // The penalty is deliberately lower than class balancing, but higher than gaps.
+    const missing=Math.max(0, availableDays.length-taughtDays.length);
+    penalty += missing*6;
+  });
+
+  return penalty;
+}
+
+function tenuredTeacherPenalty(timetableData=state.timetable){
+  let penalty=0;
+
+  (state.teachers||[]).forEach(teacher=>{
+    if(teacher.status!=="Titular") return;
+
+    AVAIL_DAYS.forEach(day=>{
+      const hours=teacherDayHoursFromSlots(teacher.id,day,timetableData);
+      if(hours.length<2) return;
+
+      const gaps=getGapSegments(hours);
+      const span=hours[hours.length-1]-hours[0]+1;
+      const idle=span-hours.length;
+
+      penalty += gaps.length*2 + idle;
+    });
+  });
+
+  return penalty;
+}
+
+function sameSubjectDailyPenalty(timetableData=state.timetable){
+  let penalty=0;
+  const buckets={};
+
+  Object.entries(timetableData).forEach(([key,slot])=>{
+    if(!slot || typeof slot!=="object") return;
+
+    let className=slot.className || slot.class || slot.clasa;
+    let day=slot.day;
+    const subjectId=slot.subjectId;
+
+    if((!className || !day) && typeof key==="string"){
+      const parts=key.split("|");
+      if(parts.length>=3){
+        className ||= parts[0];
+        day ||= parts[1];
+      }
+    }
+
+    if(!className || !day || !subjectId) return;
+
+    const k=[className,day,subjectId].join("|");
+    buckets[k]=(buckets[k]||0)+1;
+  });
+
+  Object.values(buckets).forEach(count=>{
+    if(count<=1) return;
+    if(count===2) penalty += 2;
+    else if(count===3) penalty += 8;
+    else penalty += 8 + (count-3)*8;
+  });
+
+  return penalty;
+}
+
+function prioritizedSubjectEarlyPenalty(timetableData=state.timetable){
+  let penalty=0;
+
+  Object.entries(timetableData).forEach(([key,slot])=>{
+    if(!slot || typeof slot!=="object") return;
+
+    let hour=Number(slot.hour);
+    if(!hour && typeof key==="string"){
+      const parts=key.split("|");
+      if(parts.length>=3) hour=Number(parts[2]);
+    }
+
+    if(slot.subjectId && hour){
+      penalty += subjectPriorityPenalty(slot.subjectId,hour);
+    }
+  });
+
+  return penalty;
+}
+
+function scoreTimetablePreferences(timetableData=state.timetable){
+  const raw={
+    balanceClassDays: classBalancePenalty(timetableData),
+    spreadTeachersAcrossAvailableWeek: teacherSpreadPenalty(timetableData),
+    minimizeTeacherGaps: (state.teachers||[]).reduce(
+      (sum,t)=>sum+teacherGapPenalty(t.id,timetableData),0
+    ),
+    prioritizeTenured: tenuredTeacherPenalty(timetableData),
+    preferOneSubjectHourPerDay: sameSubjectDailyPenalty(timetableData),
+    prioritizeSubjectsEarly: prioritizedSubjectEarlyPenalty(timetableData)
+  };
+
+  const weighted={
+    balanceClassDays: raw.balanceClassDays * GENERATOR_PREFERENCE_WEIGHTS.balanceClassDays,
+    spreadTeachersAcrossAvailableWeek: raw.spreadTeachersAcrossAvailableWeek * GENERATOR_PREFERENCE_WEIGHTS.spreadTeachersAcrossAvailableWeek,
+    minimizeTeacherGaps: raw.minimizeTeacherGaps * GENERATOR_PREFERENCE_WEIGHTS.minimizeTeacherGaps,
+    prioritizeTenured: raw.prioritizeTenured * GENERATOR_PREFERENCE_WEIGHTS.prioritizeTenured,
+    preferOneSubjectHourPerDay: raw.preferOneSubjectHourPerDay * GENERATOR_PREFERENCE_WEIGHTS.preferOneSubjectHourPerDay,
+    prioritizeSubjectsEarly: raw.prioritizeSubjectsEarly * GENERATOR_PREFERENCE_WEIGHTS.prioritizeSubjectsEarly
+  };
+
+  return {
+    raw,
+    weighted,
+    total:Object.values(weighted).reduce((a,b)=>a+b,0)
+  };
+}
+
+function compareTimetablePreferenceScores(a,b){
+  // Lower score is better. The weights encode the official priority order:
+  // 1 class balance, 2 teacher spread, 3 teacher gaps,
+  // 4 titular advantage, 5 subject distribution, 6 early prioritized subjects.
+  return scoreTimetablePreferences(a).total - scoreTimetablePreferences(b).total;
 }
 
 function renderTimetable(){
