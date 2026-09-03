@@ -285,6 +285,22 @@
   .global-hours-summary{grid-template-columns:1fr}
 }
 
+
+.timetable-drop-target{
+  outline:2px dashed #2563eb;
+  outline-offset:-4px;
+  background:#eff6ff !important;
+}
+.timetable-dragging{
+  opacity:.55;
+}
+.lesson[draggable="true"]{
+  cursor:grab;
+}
+.lesson[draggable="true"]:active{
+  cursor:grabbing;
+}
+
 </style>
 </head>
 <body>
@@ -422,6 +438,13 @@
           
           
           
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">EDITARE MANUALĂ</div>
+            <h3>Mutare prin drag-and-drop</h3>
+            <p>Orele neblocate pot fi mutate cu mouse-ul într-un alt interval liber. Înainte de mutare, aplicația verifică disponibilitatea profesorului, conflictele cu alte clase, orele blocate și regulile obligatorii ale clasei. După mutare, contoarele și diferențele de ore ale profesorilor se recalculează automat.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">INFORMARE GENERALĂ</div>
             <h3>Contoare totale școală și profesori</h3>
@@ -2272,6 +2295,187 @@ function assignUnassignedSlot(className,dayIndex,hourIndex){
   renderTeachers();
 }
 
+
+let draggedTimetableSlot=null;
+
+function getNestedSlot(className,day,hour){
+  const d=DAYS.indexOf(day);
+  if(d<0) return null;
+  return state.timetable?.[className]?.[`${d}-${Number(hour)-1}`] || null;
+}
+
+function setNestedSlot(className,day,hour,value){
+  const d=DAYS.indexOf(day);
+  if(d<0) return;
+  state.timetable ||= {};
+  state.timetable[className] ||= {};
+  const key=`${d}-${Number(hour)-1}`;
+  if(value) state.timetable[className][key]=value;
+  else delete state.timetable[className][key];
+}
+
+function teacherHasConflictAt(teacherId,day,hour,ignoreClass=null,ignoreDay=null,ignoreHour=null){
+  if(!teacherId) return false;
+
+  for(const cls of CLASSES){
+    const slot=getNestedSlot(cls,day,hour);
+    if(!slot || slot.unassigned) continue;
+
+    if(
+      cls===ignoreClass &&
+      day===ignoreDay &&
+      Number(hour)===Number(ignoreHour)
+    ) continue;
+
+    if(slot.teacherId===teacherId) return true;
+  }
+  return false;
+}
+
+function canMoveTimetableSlot(from,to){
+  const source=getNestedSlot(from.className,from.day,from.hour);
+  if(!source) return {ok:false,message:"Ora selectată nu mai există."};
+
+  if(isSlotLocked(from.className,from.day,from.hour)){
+    return {ok:false,message:"Ora de plecare este blocată 🔒 și nu poate fi mutată."};
+  }
+
+  if(isSlotLocked(to.className,to.day,to.hour)){
+    return {ok:false,message:"Destinația este o oră blocată 🔒."};
+  }
+
+  const target=getNestedSlot(to.className,to.day,to.hour);
+  if(target){
+    return {ok:false,message:"Destinația este deja ocupată. Mută mai întâi ora existentă."};
+  }
+
+  if(source.teacherId){
+    if(!isTeacherAvailable(source.teacherId,to.day,Number(to.hour))){
+      const teacher=state.teachers.find(t=>t.id===source.teacherId);
+      return {ok:false,message:`${teacher?.name||"Profesorul"} este indisponibil în ${to.day}, ora ${to.hour}.`};
+    }
+
+    if(teacherHasConflictAt(
+      source.teacherId,
+      to.day,
+      to.hour,
+      from.className,
+      from.day,
+      from.hour
+    )){
+      const teacher=state.teachers.find(t=>t.id===source.teacherId);
+      return {ok:false,message:`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`};
+    }
+  }
+
+  // Keep mandatory class rules: no gaps and start at period 1.
+  // Simulate move first.
+  const test=JSON.parse(JSON.stringify(state.timetable||{}));
+  const fd=DAYS.indexOf(from.day);
+  const td=DAYS.indexOf(to.day);
+  test[from.className] ||= {};
+  test[to.className] ||= {};
+
+  const srcKey=`${fd}-${Number(from.hour)-1}`;
+  const dstKey=`${td}-${Number(to.hour)-1}`;
+  const moved=JSON.parse(JSON.stringify(source));
+  delete test[from.className][srcKey];
+
+  moved.className=to.className;
+  moved.day=to.day;
+  moved.hour=Number(to.hour);
+  test[to.className][dstKey]=moved;
+
+  if(typeof validateNoStudentGaps==="function" && !validateNoStudentGaps(test)){
+    return {ok:false,message:"Mutarea ar crea o fereastră în programul unei clase."};
+  }
+
+  if(typeof validateClassStartsAtFirstHour==="function" && !validateClassStartsAtFirstHour(test)){
+    return {ok:false,message:"Mutarea ar face ca o clasă să nu înceapă cu ora 1."};
+  }
+
+  if(typeof validateMaxClassHoursPerDay==="function" && !validateMaxClassHoursPerDay(test)){
+    return {ok:false,message:"Mutarea ar depăși limita de 7 ore pe zi pentru o clasă."};
+  }
+
+  return {ok:true};
+}
+
+function moveTimetableSlot(from,to){
+  const check=canMoveTimetableSlot(from,to);
+  if(!check.ok){
+    alert(check.message);
+    return false;
+  }
+
+  const source=getNestedSlot(from.className,from.day,from.hour);
+  setNestedSlot(from.className,from.day,from.hour,null);
+
+  const moved={...source,className:to.className,day:to.day,hour:Number(to.hour),manual:true};
+  setNestedSlot(to.className,to.day,to.hour,moved);
+
+  save();
+  renderTimetable();
+  renderTeachers();
+  renderGlobalHoursSummary();
+  return true;
+}
+
+function enableTimetableDragAndDrop(){
+  const table=document.getElementById("timetableTable");
+  if(!table) return;
+
+  const cells=table.querySelectorAll("td[data-class][data-day][data-hour]");
+  cells.forEach(cell=>{
+    const cls=cell.dataset.class;
+    const day=cell.dataset.day;
+    const hour=Number(cell.dataset.hour);
+    const slot=getNestedSlot(cls,day,hour);
+    const lesson=cell.querySelector(".lesson");
+
+    if(lesson && slot && !isSlotLocked(cls,day,hour)){
+      lesson.setAttribute("draggable","true");
+      lesson.ondragstart=(e)=>{
+        draggedTimetableSlot={className:cls,day,hour};
+        lesson.classList.add("timetable-dragging");
+        e.dataTransfer.effectAllowed="move";
+        try{ e.dataTransfer.setData("text/plain",JSON.stringify(draggedTimetableSlot)); }catch(_){}
+      };
+      lesson.ondragend=()=>{
+        lesson.classList.remove("timetable-dragging");
+        document.querySelectorAll(".timetable-drop-target").forEach(x=>x.classList.remove("timetable-drop-target"));
+        draggedTimetableSlot=null;
+      };
+    }
+
+    cell.ondragover=(e)=>{
+      if(!draggedTimetableSlot) return;
+      e.preventDefault();
+      e.dataTransfer.dropEffect="move";
+      cell.classList.add("timetable-drop-target");
+    };
+
+    cell.ondragleave=()=>{
+      cell.classList.remove("timetable-drop-target");
+    };
+
+    cell.ondrop=(e)=>{
+      e.preventDefault();
+      cell.classList.remove("timetable-drop-target");
+      if(!draggedTimetableSlot) return;
+
+      const to={className:cls,day,hour};
+      if(
+        draggedTimetableSlot.className===to.className &&
+        draggedTimetableSlot.day===to.day &&
+        Number(draggedTimetableSlot.hour)===Number(to.hour)
+      ) return;
+
+      moveTimetableSlot(draggedTimetableSlot,to);
+    };
+  });
+}
+
 function renderTimetable(){
   const cls=viewClass.value;
   const data=state.timetable[cls]||{};
@@ -2290,7 +2494,7 @@ function renderTimetable(){
   renderGlobalHoursSummary();
   renderClassHoursCounter(cls);
   renderFreeHoursBanner(cls);
-  setTimeout(enhanceTimetableLockUI,0);
+  setTimeout(()=>{ enhanceTimetableLockUI(); enableTimetableDragAndDrop(); },0);
 }
 
 function demoGenerate(){
