@@ -682,6 +682,169 @@
   }
 }
 
+
+.orar-workspace{
+  display:grid;
+  grid-template-columns:minmax(760px,1fr) 320px;
+  gap:16px;
+  align-items:start;
+}
+.teacher-token-panel{
+  position:sticky;
+  top:12px;
+  padding:12px;
+  min-width:0;
+}
+.token-panel-tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:6px;
+  padding:4px;
+  border:1px solid #dbe3ef;
+  border-radius:12px;
+  background:#f8fafc;
+}
+.token-panel-tab{
+  border:0;
+  border-radius:9px;
+  padding:8px 6px;
+  background:transparent;
+  color:#64748b;
+  font-size:12px;
+  font-weight:900;
+}
+.token-panel-tab.active{
+  background:#fff;
+  color:#1d4ed8;
+  box-shadow:0 1px 6px rgba(15,23,42,.10);
+}
+.teacher-token-help{
+  margin:9px 2px 10px;
+  font-size:11px;
+  line-height:1.3;
+  color:#64748b;
+}
+.token-tab-content{
+  display:grid;
+  gap:10px;
+}
+.token-tab-content[hidden]{
+  display:none !important;
+}
+.teacher-prof-card{
+  border:2px solid color-mix(in srgb,var(--teacher-color,#dbeafe) 75%,#94a3b8);
+  border-radius:14px;
+  padding:10px;
+  background:linear-gradient(135deg,#fff 25%,var(--teacher-color,#dbeafe) 160%);
+  box-shadow:0 5px 14px rgba(15,23,42,.06);
+}
+.teacher-prof-head{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:8px;
+  margin-bottom:8px;
+}
+.teacher-prof-name{
+  font-size:14px;
+  font-weight:900;
+  color:#172033;
+}
+.teacher-prof-status{
+  font-size:10px;
+  font-weight:700;
+  color:#64748b;
+  margin-top:2px;
+}
+.teacher-prof-load{
+  text-align:right;
+  font-size:10px;
+  font-weight:800;
+}
+.teacher-contract-line{
+  display:flex;
+  justify-content:flex-end;
+  align-items:center;
+  gap:4px;
+  white-space:nowrap;
+}
+.teacher-prof-scheduled{
+  margin-top:2px;
+  color:#475569;
+}
+.teacher-prof-complete{
+  display:inline-block;
+  margin-top:3px;
+  padding:2px 5px;
+  border-radius:999px;
+  background:#fef3c7;
+  color:#92400e;
+}
+.teacher-extra-hours{
+  display:inline-block;
+  padding:2px 5px;
+  border-radius:999px;
+  background:#dcfce7;
+  color:#15803d;
+}
+.teacher-assignment-token,
+.discipline-token{
+  margin-top:7px;
+  padding:9px;
+  border:1px solid #cbd5e1;
+  border-radius:11px;
+  background:rgba(255,255,255,.84);
+  cursor:pointer;
+}
+.teacher-assignment-token strong,
+.discipline-token strong{
+  display:block;
+  font-size:11px;
+  line-height:1.25;
+  color:#172033;
+}
+.teacher-assignment-token.empty,
+.discipline-token.empty{
+  opacity:.45;
+  cursor:default;
+}
+.teacher-assignment-token.token-selected,
+.discipline-token.token-selected{
+  outline:3px solid rgba(37,99,235,.38);
+  border-color:#60a5fa;
+}
+.token-classes{
+  display:flex;
+  flex-wrap:wrap;
+  gap:4px;
+  margin-top:6px;
+}
+.token-class-pill{
+  display:inline-flex;
+  align-items:center;
+  padding:3px 6px;
+  border-radius:999px;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+  color:#64748b;
+  font-size:9px;
+  font-weight:700;
+}
+.token-place-hint{
+  margin:7px 0;
+  padding:7px 8px;
+  border-radius:9px;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-size:10px;
+  font-weight:800;
+}
+@media(max-width:900px){
+  .orar-workspace{
+    grid-template-columns:minmax(760px,1fr) 280px;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -4023,61 +4186,114 @@ function teacherScheduledHours(teacherId){
   return total;
 }
 
+function directScheduledHoursForAssignment(a){
+  let count=0;
+  const subjectName=String(
+    a.subjectName ||
+    state.subjects.find(s=>s.id===a.subjectId)?.name ||
+    ""
+  ).trim().toLocaleLowerCase("ro");
+
+  Object.values(state.timetable?.[a.className]||{}).forEach(slot=>{
+    if(!slot || slot.unassigned) return;
+    const slotSubject=String(
+      slot.subject ||
+      slot.subjectName ||
+      state.subjects.find(s=>s.id===slot.subjectId)?.name ||
+      ""
+    ).trim().toLocaleLowerCase("ro");
+
+    if(slot.teacherId===a.teacherId && slotSubject===subjectName) count++;
+  });
+  return count;
+}
+
 function renderTeacherTimetableTokens(){
   const box=document.getElementById("teacherTimetableTokens");
   if(!box) return;
 
-  const teachers=(state.teachers||[]).slice().sort((a,b)=>
-    (a.name||"").localeCompare(b.name||"","ro")
-  );
+  const teachers=(state.teachers||[])
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ro"));
 
   if(!teachers.length){
     box.innerHTML='<div class="muted">Nu există încă profesori.</div>';
+    updateTimetableTokenTabs();
     return;
   }
 
   box.innerHTML=teachers.map(t=>{
     const rows=(state.assignments||[])
       .filter(a=>a.teacherId===t.id)
-      .sort((a,b)=>
-        (a.subjectName||"").localeCompare(b.subjectName||"","ro") ||
-        CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)
-      );
+      .map(a=>({
+        ...a,
+        subjectName:a.subjectName ||
+          state.subjects.find(s=>s.id===a.subjectId)?.name ||
+          "Disciplină"
+      }));
 
-    const assigned=teacherAssignedCurriculumHours(t.id);
-    const contract=teacherContractHours(t.id);
-    const scheduled=teacherScheduledHours(t.id);
-    const extraHours=Math.max(0,scheduled-contract);
+    const contract=Math.max(
+      0,
+      Number(t.contractHours ?? t.totalHours ?? rows.reduce((s,a)=>s+Number(a.hours||0),0))
+    );
+    const assigned=rows.reduce((s,a)=>s+Number(a.hours||0),0);
+
+    let scheduled=0;
+    Object.values(state.timetable||{}).forEach(classSlots=>{
+      Object.values(classSlots||{}).forEach(slot=>{
+        if(slot && !slot.unassigned && slot.teacherId===t.id) scheduled++;
+      });
+    });
+
+    const extra=Math.max(0,scheduled-contract);
     const toComplete=Math.max(0,contract-assigned);
+    const main=String(t.mainSubject || t.primarySubject || "").trim().toLocaleLowerCase("ro");
 
     const groups={};
     rows.forEach(a=>{
-      const subjectName=a.subjectName || solverSubjectName(a.subjectId) || "Disciplină";
-      if(!groups[subjectName]) groups[subjectName]=[];
-      groups[subjectName].push(a);
+      const n=String(a.subjectName||"Disciplină");
+      (groups[n] ||= []).push(a);
     });
 
-    const assignmentsHtml=Object.entries(groups).map(([subjectName,arr])=>{
-      const remaining=arr.reduce((sum,a)=>sum+remainingUnassignedHoursForAssignment(a),0);
-      const classPills=arr.map(a=>{
-        const rem=remainingUnassignedHoursForAssignment(a);
-        return `<span class="token-class-pill">Clasa ${esc(a.className)} · ${rem}h rămase</span>`;
-      }).join("");
-      const ids=arr.map(a=>a.id).join(",");
+    const names=Object.keys(groups).sort((a,b)=>{
+      const am=a.trim().toLocaleLowerCase("ro")===main ? 0 : 1;
+      const bm=b.trim().toLocaleLowerCase("ro")===main ? 0 : 1;
+      return am-bm || a.localeCompare(b,"ro");
+    });
 
-      const selected=selectedTeacherToken &&
+    const groupHtml=names.length ? names.map(subjectName=>{
+      const arr=groups[subjectName].slice().sort(
+        (a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)
+      );
+
+      const remainingByAssignment=arr.map(a=>{
+        const scheduledForAssignment=directScheduledHoursForAssignment(a);
+        return {
+          a,
+          remaining:Math.max(0,Number(a.hours||0)-scheduledForAssignment)
+        };
+      });
+
+      const totalRemaining=remainingByAssignment.reduce((s,x)=>s+x.remaining,0);
+      const ids=arr.map(a=>a.id).join(",");
+      const selected=!!selectedTeacherToken &&
         JSON.stringify(selectedTeacherToken.assignmentIds||[])===JSON.stringify(arr.map(a=>a.id));
 
-      return `<div class="teacher-assignment-token ${remaining<=0?"empty":""} ${selected?"token-selected":""}"
-                   data-assignment-ids="${esc(ids)}"
-                   ${remaining>0?'role="button" tabindex="0"':""}>
-        <strong>${esc(subjectName)} ${subjectName===t.primarySubject?'<span style="font-size:9px">PRINCIPALĂ</span>':""}</strong>
-        <div class="token-classes">${classPills}</div>
-        ${remaining>0?'<div style="margin-top:6px;font-size:10px;color:#1d4ed8;font-weight:700">Apasă pentru selectare</div>':""}
-      </div>`;
-    }).join("") || '<div class="muted" style="margin-top:8px">Fără încadrări.</div>';
+      const pills=remainingByAssignment.map(x=>
+        `<span class="token-class-pill">Clasa ${esc(x.a.className)} · ${x.remaining}h rămase</span>`
+      ).join("");
 
-    return `<div class="teacher-prof-card" style="--teacher-color:${t.color||"#dbeafe"}">
+      const isMain=subjectName.trim().toLocaleLowerCase("ro")===main;
+
+      return `<div class="teacher-assignment-token ${totalRemaining<=0?"empty":""} ${selected?"token-selected":""}"
+                   data-assignment-ids="${esc(ids)}"
+                   ${totalRemaining>0?'role="button" tabindex="0"':""}>
+        <strong>${esc(subjectName)} ${isMain?'<span style="font-size:8px;color:#2563eb">PRINCIPALĂ</span>':""}</strong>
+        <div class="token-classes">${pills}</div>
+      </div>`;
+    }).join("") : '<div class="muted" style="font-size:10px">Fără încadrări.</div>';
+
+    return `<div class="teacher-prof-card" style="--teacher-color:${esc(t.color||"#dbeafe")}">
       <div class="teacher-prof-head">
         <div>
           <div class="teacher-prof-name">${esc(t.name||"Profesor")}</div>
@@ -4086,43 +4302,41 @@ function renderTeacherTimetableTokens(){
         <div class="teacher-prof-load">
           <div class="teacher-contract-line">
             <span>${contract}h încadrare</span>
-            ${extraHours>0?`<span class="teacher-extra-hours">+${extraHours}h</span>`:""}
+            ${extra>0?`<span class="teacher-extra-hours">+${extra}h</span>`:""}
           </div>
           <div class="teacher-prof-scheduled">${scheduled}h atribuite</div>
           ${toComplete>0?`<span class="teacher-prof-complete">${toComplete}h de completat</span>`:""}
         </div>
       </div>
-      ${assignmentsHtml}
+      ${groupHtml}
     </div>`;
   }).join("");
 
   box.querySelectorAll(".teacher-assignment-token:not(.empty)").forEach(token=>{
     const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
+
     const selectToken=()=>{
       if(!ids.length) return;
-
       selectedTeacherToken={assignmentIds:ids};
       selectedDisciplineToken=null;
-
       renderTeacherTimetableTokens();
       renderDisciplineTimetableTokens();
       markTimetableCellsForTokenSelection();
     };
 
-    token.onclick=(e)=>{
+    token.onclick=e=>{
       e.preventDefault();
       e.stopPropagation();
       selectToken();
     };
 
-    token.onkeydown=(e)=>{
+    token.onkeydown=e=>{
       if(e.key==="Enter" || e.key===" "){
         e.preventDefault();
         selectToken();
       }
     };
 
-    // Keep desktop drag-and-drop optional.
     token.setAttribute("draggable","true");
     token.ondragstart=e=>{
       selectedDisciplineToken=null;
@@ -4130,11 +4344,16 @@ function renderTeacherTimetableTokens(){
       draggedTeacherToken={assignmentIds:ids};
       e.dataTransfer.effectAllowed="copy";
       try{
-        e.dataTransfer.setData("text/plain",JSON.stringify({type:"teacher-token",assignmentIds:ids}));
+        e.dataTransfer.setData("text/plain",JSON.stringify({
+          type:"teacher-token",
+          assignmentIds:ids
+        }));
       }catch(_){}
     };
     token.ondragend=()=>{ draggedTeacherToken=null; };
   });
+
+  updateTimetableTokenTabs();
 }
 function updateTeacherTokenSelectionUI(){
   const hintId="teacherTokenTapHint";
