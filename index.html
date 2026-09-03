@@ -1560,6 +1560,26 @@ function setSubjectHoursForClass(className,name,value,inputEl=null){
   refreshTeacherSubjectSuggestions();
 }
 
+
+function scheduledHoursForSubjectClass(className,subjectName){
+  const target=String(subjectName||"").trim().toLocaleLowerCase("ro");
+  const slots=state.timetable?.[className] || {};
+  let count=0;
+
+  Object.values(slots).forEach(slot=>{
+    if(!slot) return;
+    const slotName=String(
+      slot.subjectName ||
+      state.subjects.find(s=>s.id===slot.subjectId)?.name ||
+      ""
+    ).trim().toLocaleLowerCase("ro");
+
+    if(slotName===target) count++;
+  });
+
+  return count;
+}
+
 function saveSubjectClassPanel(className){
   const panel=document.querySelector(`.subject-class-panel[data-class="${className}"]`);
   if(!panel) return appMessage("Nu am găsit panoul clasei.","error");
@@ -1598,6 +1618,40 @@ function saveSubjectClassPanel(className){
     appMessage("Nu pot debifa aceste discipline deoarece sunt deja atribuite unui profesor: "+conflicts.join(", "),"error");
     renderSubjects();
     return;
+  }
+
+  // Nu permitem reducerea unei discipline sub numărul de ore deja existente în orar.
+  for(const row of rows){
+    const name=String(row.dataset.subjectName||"").trim();
+    if(!name) continue;
+
+    const cb=row.querySelector('input[type="checkbox"]');
+    const hoursInput=row.querySelector(".hours-input");
+    const requested=(cb?.checked && Number(hoursInput?.value||0)>0)
+      ? Math.max(0,Number(hoursInput.value||0))
+      : 0;
+
+    const scheduled=scheduledHoursForSubjectClass(className,name);
+
+    if(requested<scheduled){
+      const diff=scheduled-requested;
+      const classText=classLabelRomanian(className);
+
+      appMessage(
+        `Nu poți reduce ${name} la ${requested} ore la clasa ${classText}. `+
+        `În orar există deja ${scheduled} ore. Elimină mai întâi ${diff} ${diff===1?"oră":"ore"} din orar.`,
+        "error",
+        5200
+      );
+
+      // Readucem vizual valoarea la numărul minim compatibil cu orarul existent.
+      if(hoursInput) hoursInput.value=String(scheduled);
+      const valueEl=row.querySelector(".subject-hours-value");
+      if(valueEl) valueEl.textContent=String(scheduled);
+      if(cb) cb.checked=true;
+      row.classList.remove("inactive");
+      return;
+    }
   }
 
   // Keep subjects from the other classes, replace this class completely.
