@@ -301,6 +301,39 @@
   cursor:grabbing;
 }
 
+
+.schedule-report{
+  margin-top:14px;
+  display:grid;
+  gap:12px;
+}
+.schedule-report .report-section{
+  border:1px solid #e5e7eb;
+  border-radius:14px;
+  padding:14px 16px;
+  background:#fff;
+}
+.schedule-report .report-section h3{
+  margin:0 0 8px;
+  font-size:16px;
+}
+.schedule-report .ok{
+  color:#166534;
+  font-weight:800;
+}
+.schedule-report .warn{
+  color:#92400e;
+  font-weight:800;
+}
+.schedule-report .bad{
+  color:#991b1b;
+  font-weight:800;
+}
+.schedule-report ul{
+  margin:8px 0 0 18px;
+  padding:0;
+}
+
 </style>
 </head>
 <body>
@@ -439,6 +472,13 @@
           
           
           
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">CONTROL FINAL</div>
+            <h3>Raport de verificare a orarului</h3>
+            <p>Butonul „Verifică orarul” analizează conflictele obligatorii, orele fără profesor, orele din încadrare rămase nerepartizate, ferestrele profesorilor și principalele abateri de la preferințele de optimizare.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">EDITARE MANUALĂ</div>
             <h3>Mutare și schimb prin drag-and-drop</h3>
@@ -2519,6 +2559,9 @@ function swapTimetableSlots(a,b){
   renderTimetable();
   renderTeachers();
   renderGlobalHoursSummary();
+
+  const reportBox=document.getElementById("scheduleReport");
+  if(reportBox && reportBox.innerHTML.trim()) renderScheduleReport();
   return true;
 }
 
@@ -3028,6 +3071,201 @@ function solverTargetsForAllClasses(){
   return targets;
 }
 
+
+function reportTeacherWindows(tt,teacherId){
+  const rows=[];
+  DAYS.forEach((day,d)=>{
+    const hours=[];
+    for(let h=0;h<7;h++){
+      if(solverTeacherBusy(tt,teacherId,d,h)) hours.push(h+1);
+    }
+    if(hours.length<2) return;
+    hours.sort((a,b)=>a-b);
+
+    const gaps=[];
+    for(let i=0;i<hours.length-1;i++){
+      const gap=hours[i+1]-hours[i]-1;
+      if(gap>0) gaps.push({
+        from:hours[i],
+        to:hours[i+1],
+        size:gap
+      });
+    }
+    if(gaps.length) rows.push({day,hours,gaps});
+  });
+  return rows;
+}
+
+function reportTeacherDoubleBookings(tt){
+  const issues=[];
+  (state.teachers||[]).forEach(t=>{
+    DAYS.forEach((day,d)=>{
+      for(let h=0;h<7;h++){
+        const classes=[];
+        CLASSES.forEach(cls=>{
+          const slot=solverGetSlot(tt,cls,d,h);
+          if(slot && !slot.unassigned && slot.teacherId===t.id) classes.push(cls);
+        });
+        if(classes.length>1){
+          issues.push(`${t.name||"Profesor"} — ${day}, ora ${h+1}: clasele ${classes.join(", ")}`);
+        }
+      }
+    });
+  });
+  return issues;
+}
+
+function reportClassGaps(tt){
+  const issues=[];
+  CLASSES.forEach(cls=>{
+    DAYS.forEach((day,d)=>{
+      const occupied=[];
+      for(let h=0;h<7;h++){
+        if(solverGetSlot(tt,cls,d,h)) occupied.push(h+1);
+      }
+      if(!occupied.length) return;
+      const max=Math.max(...occupied);
+      for(let h=1;h<=max;h++){
+        if(!occupied.includes(h)){
+          issues.push(`Clasa ${cls} — ${day}: fereastră la ora ${h}`);
+        }
+      }
+      if(Math.min(...occupied)!==1){
+        issues.push(`Clasa ${cls} — ${day}: programul nu începe cu ora 1`);
+      }
+    });
+  });
+  return issues;
+}
+
+function reportUnavailableTeacherPlacements(tt){
+  const issues=[];
+  solverAllSlots(tt).forEach(({className,day,hour,slot})=>{
+    if(slot.unassigned || !slot.teacherId) return;
+    if(!isTeacherAvailable(slot.teacherId,day,hour)){
+      issues.push(`${solverTeacherName(slot.teacherId)} — clasa ${className}, ${day}, ora ${hour}`);
+    }
+  });
+  return issues;
+}
+
+function reportUnassignedClassHours(tt){
+  return CLASSES.map(cls=>{
+    const n=classUnassignedHours(cls,tt);
+    return {cls,n};
+  }).filter(x=>x.n>0);
+}
+
+function reportRemainingTeacherHours(tt){
+  return (state.teachers||[]).map(t=>{
+    const n=remainingUnassignedHoursForTeacher(t.id,tt);
+    return {teacher:t,n};
+  }).filter(x=>x.n>0);
+}
+
+function reportPreferenceNotes(tt){
+  const notes=[];
+
+  (state.teachers||[]).forEach(t=>{
+    const windows=reportTeacherWindows(tt,t.id);
+    windows.forEach(w=>{
+      const total=w.gaps.reduce((s,g)=>s+g.size,0);
+      const maxGap=Math.max(...w.gaps.map(g=>g.size));
+      if(maxGap>=3){
+        notes.push(`${t.name||"Profesor"} — ${w.day}: fereastră mare de ${maxGap}h`);
+      }else if(w.gaps.length>=2){
+        notes.push(`${t.name||"Profesor"} — ${w.day}: ${w.gaps.length} ferestre`);
+      }else if(total>0){
+        notes.push(`${t.name||"Profesor"} — ${w.day}: fereastră de ${total}h`);
+      }
+    });
+  });
+
+  CLASSES.forEach(cls=>{
+    const counts=DAYS.map((_,d)=>{
+      let c=0;
+      for(let h=0;h<7;h++) if(solverGetSlot(tt,cls,d,h)) c++;
+      return c;
+    });
+    const nonzero=counts.filter(Boolean);
+    if(nonzero.length){
+      const diff=Math.max(...nonzero)-Math.min(...nonzero);
+      if(diff>=2){
+        notes.push(`Clasa ${cls}: distribuție dezechilibrată între zile (${counts.join("–")} ore)`);
+      }
+    }
+  });
+
+  return notes;
+}
+
+function renderScheduleReport(){
+  const box=document.getElementById("scheduleReport");
+  if(!box) return;
+
+  const tt=state.timetable||{};
+  const teacherConflicts=reportTeacherDoubleBookings(tt);
+  const classGaps=reportClassGaps(tt);
+  const unavailable=reportUnavailableTeacherPlacements(tt);
+  const classUnassigned=reportUnassignedClassHours(tt);
+  const teacherRemaining=reportRemainingTeacherHours(tt);
+  const preferenceNotes=reportPreferenceNotes(tt);
+
+  const hardIssues=[...teacherConflicts,...classGaps,...unavailable];
+
+  const listHtml=(items,emptyText,cls="")=>{
+    if(!items.length) return `<div class="ok">${emptyText}</div>`;
+    return `<ul class="${cls}">${items.map(x=>`<li>${x}</li>`).join("")}</ul>`;
+  };
+
+  const windowRows=[];
+  (state.teachers||[]).forEach(t=>{
+    const rows=reportTeacherWindows(tt,t.id);
+    if(!rows.length) return;
+    rows.forEach(r=>{
+      const gapText=r.gaps.map(g=>`${g.size}h între orele ${g.from} și ${g.to}`).join("; ");
+      windowRows.push(`${t.name||"Profesor"} — ${r.day}: ${gapText}`);
+    });
+  });
+
+  const classUnassignedText=classUnassigned.map(x=>`Clasa ${x.cls}: ${x.n}h fără profesor`);
+  const teacherRemainingText=teacherRemaining.map(x=>`${x.teacher.name||"Profesor"}: ${x.n}h din încadrare nerepartizate`);
+
+  box.innerHTML=`
+    <div class="report-section">
+      <h3>Rezultat verificare</h3>
+      <div class="${hardIssues.length ? "bad" : "ok"}">
+        ${hardIssues.length ? `${hardIssues.length} problemă/probleme obligatorii găsite` : "Nu au fost găsite conflicte obligatorii."}
+      </div>
+    </div>
+
+    <div class="report-section">
+      <h3>Conflicte și reguli obligatorii</h3>
+      ${listHtml(hardIssues,"Totul este în regulă.")}
+    </div>
+
+    <div class="report-section">
+      <h3>Ore fără profesor pe clase</h3>
+      ${listHtml(classUnassignedText,"Nu există ore fără profesor.")}
+    </div>
+
+    <div class="report-section">
+      <h3>Ore din încadrare rămase nerepartizate</h3>
+      ${listHtml(teacherRemainingText,"Toate orele din încadrare sunt repartizate.")}
+    </div>
+
+    <div class="report-section">
+      <h3>Ferestre profesori</h3>
+      ${listHtml(windowRows,"Niciun profesor nu are ferestre.")}
+    </div>
+
+    <div class="report-section">
+      <h3>Observații de optimizare</h3>
+      ${listHtml(preferenceNotes,"Nu sunt observații importante de optimizare.")}
+    </div>
+  `;
+}
+
 function demoGenerate(){
   if(!canGenerateTimetable()) return;
 
@@ -3068,6 +3306,8 @@ function demoGenerate(){
   renderTimetable();
   renderTeachers();
   renderGlobalHoursSummary();
+  const reportBox=document.getElementById("scheduleReport");
+  if(reportBox && reportBox.innerHTML.trim()) renderScheduleReport();
 
   const unassignedClasses=CLASSES
     .map(cls=>({cls,n:classUnassignedHours(cls,state.timetable)}))
