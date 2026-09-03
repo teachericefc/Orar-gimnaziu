@@ -1416,6 +1416,72 @@ function setSubjectHoursForClass(className,name,value,inputEl=null){
 
   refreshTeacherSubjectSuggestions();
 }
+
+function saveSubjectClassPanel(className){
+  const panel=document.querySelector(`.subject-class-panel[data-class="${className}"]`);
+  if(!panel) return alert("Nu am găsit panoul clasei.");
+
+  const rows=[...panel.querySelectorAll(".subject-config-row")];
+  const nextSubjects=[];
+  const conflicts=[];
+
+  rows.forEach(row=>{
+    const cb=row.querySelector('input[type="checkbox"]');
+    const hoursInput=row.querySelector('.hours-input');
+    const name=row.dataset.subjectName || "";
+    if(!name || !cb) return;
+
+    if(cb.checked){
+      const hours=Math.max(1, Number(hoursInput?.value || 1));
+      const old=subjectEntry(className,name);
+      nextSubjects.push({
+        id: old?.id || crypto.randomUUID(),
+        name,
+        className,
+        hours,
+        prioritized: !!old?.prioritized
+      });
+    }else{
+      const used=(state.assignments||[]).some(a=>
+        a.className===className &&
+        String(a.subjectName||"").trim().toLocaleLowerCase("ro")===name.trim().toLocaleLowerCase("ro")
+      );
+      if(used) conflicts.push(name);
+    }
+  });
+
+  if(conflicts.length){
+    alert("Nu pot debifa aceste discipline deoarece sunt deja atribuite unui profesor: "+conflicts.join(", "));
+    renderSubjects();
+    return;
+  }
+
+  // Keep subjects from the other classes, replace this class completely.
+  state.subjects=(state.subjects||[]).filter(s=>s.className!==className).concat(nextSubjects);
+
+  // Synchronize teacher assignment hours with the saved subject hours.
+  (state.assignments||[]).forEach(a=>{
+    if(a.className!==className) return;
+    const subj=nextSubjects.find(s=>
+      String(s.name||"").trim().toLocaleLowerCase("ro")===
+      String(a.subjectName||"").trim().toLocaleLowerCase("ro")
+    );
+    if(subj) a.hours=subj.hours;
+  });
+
+  save();
+  renderSubjects();
+  refreshTeacherSubjectSuggestions();
+  renderAssignmentSelectors();
+  renderClasses();
+  renderTeachers();
+
+  const msg=document.getElementById(`subjectSaved-${className}`);
+  if(msg){
+    msg.textContent="✓ Salvat";
+    setTimeout(()=>{ if(msg) msg.textContent=""; },1800);
+  }
+}
 function addCustomSubjectToClass(className){
   const name=(document.getElementById(`newSubject-${className}`)?.value||"").trim();
   const hours=Math.max(1,Number(document.getElementById(`newSubjectHours-${className}`)?.value||1));
@@ -1470,10 +1536,10 @@ function renderSubjects(){
           ${names.map(name=>{
             const s=subjectEntry(className,name);
             const enabled=!!s;
-            return `<div class="subject-config-row ${enabled?"":"inactive"}">
+            return `<div class="subject-config-row ${enabled?"":"inactive"}" data-subject-name="${esc(name)}">
               <input type="checkbox"
                 ${enabled?"checked":""}
-                onchange="setSubjectEnabled('${className}',${JSON.stringify(name)},this.checked)">
+                onchange="this.closest('.subject-config-row').classList.toggle('inactive',!this.checked)">
               <div class="subject-label">
                 ${esc(name)}
                 ${s?.prioritized ? '<span class="subject-priority-star">★ prioritară</span>' : ''}
@@ -1481,8 +1547,7 @@ function renderSubjects(){
               <input class="hours-input" type="number" min="1"
                 value="${enabled?Number(s.hours||1):1}"
                 title="Ore pe săptămână"
-                oninput="setSubjectHoursForClass('${className}',${JSON.stringify(name)},this.value,this)"
-                onchange="renderTeachers();renderClasses()">
+                oninput="this.closest('.subject-config-row').querySelector('input[type=checkbox]').checked=true; this.closest('.subject-config-row').classList.remove('inactive')">
             </div>`;
           }).join("")}
         </div>
@@ -1492,6 +1557,10 @@ function renderSubjects(){
             <input id="newSubject-${className}" placeholder="Altă disciplină / opțional">
             <input id="newSubjectHours-${className}" type="number" min="1" value="1" title="Ore/săpt.">
             <button class="subject-plus-btn" onclick="addCustomSubjectToClass('${className}')" title="Adaugă">+</button>
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+            <button class="btn btn-primary" style="flex:1" onclick="saveSubjectClassPanel('${className}')">💾 Salvează clasa ${className}</button>
+            <span id="subjectSaved-${className}" style="font-weight:700;color:#16803a;min-width:58px"></span>
           </div>
         </div>
       </div>`;
