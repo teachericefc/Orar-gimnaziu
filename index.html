@@ -334,6 +334,261 @@
   padding:0;
 }
 
+
+.final-status-card{
+  margin:12px 0;
+  padding:12px 14px;
+  border-radius:14px;
+  border:1px solid #bbf7d0;
+  background:#f0fdf4;
+}
+.final-status-card strong{color:#166534}
+.final-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-top:10px;
+}
+@media print{
+  body.print-class-mode .sidebar,
+  body.print-class-mode header,
+  body.print-class-mode .toolbar,
+  body.print-class-mode button,
+  body.print-class-mode #scheduleReport,
+  body.print-class-mode #globalHoursSummary,
+  body.print-class-mode #classHoursCounter,
+  body.print-class-mode #freeHoursBanner,
+  body.print-teacher-mode .sidebar,
+  body.print-teacher-mode header,
+  body.print-teacher-mode .toolbar,
+  body.print-teacher-mode button,
+  body.print-teacher-mode #scheduleReport,
+  body.print-teacher-mode #globalHoursSummary,
+  body.print-teacher-mode #classHoursCounter,
+  body.print-teacher-mode #freeHoursBanner{
+    display:none !important;
+  }
+  .print-only{display:block !important}
+}
+.print-only{display:none}
+.teacher-print-sheet{
+  padding:18px;
+}
+.teacher-print-sheet h2{margin:0 0 12px}
+.teacher-print-table{
+  width:100%;
+  border-collapse:collapse;
+}
+.teacher-print-table th,.teacher-print-table td{
+  border:1px solid #999;
+  padding:7px;
+  text-align:left;
+}
+
+
+.all-class-timetables{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(520px,1fr));
+  gap:18px;
+  align-items:start;
+  margin-top:14px;
+}
+.class-timetable-card{
+  border:1px solid #e5e7eb;
+  border-radius:16px;
+  background:#fff;
+  padding:14px;
+  overflow:auto;
+}
+.class-timetable-card h3{
+  margin:0;
+}
+.class-timetable-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:10px;
+}
+.class-timetable-actions{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  flex-wrap:wrap;
+}
+.class-timetable-card table{
+  min-width:720px;
+}
+.class-hours-mini{
+  font-size:13px;
+  font-weight:800;
+  padding:5px 8px;
+  border-radius:999px;
+  background:#f3f4f6;
+}
+@media(max-width:1200px){
+  .all-class-timetables{grid-template-columns:1fr}
+}
+
+
+.teacher-complete-form{display:grid;gap:14px}
+.teacher-initial-assignment{
+  border-top:1px solid #e5e7eb;
+  padding-top:14px;
+}
+.teacher-initial-assignment>strong{
+  display:block;
+  margin-bottom:9px;
+}
+.profile-assignment-editor{
+  width:100%;
+  border-collapse:collapse;
+}
+.profile-assignment-editor th,
+.profile-assignment-editor td{
+  border-bottom:1px solid #e5e7eb;
+  padding:8px 6px;
+  vertical-align:middle;
+}
+.profile-assignment-editor input,
+.profile-assignment-editor select{
+  width:100%;
+}
+.profile-add-assignment{
+  margin-top:14px;
+  padding:12px;
+  border:1px dashed #cbd5e1;
+  border-radius:12px;
+  background:#f8fafc;
+}
+
+
+.class-checkbox-group{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  align-items:center;
+}
+.class-checkbox-group label{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:8px 10px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  cursor:pointer;
+  font-weight:700;
+}
+.class-checkbox-group input{
+  width:auto;
+  margin:0;
+}
+
+
+.subject-class-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(250px,1fr));
+  gap:14px;
+  align-items:start;
+}
+.subject-class-panel{
+  background:#fff;
+  border:1px solid #dbe3ef;
+  border-radius:16px;
+  overflow:hidden;
+  box-shadow:0 5px 16px rgba(15,23,42,.05);
+}
+.subject-class-title{
+  padding:13px 14px;
+  background:#f8fafc;
+  border-bottom:1px solid #e2e8f0;
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:8px;
+}
+.subject-class-title h3{
+  margin:0;
+  font-size:18px;
+}
+.subject-total-hours{
+  font-size:12px;
+  font-weight:800;
+  border-radius:999px;
+  background:#eaf2ff;
+  padding:5px 8px;
+}
+.subject-list{
+  padding:8px 10px 10px;
+}
+.subject-config-row{
+  display:grid;
+  grid-template-columns:22px minmax(0,1fr) 58px;
+  gap:7px;
+  align-items:center;
+  min-height:39px;
+  border-bottom:1px solid #eef2f7;
+}
+.subject-config-row:last-child{border-bottom:0}
+.subject-config-row input[type="checkbox"]{
+  width:17px;height:17px;margin:0;
+}
+.subject-config-row .subject-label{
+  font-size:13px;
+  line-height:1.2;
+}
+.subject-config-row .hours-input{
+  width:56px;
+  padding:6px 5px;
+  text-align:center;
+  border:1px solid #cbd5e1;
+  border-radius:8px;
+}
+.subject-config-row.inactive{
+  opacity:.58;
+}
+.subject-priority-star{
+  font-size:11px;
+  color:#7c5300;
+  display:block;
+  margin-top:2px;
+}
+.subject-panel-add{
+  padding:10px;
+  border-top:1px solid #e2e8f0;
+  background:#fafcff;
+}
+.subject-panel-add .add-subject-line{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) 58px 36px;
+  gap:6px;
+}
+.subject-panel-add input{
+  min-width:0;
+}
+.subject-plus-btn{
+  border:0;
+  border-radius:8px;
+  background:#2563eb;
+  color:white;
+  font-weight:800;
+  cursor:pointer;
+}
+@media(max-width:1250px){
+  .subject-class-grid{grid-template-columns:repeat(2,minmax(280px,1fr))}
+}
+@media(max-width:700px){
+  .subject-class-grid{grid-template-columns:1fr}
+}
+
+
+.subject-config-row .hours-input:not(:disabled){
+  background:#fff;
+  color:#172033;
+  cursor:text;
+}
+
 </style>
 </head>
 <body>
@@ -357,7 +612,6 @@
       <button class="nav-btn" data-target="classes">🏫 Clase</button>
       <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
       <button class="nav-btn" data-target="subjects">📚 Discipline</button>
-      <button class="nav-btn" data-target="assignments">🧩 Încadrare</button>
       <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
       <button class="nav-btn" data-target="timetable">🗓️ Orar</button>
     </aside>
@@ -389,42 +643,56 @@
       </section>
 
       <section id="teachers" class="section">
-        <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorii care predau la gimnaziu.</p></div></div>
+        <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorul împreună cu încadrarea inițială. Datele pot fi ajustate oricând din Fișă profesor.</p></div></div>
         <div class="card" style="margin-bottom:16px">
-          <div class="form-row teacher-form" style="grid-template-columns:1.3fr 1fr 1fr auto">
-            <input id="teacherName" placeholder="Nume și prenume profesor">
-            <select id="teacherStatus">
-              <option value="Titular">Titular</option>
-              <option value="Suplinitor">Suplinitor</option>
-              <option value="Asociat">Asociat / plata cu ora</option>
-              <option value="Altul">Alt statut</option>
-            </select>
-            <input id="teacherNote" placeholder="Observație (opțional)">
-            <button class="btn btn-primary" onclick="addTeacher()">Adaugă profesor</button>
+          <div class="teacher-complete-form">
+            <div class="form-row" style="grid-template-columns:1.4fr 1fr 1.4fr">
+              <input id="teacherName" placeholder="Nume și prenume profesor">
+              <select id="teacherStatus">
+                <option value="Titular">Titular</option>
+                <option value="Suplinitor">Suplinitor</option>
+                <option value="Asociat">Asociat / plata cu ora</option>
+                <option value="Altul">Alt statut</option>
+              </select>
+              <input id="teacherNote" placeholder="Observație (opțional)">
+            </div>
+
+            <div class="teacher-initial-assignment">
+              <strong>Încadrare inițială</strong>
+              <div class="form-row" style="grid-template-columns:1.3fr 1.6fr .8fr auto">
+                <select id="teacherInitialSubject">
+                  <option value="">Alege disciplina</option>
+                </select>
+                <div class="class-checkbox-group" id="teacherInitialClasses">
+                  <label><input type="checkbox" value="V" checked> V</label>
+                  <label><input type="checkbox" value="VI" checked> VI</label>
+                  <label><input type="checkbox" value="VII" checked> VII</label>
+                  <label><input type="checkbox" value="VIII" checked> VIII</label>
+                </div>
+                <input id="teacherInitialHours" type="number" min="1" value="1" placeholder="Ore/săptămână / clasă">
+                <button class="btn btn-primary" onclick="addTeacher()">Adaugă profesor</button>
+              </div>
+              <div class="note" style="margin:10px 0 0">
+                Profesorul se adaugă direct alegând disciplina din lista disciplinelor active și clasele la care o predă. Implicit sunt bifate toate clasele. O disciplină din aceeași clasă aparține integral unui singur profesor.
+              </div>
+            </div>
           </div>
 </div>
         <div id="teachersTable"></div>
       </section>
 
       <section id="subjects" class="section">
-        <div class="page-head"><div><h2>Discipline</h2><p>Curriculum național + discipline la decizia școlii.</p></div></div>
-        <div class="card" style="margin-bottom:16px">
-          <div class="form-row subject-form" style="grid-template-columns:1.3fr .8fr .8fr auto auto">
-            <input id="subjectName" placeholder="Denumirea disciplinei">
-            <select id="subjectClass">
-              <option>V</option><option>VI</option><option>VII</option><option>VIII</option>
-            </select>
-            <input id="subjectHours" type="number" min="1" max="10" value="1" placeholder="Ore/săptămână">
-            <label class="priority-check">
-              <input id="subjectPrioritized" type="checkbox">
-              <span>Prioritizare</span>
-            </label>
-            <button class="btn btn-primary" onclick="addSubject()">Adaugă disciplină</button>
+        <div class="page-head">
+          <div>
+            <h2>Discipline</h2>
+            <p>Bifează disciplinele fiecărei clase și stabilește numărul de ore pe săptămână.</p>
           </div>
-          <div class="note" style="margin-top:12px">
-            „Prioritizare” favorizează disciplina în primele ore ale zilei, fără a deveni o regulă obligatorie.
-          </div>
-</div>
+        </div>
+
+        <div class="note">
+          Cele patru clase sunt afișate permanent una lângă alta. Bifa activează disciplina. Numărul de ore este mereu editabil; dacă îl modifici la o disciplină nebifată, aceasta se activează automat.
+        </div>
+
         <div id="subjectsTable"></div>
       </section>
 
@@ -473,6 +741,34 @@
           
           
           
+          
+          
+          
+          
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">ÎNCADRARE</div>
+            <h3>Clase multiple, fără împărțirea orelor aceleiași clase</h3>
+            <p>La adăugarea profesorului, clasele V–VIII se selectează prin bife, implicit toate fiind selectate. Dacă aceeași disciplină este împărțită între doi profesori, împărțirea se face pe clase întregi: aceeași disciplină din aceeași clasă nu poate fi împărțită ca ore între doi profesori.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PROFESORI</div>
+            <h3>Profesor + încadrare dintr-un singur pas</h3>
+            <p>La adăugarea unui profesor se introduc imediat statutul, disciplina, clasa și numărul de ore. Din „Fișă profesor” pot fi modificate ulterior toate datele și pot fi adăugate sau eliminate încadrări suplimentare.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">AFIȘARE ORARE</div>
+            <h3>Patru orare permanent pe ecran</h3>
+            <p>Orarele claselor V, VI, VII și VIII sunt afișate simultan. Fiecare are minimum 6 ore pe zi, iar directorul poate adăuga oricând încă o oră prin butonul „+ Adaugă o oră”. Numărul de ore afișate nu are limită fixă.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">FINALIZARE</div>
+            <h3>Finalizează orarul</h3>
+            <p>Orarul poate fi marcat final numai dacă nu există conflicte obligatorii. Orele fără profesor sau orele din încadrare rămase nerepartizate sunt semnalate, dar nu blochează finalizarea. După finalizare sunt disponibile tipărirea orarului clasei și a orarului fiecărui profesor.</p>
+          </div>
+
           <div class="card rule-card preference-rule">
             <div class="rule-type">CONTROL FINAL</div>
             <h3>Raport de verificare a orarului</h3>
@@ -633,7 +929,7 @@
           </div>
         </div>
         <p class="muted"><b>Generator automat:</b> construiește simultan orarele claselor V–VIII, păstrează orele 🔒 și compară mai multe variante după prioritățile stabilite.</p>
-        <div class="card timetable-wrap"><table class="timetable" id="timetableTable"></table></div>
+        <div id="allClassTimetables" class="all-class-timetables"></div>
       </section>
     
         <div class="card" id="lockedHoursPreGenerationCard">
@@ -721,6 +1017,7 @@ state.generatorRules ||= {
 
 state.subjects.forEach(s=>{
   if(!("prioritized" in s)) s.prioritized=false;
+  if(!Number.isFinite(Number(s.hours)) || Number(s.hours)<=0) s.hours=1;
 });
 
 state.teachers.forEach(t=>{
@@ -733,7 +1030,7 @@ function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
 function showSection(id){
   document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.target===id));
-  if(id==="teachers")renderTeachers();
+  if(id==="teachers"){refreshTeacherSubjectSuggestions();renderTeachers();}
   if(id==="subjects")renderSubjects();
   if(id==="assignments"){renderAssignmentSelectors();renderAssignments();}
   if(id==="classes")renderClasses();
@@ -747,7 +1044,7 @@ function updateStats(){
   document.getElementById('statSubjects').textContent=state.subjects.length;
   document.getElementById('statHours').textContent=state.subjects.reduce((a,s)=>a+(Number(s.hours)||0),0);
 }
-function openClass(cls){showSection('subjects');document.getElementById('subjectClass').value=cls}
+function openClass(cls){showSection('subjects')}
 
 function renderClasses(){
   classesGrid.innerHTML=CLASSES.map(c=>{
@@ -757,22 +1054,152 @@ function renderClasses(){
   }).join('');
 }
 
+
+function refreshTeacherSubjectSuggestions(){
+  const names=[...new Set((state.subjects||[]).map(s=>s.name).filter(Boolean))]
+    .sort((a,b)=>a.localeCompare(b,"ro"));
+
+  const options=names.length
+    ? '<option value="">Alege disciplina</option>' + names.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")
+    : '<option value="">Adaugă mai întâi discipline</option>';
+
+  const initial=document.getElementById("teacherInitialSubject");
+  if(initial){
+    const current=initial.value;
+    initial.innerHTML=options;
+    if(names.includes(current)) initial.value=current;
+  }
+
+  const profile=document.getElementById("profileNewSubject");
+  if(profile){
+    const current=profile.value;
+    profile.innerHTML=options;
+    if(names.includes(current)) profile.value=current;
+  }
+}
+function findOrCreateSubjectForAssignment(name,className,hours){
+  const clean=String(name||"").trim();
+  if(!clean) return null;
+
+  let subject=(state.subjects||[]).find(s=>
+    s.className===className &&
+    String(s.name||"").trim().toLocaleLowerCase("ro")===clean.toLocaleLowerCase("ro")
+  );
+
+  if(!subject){
+    subject={
+      id:crypto.randomUUID(),
+      name:clean,
+      className,
+      hours:Number(hours)||1,
+      prioritized:false
+    };
+    state.subjects.push(subject);
+  }
+  return subject;
+}
+
+
+function checkedClassValues(containerId){
+  return [...document.querySelectorAll(`#${containerId} input[type="checkbox"]:checked`)]
+    .map(x=>x.value)
+    .filter(x=>CLASSES.includes(x));
+}
+
+function assignmentOwnerForSubjectClass(subjectName,className,excludeTeacherId=null){
+  const clean=String(subjectName||"").trim().toLocaleLowerCase("ro");
+  const assignment=(state.assignments||[]).find(a=>
+    a.className===className &&
+    String(a.subjectName||state.subjects.find(s=>s.id===a.subjectId)?.name||"")
+      .trim().toLocaleLowerCase("ro")===clean &&
+    (!excludeTeacherId || a.teacherId!==excludeTeacherId)
+  );
+  if(!assignment) return null;
+  return state.teachers.find(t=>t.id===assignment.teacherId) || null;
+}
+
+function ensureWholeClassSubjectAssignment(subjectName,className,teacherId,hours){
+  const other=assignmentOwnerForSubjectClass(subjectName,className,teacherId);
+  if(other){
+    return {
+      ok:false,
+      message:`${subjectName} la clasa ${className} este deja atribuită integral profesorului ${other.name}.`
+    };
+  }
+
+  let own=(state.assignments||[]).find(a=>
+    a.teacherId===teacherId &&
+    a.className===className &&
+    String(a.subjectName||state.subjects.find(s=>s.id===a.subjectId)?.name||"")
+      .trim().toLocaleLowerCase("ro")===String(subjectName||"").trim().toLocaleLowerCase("ro")
+  );
+
+  const subject=findOrCreateSubjectForAssignment(subjectName,className,hours);
+
+  if(own){
+    own.hours=Math.max(1,Number(hours)||1);
+    own.subjectId=subject.id;
+    own.subjectName=subject.name;
+  }else{
+    state.assignments.push({
+      id:crypto.randomUUID(),
+      teacherId,
+      subjectId:subject.id,
+      subjectName:subject.name,
+      className,
+      hours:Math.max(1,Number(hours)||1)
+    });
+  }
+  return {ok:true};
+}
+
 function addTeacher(){
-  const name=(teacherName.value||"").trim();
-  const note=(teacherNote.value||"").trim();
+  const name=(document.getElementById("teacherName")?.value||"").trim();
+  const note=(document.getElementById("teacherNote")?.value||"").trim();
   const status=document.getElementById("teacherStatus")?.value||"Titular";
-  if(!name)return alert("Introdu numele profesorului.");
-  state.teachers.push({
+  const subjectName=(document.getElementById("teacherInitialSubject")?.value||"").trim();
+  const classes=checkedClassValues("teacherInitialClasses");
+  const hours=Math.max(1,Number(document.getElementById("teacherInitialHours")?.value||1));
+
+  if(!name) return alert("Introdu numele profesorului.");
+  if(!subjectName) return alert("Introdu disciplina pentru încadrarea inițială.");
+  if(!classes.length) return alert("Bifează cel puțin o clasă.");
+
+  const conflicts=classes
+    .map(className=>({className,owner:assignmentOwnerForSubjectClass(subjectName,className)}))
+    .filter(x=>x.owner);
+
+  if(conflicts.length){
+    alert(
+      "Nu pot fi împărțite orele aceleiași discipline din aceeași clasă între doi profesori.\n\n"+
+      conflicts.map(x=>`Clasa ${x.className}: ${subjectName} este deja la ${x.owner.name}.`).join("\n")
+    );
+    return;
+  }
+
+  const teacher={
     id:crypto.randomUUID(),
     name,
     note,
     status,
-    primarySubject:""
+    primarySubject:subjectName
+  };
+  state.teachers.push(teacher);
+
+  classes.forEach(className=>{
+    ensureWholeClassSubjectAssignment(subjectName,className,teacher.id,hours);
   });
-  teacherName.value="";
-  teacherNote.value="";
+
+  document.getElementById("teacherName").value="";
+  document.getElementById("teacherNote").value="";
+  document.getElementById("teacherInitialSubject").value="";
+  document.getElementById("teacherInitialHours").value="1";
+
   save();
+  refreshTeacherSubjectSuggestions();
   renderTeachers();
+  renderSubjects();
+  renderClasses();
   renderAssignmentSelectors();
 }
 function deleteTeacher(id){
@@ -856,74 +1283,194 @@ function renderTeachers(){
   </div>`;
 }
 
-function addSubject(){
-  const name=(subjectName.value||"").trim();
-  const className=subjectClass.value;
-  const hours=Number(subjectHours.value);
-  const prioritized=!!document.getElementById("subjectPrioritized")?.checked;
-  if(!name)return alert("Introdu denumirea disciplinei.");
-  if(!hours || hours<1)return alert("Introdu numărul de ore pe săptămână.");
-  state.subjects.push({
-    id:crypto.randomUUID(),
-    name,
-    className,
-    hours,
-    prioritized
+
+const DEFAULT_GYMNASIUM_SUBJECTS=[
+  "Limba și literatura română",
+  "Matematică",
+  "Limba engleză",
+  "Limba franceză",
+  "Istorie",
+  "Geografie",
+  "Biologie",
+  "Fizică",
+  "Chimie",
+  "Educație socială",
+  "Religie",
+  "Educație fizică și sport",
+  "Educație muzicală",
+  "Educație plastică",
+  "Educație tehnologică și aplicații practice",
+  "Informatică și TIC",
+  "Consiliere și dezvoltare personală"
+];
+
+function subjectEntry(className,name){
+  return (state.subjects||[]).find(s=>
+    s.className===className &&
+    String(s.name||"").trim().toLocaleLowerCase("ro")===String(name||"").trim().toLocaleLowerCase("ro")
+  );
+}
+
+function allSubjectNamesForPanels(){
+  const names=[...DEFAULT_GYMNASIUM_SUBJECTS];
+  (state.subjects||[]).forEach(s=>{
+    if(s?.name && !names.some(n=>n.toLocaleLowerCase("ro")===s.name.trim().toLocaleLowerCase("ro"))){
+      names.push(s.name.trim());
+    }
   });
-  subjectName.value="";
-  subjectHours.value=1;
-  if(document.getElementById("subjectPrioritized")) subjectPrioritized.checked=false;
+  return names;
+}
+
+function setSubjectEnabled(className,name,enabled){
+  const existing=subjectEntry(className,name);
+
+  if(enabled){
+    if(!existing){
+      state.subjects.push({
+        id:crypto.randomUUID(),
+        name,
+        className,
+        hours:1,
+        prioritized:false
+      });
+    }
+  }else if(existing){
+    const used=(state.assignments||[]).some(a=>
+      a.className===className &&
+      String(a.subjectName||"").trim().toLocaleLowerCase("ro")===String(name).trim().toLocaleLowerCase("ro")
+    );
+
+    if(used){
+      alert(`${name} la clasa ${className} este deja încadrată unui profesor. Elimină mai întâi încadrarea profesorului.`);
+      renderSubjects();
+      return;
+    }
+
+    state.subjects=state.subjects.filter(s=>s.id!==existing.id);
+  }
+
   save();
   renderSubjects();
+  refreshTeacherSubjectSuggestions();
   renderAssignmentSelectors();
+  renderClasses();
 }
-function deleteSubject(id){
-  state.subjects=state.subjects.filter(s=>s.id!==id);
-  state.assignments=state.assignments.filter(a=>a.subjectId!==id);
-  save();renderSubjects();renderAssignmentSelectors();renderAssignments();
+
+function setSubjectHoursForClass(className,name,value){
+  const raw=Number(value);
+  const hours=Number.isFinite(raw) && raw>0 ? raw : 1;
+  let existing=subjectEntry(className,name);
+
+  if(!existing){
+    existing={
+      id:crypto.randomUUID(),
+      name,
+      className,
+      hours,
+      prioritized:false
+    };
+    state.subjects.push(existing);
+  }else{
+    existing.hours=hours;
+  }
+
+  // If a teacher is already assigned to this subject/class,
+  // keep the assignment synchronized with the curriculum hours.
+  (state.assignments||[]).forEach(a=>{
+    if(
+      a.className===className &&
+      String(a.subjectName||"").trim().toLocaleLowerCase("ro")===String(name).trim().toLocaleLowerCase("ro")
+    ){
+      a.hours=hours;
+    }
+  });
+
+  save();
+  renderSubjects();
+  renderTeachers();
+  renderClasses();
 }
+
+function addCustomSubjectToClass(className){
+  const name=(document.getElementById(`newSubject-${className}`)?.value||"").trim();
+  const hours=Math.max(1,Number(document.getElementById(`newSubjectHours-${className}`)?.value||1));
+  if(!name)return alert("Introdu denumirea disciplinei.");
+
+  let existing=subjectEntry(className,name);
+  if(existing){
+    existing.hours=hours;
+  }else{
+    state.subjects.push({
+      id:crypto.randomUUID(),
+      name,
+      className,
+      hours,
+      prioritized:false
+    });
+  }
+
+  save();
+  renderSubjects();
+  refreshTeacherSubjectSuggestions();
+  renderAssignmentSelectors();
+  renderClasses();
+}
+
+function toggleSubjectPriority(id,value){
+  const subject=state.subjects.find(s=>s.id===id);
+  if(!subject)return;
+  subject.prioritized=!!value;
+  save();
+  renderSubjects();
+}
+
 function renderSubjects(){
   const box=document.getElementById("subjectsTable");
   if(!box)return;
 
-  if(!state.subjects.length){
-    box.innerHTML='<div class="card empty">Nu există încă discipline adăugate.</div>';
-    return;
-  }
+  const names=allSubjectNamesForPanels();
 
-  const rows=state.subjects.slice().sort((a,b)=>
-    CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className) ||
-    a.name.localeCompare(b.name,"ro")
-  );
+  box.innerHTML=`<div class="subject-class-grid">
+    ${CLASSES.map(className=>{
+      const active=(state.subjects||[]).filter(s=>s.className===className);
+      const total=active.reduce((sum,s)=>sum+Number(s.hours||0),0);
 
-  box.innerHTML=`<table>
-    <thead>
-      <tr>
-        <th>Disciplina</th>
-        <th>Clasa</th>
-        <th>Ore/săptămână</th>
-        <th>Prioritizare</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      ${rows.map(s=>`<tr>
-        <td><b>${esc(s.name)}</b></td>
-        <td><span class="badge">Clasa ${esc(s.className)}</span></td>
-        <td><b>${s.hours}</b></td>
-        <td>
-          <label class="priority-toggle">
-            <input type="checkbox" ${s.prioritized?"checked":""}
-              onchange="toggleSubjectPriority('${s.id}',this.checked)">
-            <span>${s.prioritized?"Prioritară":"Normală"}</span>
-          </label>
-        </td>
-        <td style="width:90px">
-          <button class="btn btn-danger" onclick="deleteSubject('${s.id}')">Șterge</button>
-        </td>
-      </tr>`).join("")}
-    </tbody>
-  </table>`;
+      return `<div class="subject-class-panel">
+        <div class="subject-class-title">
+          <h3>Clasa ${className}</h3>
+          <span class="subject-total-hours">${total} h/săpt.</span>
+        </div>
+
+        <div class="subject-list">
+          ${names.map(name=>{
+            const s=subjectEntry(className,name);
+            const enabled=!!s;
+            return `<div class="subject-config-row ${enabled?"":"inactive"}">
+              <input type="checkbox"
+                ${enabled?"checked":""}
+                onchange="setSubjectEnabled('${className}',${JSON.stringify(name)},this.checked)">
+              <div class="subject-label">
+                ${esc(name)}
+                ${s?.prioritized ? '<span class="subject-priority-star">★ prioritară</span>' : ''}
+              </div>
+              <input class="hours-input" type="number" min="1"
+                value="${enabled?Number(s.hours||1):1}"
+                title="Ore pe săptămână"
+                onchange="setSubjectHoursForClass('${className}',${JSON.stringify(name)},this.value)">
+            </div>`;
+          }).join("")}
+        </div>
+
+        <div class="subject-panel-add">
+          <div class="add-subject-line">
+            <input id="newSubject-${className}" placeholder="Altă disciplină / opțional">
+            <input id="newSubjectHours-${className}" type="number" min="1" value="1" title="Ore/săpt.">
+            <button class="subject-plus-btn" onclick="addCustomSubjectToClass('${className}')" title="Adaugă">+</button>
+          </div>
+        </div>
+      </div>`;
+    }).join("")}
+  </div>`;
 }
 
 
@@ -1135,48 +1682,168 @@ function openTeacherProfile(teacherId){
   const teacher=state.teachers.find(t=>t.id===teacherId);
   if(!teacher)return;
 
+  refreshTeacherSubjectSuggestions();
   document.getElementById("teacherProfileTitle").textContent="Fișă profesor – "+teacher.name;
+  document.getElementById("profileTeacherName").value=teacher.name||"";
+  document.getElementById("profileTeacherNote").value=teacher.note||"";
   document.getElementById("profileTeacherStatus").value=teacher.status||"Titular";
 
-  const assignedSubjects=Array.from(new Set(
-    state.assignments
-      .filter(a=>a.teacherId===teacherId)
-      .map(a=>a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name)
-      .filter(Boolean)
-  ));
+  renderTeacherProfileAssignments();
+  document.getElementById("teacherProfileModal").style.display="flex";
+}
 
-  const sel=document.getElementById("profilePrimarySubject");
-  sel.innerHTML=assignedSubjects.length
-    ? assignedSubjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("")
-    : '<option value="">Fără discipline încadrate</option>';
+function renderTeacherProfileAssignments(){
+  if(!currentTeacherProfileId)return;
+  const teacher=state.teachers.find(t=>t.id===currentTeacherProfileId);
+  if(!teacher)return;
 
-  if(teacher.primarySubject && assignedSubjects.includes(teacher.primarySubject)){
-    sel.value=teacher.primarySubject;
-  }
-
-  const box=document.getElementById("teacherProfileAssignments");
   const rows=state.assignments
-    .filter(a=>a.teacherId===teacherId)
+    .filter(a=>a.teacherId===currentTeacherProfileId)
     .slice()
     .sort((a,b)=>
       (a.subjectName||"").localeCompare(b.subjectName||"","ro") ||
       CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)
     );
 
-  box.innerHTML=rows.length ? `<table>
+  const assignedSubjects=[...new Set(rows.map(a=>
+    a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name
+  ).filter(Boolean))];
+
+  const primary=document.getElementById("profilePrimarySubject");
+  primary.innerHTML=assignedSubjects.length
+    ? assignedSubjects.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join("")
+    : '<option value="">Fără discipline încadrate</option>';
+  if(teacher.primarySubject && assignedSubjects.includes(teacher.primarySubject)){
+    primary.value=teacher.primarySubject;
+  }
+
+  const box=document.getElementById("teacherProfileAssignments");
+  box.innerHTML=rows.length ? `<table class="profile-assignment-editor">
     <thead>
-      <tr><th>Disciplina</th><th>Clasa</th><th>Ore/săptămână</th></tr>
+      <tr><th>Disciplina</th><th>Clasa</th><th>Ore/săptămână</th><th></th></tr>
     </thead>
     <tbody>
       ${rows.map(a=>`<tr>
-        <td>${esc(a.subjectName||"")}</td>
-        <td>Clasa ${esc(a.className)}</td>
-        <td><b>${a.hours}</b></td>
+        <td><input value="${esc(a.subjectName||state.subjects.find(s=>s.id===a.subjectId)?.name||"")}"
+          onchange="updateProfileAssignment('${a.id}','subject',this.value)"></td>
+        <td>
+          <select onchange="updateProfileAssignment('${a.id}','className',this.value)">
+            ${CLASSES.map(c=>`<option value="${c}" ${c===a.className?"selected":""}>${c}</option>`).join("")}
+          </select>
+        </td>
+        <td><input type="number" min="1" value="${Number(a.hours||1)}"
+          onchange="updateProfileAssignment('${a.id}','hours',this.value)"></td>
+        <td><button class="btn btn-danger" onclick="deleteProfileAssignment('${a.id}')">Șterge</button></td>
       </tr>`).join("")}
     </tbody>
   </table>` : '<div class="card empty">Profesorul nu are încă ore încadrate.</div>';
+}
 
-  document.getElementById("teacherProfileModal").style.display="flex";
+function updateProfileAssignment(assignmentId,field,value){
+  const a=state.assignments.find(x=>x.id===assignmentId && x.teacherId===currentTeacherProfileId);
+  if(!a)return;
+
+  const old={...a};
+
+  if(field==="hours"){
+    a.hours=Math.max(1,Number(value)||1);
+  }else if(field==="className"){
+    const owner=assignmentOwnerForSubjectClass(a.subjectName||"",value,currentTeacherProfileId);
+    if(owner){
+      alert(`${a.subjectName} la clasa ${value} este deja atribuită integral profesorului ${owner.name}.`);
+      return renderTeacherProfileAssignments();
+    }
+    a.className=value;
+    const subject=findOrCreateSubjectForAssignment(a.subjectName||"",a.className,a.hours);
+    if(subject) a.subjectId=subject.id;
+  }else if(field==="subject"){
+    const clean=String(value||"").trim();
+    if(!clean) return renderTeacherProfileAssignments();
+
+    const owner=assignmentOwnerForSubjectClass(clean,a.className,currentTeacherProfileId);
+    if(owner){
+      alert(`${clean} la clasa ${a.className} este deja atribuită integral profesorului ${owner.name}.`);
+      return renderTeacherProfileAssignments();
+    }
+
+    a.subjectName=clean;
+    const subject=findOrCreateSubjectForAssignment(clean,a.className,a.hours);
+    if(subject) a.subjectId=subject.id;
+  }
+
+  save();
+  refreshTeacherSubjectSuggestions();
+  renderTeachers();
+  renderSubjects();
+  renderClasses();
+  renderTeacherProfileAssignments();
+}
+function addTeacherProfileAssignment(){
+  if(!currentTeacherProfileId)return;
+
+  const subjectName=(document.getElementById("profileNewSubject")?.value||"").trim();
+  const classes=checkedClassValues("profileNewClasses");
+  const hours=Math.max(1,Number(document.getElementById("profileNewHours")?.value||1));
+
+  if(!subjectName)return alert("Introdu disciplina.");
+  if(!classes.length)return alert("Bifează cel puțin o clasă.");
+
+  const conflicts=classes
+    .map(className=>({
+      className,
+      owner:assignmentOwnerForSubjectClass(subjectName,className,currentTeacherProfileId)
+    }))
+    .filter(x=>x.owner);
+
+  if(conflicts.length){
+    alert(
+      "Disciplina unei clase trebuie să rămână integral la un singur profesor.\n\n"+
+      conflicts.map(x=>`Clasa ${x.className}: ${subjectName} este deja la ${x.owner.name}.`).join("\n")
+    );
+    return;
+  }
+
+  classes.forEach(className=>{
+    ensureWholeClassSubjectAssignment(
+      subjectName,
+      className,
+      currentTeacherProfileId,
+      hours
+    );
+  });
+
+  const teacher=state.teachers.find(t=>t.id===currentTeacherProfileId);
+  if(teacher && !teacher.primarySubject) teacher.primarySubject=subjectName;
+
+  document.getElementById("profileNewSubject").value="";
+  document.getElementById("profileNewHours").value="1";
+
+  save();
+  refreshTeacherSubjectSuggestions();
+  renderTeachers();
+  renderSubjects();
+  renderClasses();
+  renderTeacherProfileAssignments();
+}
+function deleteProfileAssignment(assignmentId){
+  const a=state.assignments.find(x=>x.id===assignmentId && x.teacherId===currentTeacherProfileId);
+  if(!a)return;
+  if(!confirm(`Ștergi încadrarea ${a.subjectName||""} — clasa ${a.className}?`))return;
+
+  state.assignments=state.assignments.filter(x=>x.id!==assignmentId);
+
+  const teacher=state.teachers.find(t=>t.id===currentTeacherProfileId);
+  const remainingSubjects=state.assignments
+    .filter(x=>x.teacherId===currentTeacherProfileId)
+    .map(x=>x.subjectName)
+    .filter(Boolean);
+  if(teacher && !remainingSubjects.includes(teacher.primarySubject)){
+    teacher.primarySubject=remainingSubjects[0]||"";
+  }
+
+  save();
+  renderTeachers();
+  renderTeacherProfileAssignments();
 }
 
 function closeTeacherProfile(){
@@ -1188,8 +1855,15 @@ function saveTeacherProfile(){
   if(!currentTeacherProfileId)return;
   const teacher=state.teachers.find(t=>t.id===currentTeacherProfileId);
   if(!teacher)return;
+
+  const newName=(document.getElementById("profileTeacherName").value||"").trim();
+  if(!newName)return alert("Numele profesorului nu poate fi gol.");
+
+  teacher.name=newName;
+  teacher.note=(document.getElementById("profileTeacherNote").value||"").trim();
   teacher.status=document.getElementById("profileTeacherStatus").value;
   teacher.primarySubject=document.getElementById("profilePrimarySubject").value||"";
+
   save();
   renderTeachers();
   closeTeacherProfile();
@@ -1275,13 +1949,7 @@ function teacherAssignedDays(teacherId,timetableData=state.timetable){
 }
 
 
-function toggleSubjectPriority(id,value){
-  const subject=state.subjects.find(s=>s.id===id);
-  if(!subject)return;
-  subject.prioritized=!!value;
-  save();
-  renderSubjects();
-}
+
 
 function subjectPriorityPenalty(subjectId,hour){
   const subject=state.subjects.find(s=>s.id===subjectId);
@@ -2435,10 +3103,6 @@ function canMoveTimetableSlot(from,to){
     return {ok:false,message:"Mutarea ar face ca o clasă să nu înceapă cu ora 1."};
   }
 
-  if(typeof validateMaxClassHoursPerDay==="function" && !validateMaxClassHoursPerDay(test)){
-    return {ok:false,message:"Mutarea ar depăși limita de 7 ore pe zi pentru o clasă."};
-  }
-
   return {ok:true};
 }
 
@@ -2532,10 +3196,6 @@ function canSwapTimetableSlots(a,b){
     return {ok:false,message:"Schimbul ar face ca o clasă să nu înceapă cu ora 1."};
   }
 
-  if(typeof validateMaxClassHoursPerDay==="function" && !validateMaxClassHoursPerDay(test)){
-    return {ok:false,message:"Schimbul ar încălca limita de 7 ore/zi pentru o clasă."};
-  }
-
   return {ok:true};
 }
 
@@ -2555,6 +3215,7 @@ function swapTimetableSlots(a,b){
   setNestedSlot(a.className,a.day,a.hour,movedB);
   setNestedSlot(b.className,b.day,b.hour,movedA);
 
+  invalidateFinalSchedule();
   save();
   renderTimetable();
   renderTeachers();
@@ -2578,6 +3239,7 @@ function moveTimetableSlot(from,to){
   const moved={...source,className:to.className,day:to.day,hour:Number(to.hour),manual:true};
   setNestedSlot(to.className,to.day,to.hour,moved);
 
+  invalidateFinalSchedule();
   save();
   renderTimetable();
   renderTeachers();
@@ -2586,7 +3248,7 @@ function moveTimetableSlot(from,to){
 }
 
 function enableTimetableDragAndDrop(){
-  const table=document.getElementById("timetableTable");
+  const table=document.getElementById("allClassTimetables");
   if(!table) return;
 
   const cells=table.querySelectorAll("td[data-class][data-day][data-hour]");
@@ -2645,26 +3307,115 @@ function enableTimetableDragAndDrop(){
   });
 }
 
-function renderTimetable(){
-  const cls=viewClass.value;
-  const data=state.timetable[cls]||{};
-  timetableTable.innerHTML=`<thead><tr><th style="width:110px">Ora</th>${DAYS.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${
-    HOURS.map((h,i)=>`<tr><th>${i+1}<br><small>${h}</small></th>${DAYS.map((d,j)=>{
-      const x=data[`${j}-${i}`];
-      const locked=isSlotLocked(cls,d,i+1);
-      const content=x
-        ? x.unassigned
-          ? `<div class="lesson unassigned-lesson"><b>${esc(x.subject||"Oră neatribuită")}</b><span>Profesor neatribuit</span><button class="btn assign-free-btn" onclick="event.stopPropagation();assignUnassignedSlot('${cls}',${j},${i})">Atribuie</button></div>`
-          : `<div class="lesson"><b>${esc(x.subject)}</b>${esc(x.teacher||"")}${extraHoursForTeacher(x.teacherId)>0?`<span class="extra-hours-badge">+${extraHoursForTeacher(x.teacherId)}h</span>`:""}</div>`
-        : "";
-      return `<td data-class="${cls}" data-day="${d}" data-hour="${i+1}" class="${locked?"locked-slot":""}">${content}</td>`
-    }).join('')}</tr>`).join('')
-  }</tbody>`;
-  renderGlobalHoursSummary();
-  renderClassHoursCounter(cls);
-  renderFreeHoursBanner(cls);
-  setTimeout(()=>{ enhanceTimetableLockUI(); enableTimetableDragAndDrop(); },0);
+
+function classDisplayHours(className){
+  state.classDisplayHours ||= {};
+  const configured=Number(state.classDisplayHours[className]||6);
+
+  let highest=0;
+  Object.keys(state.timetable?.[className]||{}).forEach(key=>{
+    const [,h]=key.split("-").map(Number);
+    highest=Math.max(highest,h+1);
+  });
+
+  Object.values(state.lockedSlots||{}).forEach(lock=>{
+    if(lock.className===className) highest=Math.max(highest,Number(lock.hour||0));
+  });
+
+  return Math.max(6,configured,highest);
 }
+
+function addDisplayHour(className){
+  state.classDisplayHours ||= {};
+  state.classDisplayHours[className]=classDisplayHours(className)+1;
+  save();
+  renderTimetable();
+}
+
+function totalVisibleCapacityForClass(className){
+  return classDisplayHours(className)*DAYS.length;
+}
+
+function classHoursCounterHtml(className){
+  const occupied=occupiedHoursForClass(className);
+  const required=totalRequiredHoursForClass(className);
+  return `<span class="class-hours-mini">Ore ocupate: ${occupied} / ${required}</span>`;
+}
+
+function renderSingleClassTimetable(className){
+  const hours=classDisplayHours(className);
+  let out=`
+    <div class="class-timetable-card">
+      <div class="class-timetable-head">
+        <div>
+          <h3>Clasa ${className}</h3>
+          ${classHoursCounterHtml(className)}
+        </div>
+        <div class="class-timetable-actions">
+          <button onclick="addDisplayHour('${className}')">+ Adaugă o oră</button>
+        </div>
+      </div>
+      <table class="timetable">
+        <thead>
+          <tr>
+            <th>Ora</th>
+            ${DAYS.map(d=>`<th>${d}</th>`).join("")}
+          </tr>
+        </thead>
+        <tbody>`;
+
+  for(let h=0;h<hours;h++){
+    out+=`<tr><th>${h+1}</th>`;
+    for(let d=0;d<DAYS.length;d++){
+      const slot=state.timetable?.[className]?.[`${d}-${h}`];
+      const day=DAYS[d];
+      const locked=isSlotLocked(className,day,h+1);
+
+      let content="";
+      if(slot){
+        const subject=slot.subject ||
+          (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+          "Disciplină";
+        const teacher=slot.unassigned
+          ? "Profesor neatribuit"
+          : (slot.teacher || solverTeacherName(slot.teacherId));
+
+        content=`
+          <div class="lesson ${slot.unassigned ? "unassigned" : ""}" ${!locked ? 'draggable="true"' : ""}>
+            <strong>${subject}</strong>
+            <span>${teacher}</span>
+            ${locked ? '<span>🔒 Oră blocată</span>' : ""}
+            ${slot.unassigned ? `<button onclick="assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie</button>` : ""}
+          </div>`;
+      }
+
+      out+=`<td data-class="${className}" data-day="${day}" data-hour="${h+1}">${content}</td>`;
+    }
+    out+="</tr>";
+  }
+
+  out+=`</tbody></table></div>`;
+  return out;
+}
+
+function renderTimetable(){
+  const box=document.getElementById("allClassTimetables");
+  if(!box) return;
+
+  box.innerHTML=CLASSES.map(renderSingleClassTimetable).join("");
+
+  renderGlobalHoursSummary();
+  renderFinalScheduleStatus();
+
+  setTimeout(()=>{
+    enhanceTimetableLockUI();
+    enableTimetableDragAndDrop();
+  },0);
+
+  const reportBox=document.getElementById("scheduleReport");
+  if(reportBox && reportBox.innerHTML.trim()) renderScheduleReport();
+}
+
 
 
 function solverCloneTimetable(source){
@@ -2740,7 +3491,7 @@ function solverDailyTargets(className,totalHours){
     if(lock.className!==className) return;
     const d=DAYS.indexOf(lock.day);
     const h=Number(lock.hour);
-    if(d>=0 && h>=1 && h<=7) minimum[d]=Math.max(minimum[d],h);
+    if(d>=0 && h>=1) minimum[d]=Math.max(minimum[d],h);
   });
 
   const minSum=minimum.reduce((a,b)=>a+b,0);
@@ -2750,30 +3501,13 @@ function solverDailyTargets(className,totalHours){
   let left=totalHours-minSum;
 
   while(left>0){
-    let candidates=[0,1,2,3,4].filter(d=>counts[d]<7);
-    if(!candidates.length) return null;
-    candidates.sort((a,b)=>counts[a]-counts[b] || a-b);
+    const candidates=[0,1,2,3,4].sort((a,b)=>counts[a]-counts[b] || a-b);
     counts[candidates[0]]++;
     left--;
   }
 
-  // Local balancing while respecting locked minimums.
-  let changed=true;
-  while(changed){
-    changed=false;
-    let maxD=0,minD=0;
-    for(let d=1;d<5;d++){
-      if(counts[d]>counts[maxD]) maxD=d;
-      if(counts[d]<counts[minD]) minD=d;
-    }
-    if(counts[maxD]-counts[minD]>1 &&
-       counts[maxD]-1>=minimum[maxD] &&
-       counts[minD]+1<=7){
-      counts[maxD]--;
-      counts[minD]++;
-      changed=true;
-    }
-  }
+  // Each class is displayed with at least 6 hours/day, but generation
+  // may use as many hours as needed.
   return counts;
 }
 
@@ -2807,7 +3541,8 @@ function solverCountsByAssignment(tt){
 
 function solverTeacherHoursOnDay(tt,teacherId,dayIndex){
   const hours=[];
-  for(let h=0;h<7;h++){
+  const maxH=Math.max(6,...CLASSES.map(c=>classDisplayHours(c)));
+  for(let h=0;h<maxH;h++){
     if(solverTeacherBusy(tt,teacherId,dayIndex,h)) hours.push(h+1);
   }
   return hours;
@@ -2889,7 +3624,8 @@ function solverBuildTasks(tt){
 
     let availability=0;
     DAYS.forEach(day=>{
-      for(let hour=1;hour<=7;hour++){
+      const maxHour=Math.max(6,...CLASSES.map(c=>classDisplayHours(c)));
+      for(let hour=1;hour<=maxHour;hour++){
         if(isTeacherAvailable(a.teacherId,day,hour)) availability++;
       }
     });
@@ -3076,7 +3812,8 @@ function reportTeacherWindows(tt,teacherId){
   const rows=[];
   DAYS.forEach((day,d)=>{
     const hours=[];
-    for(let h=0;h<7;h++){
+    const maxH=Math.max(6,...CLASSES.map(c=>classDisplayHours(c)));
+    for(let h=0;h<maxH;h++){
       if(solverTeacherBusy(tt,teacherId,d,h)) hours.push(h+1);
     }
     if(hours.length<2) return;
@@ -3100,7 +3837,8 @@ function reportTeacherDoubleBookings(tt){
   const issues=[];
   (state.teachers||[]).forEach(t=>{
     DAYS.forEach((day,d)=>{
-      for(let h=0;h<7;h++){
+      const maxH=Math.max(6,...CLASSES.map(c=>classDisplayHours(c)));
+      for(let h=0;h<maxH;h++){
         const classes=[];
         CLASSES.forEach(cls=>{
           const slot=solverGetSlot(tt,cls,d,h);
@@ -3197,6 +3935,165 @@ function reportPreferenceNotes(tt){
   });
 
   return notes;
+}
+
+
+function scheduleHasAnyHours(){
+  return solverAllSlots(state.timetable||{}).length>0;
+}
+
+function finalizationSummary(){
+  const tt=state.timetable||{};
+  const hard=[
+    ...reportTeacherDoubleBookings(tt),
+    ...reportClassGaps(tt),
+    ...reportUnavailableTeacherPlacements(tt)
+  ];
+  const classUnassigned=reportUnassignedClassHours(tt);
+  const teacherRemaining=reportRemainingTeacherHours(tt);
+  return {hard,classUnassigned,teacherRemaining};
+}
+
+function finalizeSchedule(){
+  if(!scheduleHasAnyHours()){
+    alert("Nu există încă un orar de finalizat.");
+    return;
+  }
+
+  const check=finalizationSummary();
+  if(check.hard.length){
+    renderScheduleReport();
+    alert(`Orarul nu poate fi finalizat: există ${check.hard.length} problemă/probleme obligatorii. Vezi raportul de verificare.`);
+    return;
+  }
+
+  let warning="";
+  if(check.classUnassigned.length || check.teacherRemaining.length){
+    const parts=[];
+    if(check.classUnassigned.length){
+      parts.push("există ore fără profesor");
+    }
+    if(check.teacherRemaining.length){
+      parts.push("există ore din încadrare încă nerepartizate");
+    }
+    warning=`\n\nAtenție: ${parts.join(" și ")}. Orarul poate fi totuși marcat final, deoarece am stabilit că aceste situații nu blochează generarea.`;
+  }
+
+  if(!confirm("Marchezi orarul curent ca final?"+warning)) return;
+
+  state.finalSchedule={
+    finalized:true,
+    finalizedAt:new Date().toISOString()
+  };
+  save();
+  renderFinalScheduleStatus();
+}
+
+function reopenFinalSchedule(){
+  if(!confirm("Redeschizi orarul pentru modificări?")) return;
+  state.finalSchedule={finalized:false,finalizedAt:null};
+  save();
+  renderFinalScheduleStatus();
+}
+
+function formatFinalizedDate(iso){
+  if(!iso) return "";
+  try{
+    return new Date(iso).toLocaleString("ro-RO",{
+      day:"2-digit",month:"2-digit",year:"numeric",
+      hour:"2-digit",minute:"2-digit"
+    });
+  }catch(_){ return ""; }
+}
+
+function renderFinalScheduleStatus(){
+  const box=document.getElementById("finalScheduleStatus");
+  if(!box) return;
+
+  if(!state.finalSchedule?.finalized){
+    box.innerHTML="";
+    return;
+  }
+
+  const check=finalizationSummary();
+  const notes=[];
+  if(check.classUnassigned.length){
+    notes.push(check.classUnassigned.map(x=>`clasa ${x.cls}: ${x.n}h fără profesor`).join(", "));
+  }
+  if(check.teacherRemaining.length){
+    notes.push(check.teacherRemaining.map(x=>`${x.teacher.name}: ${x.n}h nerepartizate`).join(", "));
+  }
+
+  box.innerHTML=`
+    <div class="final-status-card">
+      <strong>✓ Orar finalizat</strong>
+      <div>${formatFinalizedDate(state.finalSchedule.finalizedAt)}</div>
+      ${notes.length ? `<div class="muted" style="margin-top:6px">Situații rămase: ${notes.join(" · ")}</div>` : `<div class="muted" style="margin-top:6px">Toate orele sunt repartizate.</div>`}
+      <div class="final-actions">
+        <button onclick="window.print()">🖨️ Tipărește orarul clasei afișate</button>
+        <button onclick="printTeacherSchedule()">🖨️ Tipărește orarul unui profesor</button>
+        <button onclick="reopenFinalSchedule()">Redeschide pentru modificări</button>
+      </div>
+    </div>`;
+}
+
+function printTeacherSchedule(){
+  const teachers=(state.teachers||[]).filter(t=>scheduledHoursForTeacher(t.id,state.timetable)>0);
+  if(!teachers.length){
+    alert("Nu există profesori cu ore repartizate.");
+    return;
+  }
+
+  const options=teachers.map((t,i)=>`${i+1}. ${t.name}`).join("\n");
+  const answer=prompt("Alege profesorul după număr:\n"+options,"1");
+  if(answer===null) return;
+  const idx=Number(answer)-1;
+  if(!Number.isInteger(idx) || idx<0 || idx>=teachers.length){
+    alert("Selecție invalidă.");
+    return;
+  }
+
+  const t=teachers[idx];
+  const rows=[];
+  DAYS.forEach((day,d)=>{
+    for(let h=0;h<7;h++){
+      CLASSES.forEach(cls=>{
+        const slot=solverGetSlot(state.timetable,cls,d,h);
+        if(slot && !slot.unassigned && slot.teacherId===t.id){
+          rows.push({
+            day,
+            hour:h+1,
+            cls,
+            subject:slot.subject || (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name || "Disciplină"
+          });
+        }
+      });
+    }
+  });
+
+  rows.sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day) || a.hour-b.hour);
+
+  const area=document.getElementById("teacherPrintArea");
+  area.innerHTML=`
+    <div class="teacher-print-sheet">
+      <h2>Orar profesor — ${t.name}</h2>
+      <table class="teacher-print-table">
+        <thead><tr><th>Ziua</th><th>Ora</th><th>Clasa</th><th>Disciplina</th></tr></thead>
+        <tbody>
+          ${rows.map(r=>`<tr><td>${r.day}</td><td>${r.hour}</td><td>${r.cls}</td><td>${r.subject}</td></tr>`).join("")}
+        </tbody>
+      </table>
+    </div>`;
+
+  document.body.classList.add("print-teacher-mode");
+  window.print();
+  document.body.classList.remove("print-teacher-mode");
+}
+
+function invalidateFinalSchedule(){
+  if(state.finalSchedule?.finalized){
+    state.finalSchedule={finalized:false,finalizedAt:null};
+  }
 }
 
 function renderScheduleReport(){
@@ -3302,6 +4199,7 @@ function demoGenerate(){
   }
 
   state.timetable=best.tt;
+  invalidateFinalSchedule();
   save();
   renderTimetable();
   renderTeachers();
@@ -3332,6 +4230,7 @@ function demoGenerate(){
 
 function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
 
+refreshTeacherSubjectSuggestions();
 updateStats();renderClasses();renderTeachers();renderSubjects();renderAssignmentSelectors();renderAssignments();renderTimetable();
 
 document.addEventListener("keydown",e=>{
@@ -3428,6 +4327,11 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     <div class="teacher-profile-form">
       <label>
+        <span>Nume și prenume</span>
+        <input id="profileTeacherName">
+      </label>
+
+      <label>
         <span>Statut</span>
         <select id="profileTeacherStatus">
           <option value="Titular">Titular</option>
@@ -3435,6 +4339,11 @@ document.addEventListener("DOMContentLoaded",()=>{
           <option value="Asociat">Asociat / plata cu ora</option>
           <option value="Altul">Alt statut</option>
         </select>
+      </label>
+
+      <label>
+        <span>Observație</span>
+        <input id="profileTeacherNote" placeholder="Opțional">
       </label>
 
       <label>
@@ -3449,6 +4358,23 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     <div id="teacherProfileAssignments" style="margin-top:16px"></div>
 
+    <div class="profile-add-assignment">
+      <strong>Adaugă o încadrare</strong>
+      <div class="form-row" style="grid-template-columns:1.3fr 1.6fr .8fr auto;margin-top:8px">
+        <select id="profileNewSubject">
+          <option value="">Alege disciplina</option>
+        </select>
+        <div class="class-checkbox-group" id="profileNewClasses">
+          <label><input type="checkbox" value="V" checked> V</label>
+          <label><input type="checkbox" value="VI" checked> VI</label>
+          <label><input type="checkbox" value="VII" checked> VII</label>
+          <label><input type="checkbox" value="VIII" checked> VIII</label>
+        </div>
+        <input id="profileNewHours" type="number" min="1" value="1" placeholder="Ore/clasă">
+        <button class="btn" onclick="addTeacherProfileAssignment()">+ Adaugă</button>
+      </div>
+    </div>
+
     <div class="teacher-profile-actions">
       <button class="btn btn-primary" onclick="saveTeacherProfile()">Salvează</button>
       <button class="btn" onclick="closeTeacherProfile()">Închide</button>
@@ -3456,5 +4382,6 @@ document.addEventListener("DOMContentLoaded",()=>{
   </div>
 </div>
 
+<div id="teacherPrintArea" class="print-only"></div>
 </body>
 </html>
