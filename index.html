@@ -441,8 +441,8 @@
           
           <div class="card rule-card preference-rule">
             <div class="rule-type">EDITARE MANUALĂ</div>
-            <h3>Mutare prin drag-and-drop</h3>
-            <p>Orele neblocate pot fi mutate cu mouse-ul într-un alt interval liber. Înainte de mutare, aplicația verifică disponibilitatea profesorului, conflictele cu alte clase, orele blocate și regulile obligatorii ale clasei. După mutare, contoarele și diferențele de ore ale profesorilor se recalculează automat.</p>
+            <h3>Mutare și schimb prin drag-and-drop</h3>
+            <p>Orele neblocate pot fi mutate într-un interval liber sau trase peste o altă oră pentru a încerca schimbul între ele. Aplicația verifică disponibilitatea ambilor profesori, conflictele cu celelalte clase, orele blocate și regulile obligatorii ale claselor. După mutare sau schimb, toate contoarele și diferențele de ore se recalculează automat.</p>
           </div>
 
           <div class="card rule-card preference-rule">
@@ -2401,6 +2401,126 @@ function canMoveTimetableSlot(from,to){
   return {ok:true};
 }
 
+
+function canSwapTimetableSlots(a,b){
+  const slotA=getNestedSlot(a.className,a.day,a.hour);
+  const slotB=getNestedSlot(b.className,b.day,b.hour);
+
+  if(!slotA || !slotB){
+    return {ok:false,message:"Schimbul necesită două ore ocupate."};
+  }
+
+  if(isSlotLocked(a.className,a.day,a.hour) || isSlotLocked(b.className,b.day,b.hour)){
+    return {ok:false,message:"Nu se poate face schimb cu o oră blocată 🔒."};
+  }
+
+  // Check teacher availability at the opposite destinations.
+  if(slotA.teacherId){
+    if(!isTeacherAvailable(slotA.teacherId,b.day,Number(b.hour))){
+      const t=state.teachers.find(x=>x.id===slotA.teacherId);
+      return {ok:false,message:`${t?.name||"Profesorul"} este indisponibil în ${b.day}, ora ${b.hour}.`};
+    }
+
+    if(teacherHasConflictAt(
+      slotA.teacherId,
+      b.day,
+      b.hour,
+      a.className,
+      a.day,
+      a.hour
+    )){
+      const t=state.teachers.find(x=>x.id===slotA.teacherId);
+      // Ignore slotB only if it is the slot being swapped out.
+      const conflictingSlot=getNestedSlot(b.className,b.day,b.hour);
+      if(!conflictingSlot || conflictingSlot.teacherId!==slotA.teacherId){
+        return {ok:false,message:`${t?.name||"Profesorul"} ar intra în conflict cu altă clasă după schimb.`};
+      }
+    }
+  }
+
+  if(slotB.teacherId){
+    if(!isTeacherAvailable(slotB.teacherId,a.day,Number(a.hour))){
+      const t=state.teachers.find(x=>x.id===slotB.teacherId);
+      return {ok:false,message:`${t?.name||"Profesorul"} este indisponibil în ${a.day}, ora ${a.hour}.`};
+    }
+
+    if(teacherHasConflictAt(
+      slotB.teacherId,
+      a.day,
+      a.hour,
+      b.className,
+      b.day,
+      b.hour
+    )){
+      const t=state.teachers.find(x=>x.id===slotB.teacherId);
+      const conflictingSlot=getNestedSlot(a.className,a.day,a.hour);
+      if(!conflictingSlot || conflictingSlot.teacherId!==slotB.teacherId){
+        return {ok:false,message:`${t?.name||"Profesorul"} ar intra în conflict cu altă clasă după schimb.`};
+      }
+    }
+  }
+
+  // Simulate the swap and validate class hard constraints.
+  const test=JSON.parse(JSON.stringify(state.timetable||{}));
+  const ad=DAYS.indexOf(a.day), bd=DAYS.indexOf(b.day);
+  const aKey=`${ad}-${Number(a.hour)-1}`;
+  const bKey=`${bd}-${Number(b.hour)-1}`;
+
+  test[a.className] ||= {};
+  test[b.className] ||= {};
+
+  const copyA=JSON.parse(JSON.stringify(slotA));
+  const copyB=JSON.parse(JSON.stringify(slotB));
+
+  copyA.className=b.className;
+  copyA.day=b.day;
+  copyA.hour=Number(b.hour);
+
+  copyB.className=a.className;
+  copyB.day=a.day;
+  copyB.hour=Number(a.hour);
+
+  test[a.className][aKey]=copyB;
+  test[b.className][bKey]=copyA;
+
+  if(typeof validateNoStudentGaps==="function" && !validateNoStudentGaps(test)){
+    return {ok:false,message:"Schimbul ar crea o fereastră în programul unei clase."};
+  }
+
+  if(typeof validateClassStartsAtFirstHour==="function" && !validateClassStartsAtFirstHour(test)){
+    return {ok:false,message:"Schimbul ar face ca o clasă să nu înceapă cu ora 1."};
+  }
+
+  if(typeof validateMaxClassHoursPerDay==="function" && !validateMaxClassHoursPerDay(test)){
+    return {ok:false,message:"Schimbul ar încălca limita de 7 ore/zi pentru o clasă."};
+  }
+
+  return {ok:true};
+}
+
+function swapTimetableSlots(a,b){
+  const check=canSwapTimetableSlots(a,b);
+  if(!check.ok){
+    alert(check.message);
+    return false;
+  }
+
+  const slotA=getNestedSlot(a.className,a.day,a.hour);
+  const slotB=getNestedSlot(b.className,b.day,b.hour);
+
+  const movedA={...slotA,className:b.className,day:b.day,hour:Number(b.hour),manual:true};
+  const movedB={...slotB,className:a.className,day:a.day,hour:Number(a.hour),manual:true};
+
+  setNestedSlot(a.className,a.day,a.hour,movedB);
+  setNestedSlot(b.className,b.day,b.hour,movedA);
+
+  save();
+  renderTimetable();
+  renderTeachers();
+  renderGlobalHoursSummary();
+  return true;
+}
+
 function moveTimetableSlot(from,to){
   const check=canMoveTimetableSlot(from,to);
   if(!check.ok){
@@ -2471,7 +2591,12 @@ function enableTimetableDragAndDrop(){
         Number(draggedTimetableSlot.hour)===Number(to.hour)
       ) return;
 
-      moveTimetableSlot(draggedTimetableSlot,to);
+      const targetSlot=getNestedSlot(to.className,to.day,to.hour);
+      if(targetSlot){
+        swapTimetableSlots(draggedTimetableSlot,to);
+      }else{
+        moveTimetableSlot(draggedTimetableSlot,to);
+      }
     };
   });
 }
