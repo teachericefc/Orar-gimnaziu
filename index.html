@@ -1030,9 +1030,9 @@ td.token-click-target:hover{
 
           <div class="card rule-card mandatory-rule">
             <div class="rule-type">OBLIGATORIU</div>
-            <h3>Fără ferestre pentru elevi</h3>
+            <h3>Fără ferestre pentru elevi — temporar dezactivată la editarea manuală</h3>
             <p>Orele unei clase trebuie să fie consecutive în fiecare zi. Nu este permisă nicio oră liberă între două ore de curs.</p>
-            <div class="rule-status">✓ Activă permanent</div>
+            <div class="rule-status">Temporar neblocantă la plasarea manuală</div>
           </div>
 
           <div class="card rule-card mandatory-rule">
@@ -3454,10 +3454,6 @@ function canMoveTimetableSlot(from,to){
   moved.hour=Number(to.hour);
   test[to.className][dstKey]=moved;
 
-  if(typeof validateNoStudentGaps==="function" && !validateNoStudentGaps(test)){
-    return {ok:false,message:"Mutarea ar crea o fereastră în programul unei clase."};
-  }
-
   if(typeof validateClassStartsAtFirstHour==="function" && !validateClassStartsAtFirstHour(test)){
     return {ok:false,message:"Mutarea ar face ca o clasă să nu înceapă cu ora 1."};
   }
@@ -3546,10 +3542,6 @@ function canSwapTimetableSlots(a,b){
 
   test[a.className][aKey]=copyB;
   test[b.className][bKey]=copyA;
-
-  if(typeof validateNoStudentGaps==="function" && !validateNoStudentGaps(test)){
-    return {ok:false,message:"Schimbul ar crea o fereastră în programul unei clase."};
-  }
 
   if(typeof validateClassStartsAtFirstHour==="function" && !validateClassStartsAtFirstHour(test)){
     return {ok:false,message:"Schimbul ar face ca o clasă să nu înceapă cu ora 1."};
@@ -3969,16 +3961,6 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   if(teacherHasConflictAt(a.teacherId,to.day,to.hour)){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
     return alert(`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`);
-  }
-
-  const occupied=[];
-  const max=Math.max(classDisplayHours(to.className),Number(to.hour));
-  for(let h=1;h<=max;h++){
-    if(getNestedSlot(to.className,to.day,h)) occupied.push(h);
-  }
-  const expected=occupied.length ? Math.max(...occupied)+1 : 1;
-  if(Number(to.hour)!==expected){
-    return alert(`Pentru a evita ferestrele, următoarea oră liberă a clasei ${to.className} în ${to.day} este ora ${expected}.`);
   }
 
   const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
