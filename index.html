@@ -559,12 +559,18 @@
   background:#f1f5f9;
 }
 .subject-config-row.inactive .subject-hours-stepper{
+  opacity:1;
+}
+.subject-hours-stepper{
   display:inline-grid;
   grid-template-columns:20px 34px 20px;
   align-items:center;
   justify-content:end;
   gap:4px;
   width:82px;
+  min-width:82px;
+  max-width:82px;
+  white-space:nowrap;
 }
 .subject-hours-stepper button{
   width:20px;
