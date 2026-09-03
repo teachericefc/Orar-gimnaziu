@@ -1386,10 +1386,7 @@ td.move-swap-target{
 
       <section id="timetable" class="section active">
         <div class="page-head">
-          <div><h2>Orar</h2>
-<div class="lock-actions">
-<button type="button" onclick="unlockAllSlots()" class="secondary">🔓 Deblochează toate orele</button>
-</div><p>Vizualizare săptămânală pe clase.</p></div>
+          <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase. Blocarea și deblocarea se fac direct din iconița 🔓 / 🔒 a fiecărei ore.</p></div>
           <div class="toolbar">
             <button class="btn btn-primary" onclick="demoGenerate()">Generează orarul automat</button>
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
@@ -1409,54 +1406,6 @@ td.move-swap-target{
           </aside>
         </div>
       </section>
-    
-        <div class="card" id="lockedHoursPreGenerationCard">
-          <h3>🔒 Oră blocată</h3>
-          <p class="muted">Poți stabili o oră blocată înainte de generarea orarului. Aceeași funcție se folosește și după generare.</p>
-          <div class="form-grid">
-            <label>Profesor
-              <select id="lockedTeacherSelect"></select>
-            </label>
-            <label>Disciplină
-              <select id="lockedSubjectSelect"></select>
-            </label>
-            <label>Clasa
-              <select id="lockedClassSelect">
-                <option value="V">V</option>
-                <option value="VI">VI</option>
-                <option value="VII">VII</option>
-                <option value="VIII">VIII</option>
-              </select>
-            </label>
-            <label>Ziua
-              <select id="lockedDaySelect">
-                <option value="Luni">Luni</option>
-                <option value="Marți">Marți</option>
-                <option value="Miercuri">Miercuri</option>
-                <option value="Joi">Joi</option>
-                <option value="Vineri">Vineri</option>
-              </select>
-            </label>
-            <label>Ora
-              <select id="lockedHourSelect">
-                <option value="1">1</option>
-                <option value="2">2</option>
-                <option value="3">3</option>
-                <option value="4">4</option>
-                <option value="5">5</option>
-                <option value="6">6</option>
-                <option value="7">7</option>
-              </select>
-            </label>
-          </div>
-          <div class="lock-actions">
-            <button type="button" onclick="addPreGenerationLockedHour()">🔒 Adaugă oră blocată</button>
-            <button type="button" class="secondary" onclick="showPreGenerationValidation()">✅ Verifică înainte de generare</button>
-            <button type="button" class="secondary" onclick="unlockAllSlots()">🔓 Deblochează toate orele</button>
-          </div>
-          <div id="lockedHoursList" style="margin-top:12px"></div>
-        </div>
-
 </main>
   </div>
 </div>
