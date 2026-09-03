@@ -659,7 +659,7 @@
 
             <div class="teacher-initial-assignment">
               <strong>Încadrare inițială</strong>
-              <div class="form-row" style="grid-template-columns:1.3fr 1.6fr .8fr auto">
+              <div class="form-row" style="grid-template-columns:1.3fr 1.6fr 1fr auto">
                 <select id="teacherInitialSubject">
                   <option value="">Alege disciplina</option>
                 </select>
@@ -669,7 +669,7 @@
                   <label><input type="checkbox" value="VII" checked> VII</label>
                   <label><input type="checkbox" value="VIII" checked> VIII</label>
                 </div>
-                <input id="teacherInitialHours" type="number" min="1" value="1" placeholder="Ore/săptămână / clasă">
+                <div class="note" style="margin:0">Orele se iau automat din Discipline.</div>
                 <button class="btn btn-primary" onclick="addTeacher()">Adaugă profesor</button>
               </div>
               <div class="note" style="margin:10px 0 0">
@@ -1153,17 +1153,41 @@ function ensureWholeClassSubjectAssignment(subjectName,className,teacherId,hours
   return {ok:true};
 }
 
+
+function synchronizeAssignmentsWithSubjects(){
+  let changed=false;
+  (state.assignments||[]).forEach(a=>{
+    const subject=(state.subjects||[]).find(s=>
+      s.className===a.className &&
+      String(s.name||"").trim().toLocaleLowerCase("ro")===
+      String(a.subjectName||"").trim().toLocaleLowerCase("ro")
+    );
+    if(subject && Number(a.hours)!==Number(subject.hours)){
+      a.hours=Number(subject.hours);
+      changed=true;
+    }
+  });
+  if(changed) save();
+}
 function addTeacher(){
   const name=(document.getElementById("teacherName")?.value||"").trim();
   const note=(document.getElementById("teacherNote")?.value||"").trim();
   const status=document.getElementById("teacherStatus")?.value||"Titular";
   const subjectName=(document.getElementById("teacherInitialSubject")?.value||"").trim();
   const classes=checkedClassValues("teacherInitialClasses");
-  const hours=Math.max(1,Number(document.getElementById("teacherInitialHours")?.value||1));
 
   if(!name) return alert("Introdu numele profesorului.");
-  if(!subjectName) return alert("Introdu disciplina pentru încadrarea inițială.");
+  if(!subjectName) return alert("Alege disciplina pentru încadrarea inițială.");
   if(!classes.length) return alert("Bifează cel puțin o clasă.");
+
+  const missing=classes.filter(className=>!subjectEntry(className,subjectName));
+  if(missing.length){
+    alert(
+      "Disciplina trebuie mai întâi bifată și salvată la clasele selectate.\n\n"+
+      "Lipsește la: "+missing.map(c=>`clasa ${c}`).join(", ")
+    );
+    return;
+  }
 
   const conflicts=classes
     .map(className=>({className,owner:assignmentOwnerForSubjectClass(subjectName,className)}))
@@ -1187,13 +1211,14 @@ function addTeacher(){
   state.teachers.push(teacher);
 
   classes.forEach(className=>{
+    const subject=subjectEntry(className,subjectName);
+    const hours=Math.max(1,Number(subject?.hours||1));
     ensureWholeClassSubjectAssignment(subjectName,className,teacher.id,hours);
   });
 
   document.getElementById("teacherName").value="";
   document.getElementById("teacherNote").value="";
   document.getElementById("teacherInitialSubject").value="";
-  document.getElementById("teacherInitialHours").value="1";
 
   save();
   refreshTeacherSubjectSuggestions();
@@ -1209,78 +1234,101 @@ function deleteTeacher(id){
   save();renderTeachers();renderAssignmentSelectors();renderAssignments();
 }
 function renderTeachers(){
-  const list=document.getElementById("teacherList");
-  if(!list) return;
+  const box=document.getElementById("teachersTable");
+  if(!box)return;
 
-  if(!(state.teachers||[]).length){
-    list.innerHTML=`<div class="empty-state">Nu există profesori adăugați.</div>`;
+  if(!state.teachers.length){
+    box.innerHTML='<div class="card empty">Nu există încă profesori adăugați.</div>';
     return;
   }
 
-  list.innerHTML=(state.teachers||[]).map(t=>{
-    const tas=(state.assignments||[]).filter(a=>a.teacherId===t.id);
+  const teachers=state.teachers.slice().sort((a,b)=>a.name.localeCompare(b.name,"ro"));
 
-    // Group assignments by subject, but KEEP the hours of every individual class.
-    const groups={};
-    tas.forEach(a=>{
-      const subjectName=a.subjectName || "Fără disciplină";
-      if(!groups[subjectName]) groups[subjectName]=[];
-      groups[subjectName].push(a);
-    });
+  box.innerHTML=`<div class="teacher-card-grid">
+    ${teachers.map(t=>{
+      const rows=state.assignments
+        .filter(a=>a.teacherId===t.id)
+        .map(a=>({...a, subjectName:a.subjectName || state.subjects.find(s=>s.id===a.subjectId)?.name || "Disciplină"}));
+      const approvedTotal=rows.reduce((s,a)=>s+Number(a.hours||0),0);
+      const scheduledTotal=scheduledHoursForTeacher(t.id);
+      const extraTotal=Math.max(0,scheduledTotal-approvedTotal);
+      const remainingTotal=Math.max(0,approvedTotal-scheduledTotal);
+      const remainingRows=teacherRemainingAssignments(t.id);
 
-    const subjectNames=Object.keys(groups).sort((a,b)=>{
-      const ap=a===t.primarySubject ? -1 : 0;
-      const bp=b===t.primarySubject ? -1 : 0;
-      if(ap!==bp) return ap-bp;
-      return a.localeCompare(b,"ro");
-    });
+      const grouped={};
+      rows.forEach(a=>{
+        const subject=a.subjectName;
+        grouped[subject] ||= [];
+        grouped[subject].push(a);
+      });
 
-    const groupedHtml=subjectNames.length ? subjectNames.map(subjectName=>{
-      const arr=groups[subjectName].slice().sort((a,b)=>
-        ["V","VI","VII","VIII"].indexOf(a.className)-["V","VI","VII","VIII"].indexOf(b.className)
-      );
+      const subjectNames=Object.keys(grouped);
+      let primary=t.primarySubject && grouped[t.primarySubject] ? t.primarySubject : (subjectNames[0]||"");
+      const ordered=subjectNames.sort((a,b)=>{
+        if(a===primary)return -1;
+        if(b===primary)return 1;
+        return a.localeCompare(b,"ro");
+      });
 
-      // IMPORTANT: each class shows its own assignment hours.
-      const classSummary=arr.map(a=>`${esc(a.className)} (${Number(a.hours||0)})`).join(" ");
-      const primary=subjectName===t.primarySubject;
+      const assignmentHtml=ordered.length ? ordered.map(subject=>{
+        const byClass=grouped[subject]
+          .slice()
+          .sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className))
+          .map(a=>`${esc(a.className)} (${a.hours})`)
+          .join(" ");
+        const total=grouped[subject].reduce((s,a)=>s+Number(a.hours||0),0);
+        const isPrimary=subject===primary;
+        return `<div class="teacher-subject-line ${isPrimary?"primary-subject-line":""}">
+          <div class="teacher-subject-name">
+            ${esc(subject)}
+            ${isPrimary?'<span class="mini-badge">principală</span>':''}
+          </div>
+          <div class="teacher-subject-hours">${byClass || `(${total})`}</div>
+        </div>`;
+      }).join("") : '<div class="teacher-no-hours">Fără ore încadrate</div>';
 
-      return `<div class="teacher-subject-group">
-        <div class="teacher-subject-title">
-          ${esc(subjectName)}
-          ${primary?'<span class="teacher-primary-badge">PRINCIPALĂ</span>':""}
+      return `<article class="teacher-token">
+        <div class="teacher-token-head">
+          <div>
+            <h3>${esc(t.name)}</h3>
+            <div class="teacher-status">${esc(t.status||"Titular")}</div>
+          </div>
+          <div class="teacher-total">${approvedTotal} h${extraTotal>0?`<span class="extra-hours-badge">+${extraTotal}h</span>`:""}${remainingTotal>0?`<span class="unassigned-teacher-badge">${remainingTotal}h neatribuite</span>`:""}</div>
         </div>
-        <div class="teacher-subject-classes">${classSummary}</div>
-      </div>`;
-    }).join("") : `<div class="muted">Fără încadrare</div>`;
 
-    const approved=tas.reduce((sum,a)=>sum+Number(a.hours||0),0);
-    const extra=typeof extraHoursForTeacher==="function" ? extraHoursForTeacher(t.id) : 0;
-    const remaining=typeof remainingUnassignedHoursForTeacher==="function" ? remainingUnassignedHoursForTeacher(t.id) : 0;
+        <div class="teacher-token-body">${assignmentHtml}</div>
 
-    return `<div class="teacher-card">
-      <div class="teacher-card-head">
-        <div>
-          <h3>${esc(t.name||"Profesor")}</h3>
-          <div class="teacher-status">${esc(t.status||"")}</div>
+        <div class="teacher-token-actions">
+          <button class="btn" onclick="openTeacherProfile('${t.id}')">Fișă profesor</button>
+          <button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button>
+          <button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button>
         </div>
-        <div class="teacher-hours-total">${approved} h/săpt.</div>
-      </div>
-
-      ${groupedHtml}
-
-      <div class="teacher-card-badges">
-        ${extra>0?`<span class="badge badge-green">+${extra}h</span>`:""}
-        ${remaining>0?`<span class="badge badge-amber">${remaining}h neatribuite</span>`:""}
-      </div>
-
-      <div class="teacher-actions">
-        <button class="btn" onclick="openTeacherProfile('${t.id}')">Fișă profesor</button>
-        <button class="btn" onclick="openAvailability('${t.id}')">Disponibilitate</button>
-        <button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button>
-      </div>
-    </div>`;
-  }).join("");
+      </article>`;
+    }).join("")}
+  </div>`;
 }
+
+
+const DEFAULT_GYMNASIUM_SUBJECTS=[
+  "Limba și literatura română",
+  "Matematică",
+  "Limba engleză",
+  "Limba franceză",
+  "Istorie",
+  "Geografie",
+  "Biologie",
+  "Fizică",
+  "Chimie",
+  "Educație socială",
+  "Religie",
+  "Educație fizică și sport",
+  "Educație muzicală",
+  "Educație plastică",
+  "Educație tehnologică și aplicații practice",
+  "Informatică și TIC",
+  "Consiliere și dezvoltare personală"
+];
+
 function subjectEntry(className,name){
   return (state.subjects||[]).find(s=>
     s.className===className &&
@@ -1855,10 +1903,18 @@ function addTeacherProfileAssignment(){
 
   const subjectName=(document.getElementById("profileNewSubject")?.value||"").trim();
   const classes=checkedClassValues("profileNewClasses");
-  const hours=Math.max(1,Number(document.getElementById("profileNewHours")?.value||1));
 
-  if(!subjectName)return alert("Introdu disciplina.");
+  if(!subjectName)return alert("Alege disciplina.");
   if(!classes.length)return alert("Bifează cel puțin o clasă.");
+
+  const missing=classes.filter(className=>!subjectEntry(className,subjectName));
+  if(missing.length){
+    alert(
+      "Disciplina trebuie mai întâi bifată și salvată la clasele selectate.\n\n"+
+      "Lipsește la: "+missing.map(c=>`clasa ${c}`).join(", ")
+    );
+    return;
+  }
 
   const conflicts=classes
     .map(className=>({
@@ -1876,6 +1932,8 @@ function addTeacherProfileAssignment(){
   }
 
   classes.forEach(className=>{
+    const subject=subjectEntry(className,subjectName);
+    const hours=Math.max(1,Number(subject?.hours||1));
     ensureWholeClassSubjectAssignment(
       subjectName,
       className,
@@ -1888,7 +1946,6 @@ function addTeacherProfileAssignment(){
   if(teacher && !teacher.primarySubject) teacher.primarySubject=subjectName;
 
   document.getElementById("profileNewSubject").value="";
-  document.getElementById("profileNewHours").value="1";
 
   save();
   refreshTeacherSubjectSuggestions();
@@ -4302,6 +4359,7 @@ function demoGenerate(){
 
 function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
 
+synchronizeAssignmentsWithSubjects();
 refreshTeacherSubjectSuggestions();
 updateStats();renderClasses();renderTeachers();renderSubjects();renderAssignmentSelectors();renderAssignments();renderTimetable();
 
@@ -4432,7 +4490,7 @@ document.addEventListener("DOMContentLoaded",()=>{
 
     <div class="profile-add-assignment">
       <strong>Adaugă o încadrare</strong>
-      <div class="form-row" style="grid-template-columns:1.3fr 1.6fr .8fr auto;margin-top:8px">
+      <div class="form-row" style="grid-template-columns:1.3fr 1.6fr 1fr auto;margin-top:8px">
         <select id="profileNewSubject">
           <option value="">Alege disciplina</option>
         </select>
@@ -4442,7 +4500,7 @@ document.addEventListener("DOMContentLoaded",()=>{
           <label><input type="checkbox" value="VII" checked> VII</label>
           <label><input type="checkbox" value="VIII" checked> VIII</label>
         </div>
-        <input id="profileNewHours" type="number" min="1" value="1" placeholder="Ore/clasă">
+        <div class="note" style="margin:0">Ore automate</div>
         <button class="btn" onclick="addTeacherProfileAssignment()">+ Adaugă</button>
       </div>
     </div>
