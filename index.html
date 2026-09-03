@@ -1356,9 +1356,15 @@ function setSubjectEnabled(className,name,enabled){
   renderClasses();
 }
 
-function setSubjectHoursForClass(className,name,value){
+function setSubjectHoursForClass(className,name,value,inputEl=null){
   const raw=Number(value);
-  const hours=Number.isFinite(raw) && raw>0 ? raw : 1;
+
+  // While typing, don't replace an empty field with 1.
+  if(!Number.isFinite(raw) || raw<=0){
+    return;
+  }
+
+  const hours=raw;
   let existing=subjectEntry(className,name);
 
   if(!existing){
@@ -1385,12 +1391,31 @@ function setSubjectHoursForClass(className,name,value){
     }
   });
 
+  // Save immediately on every edit.
   save();
-  renderSubjects();
-  renderTeachers();
-  renderClasses();
-}
 
+  // Keep the current input focused (important on phones) and update
+  // the checkbox/row/total without rebuilding the whole panel.
+  if(inputEl){
+    const row=inputEl.closest(".subject-config-row");
+    if(row){
+      row.classList.remove("inactive");
+      const cb=row.querySelector('input[type="checkbox"]');
+      if(cb) cb.checked=true;
+    }
+  }
+
+  const panel=document.querySelector(`.subject-class-panel[data-class="${className}"]`);
+  if(panel){
+    const total=(state.subjects||[])
+      .filter(s=>s.className===className)
+      .reduce((sum,s)=>sum+Number(s.hours||0),0);
+    const totalEl=panel.querySelector(".subject-total-hours");
+    if(totalEl) totalEl.textContent=`${total} h/săpt.`;
+  }
+
+  refreshTeacherSubjectSuggestions();
+}
 function addCustomSubjectToClass(className){
   const name=(document.getElementById(`newSubject-${className}`)?.value||"").trim();
   const hours=Math.max(1,Number(document.getElementById(`newSubjectHours-${className}`)?.value||1));
@@ -1435,7 +1460,7 @@ function renderSubjects(){
       const active=(state.subjects||[]).filter(s=>s.className===className);
       const total=active.reduce((sum,s)=>sum+Number(s.hours||0),0);
 
-      return `<div class="subject-class-panel">
+      return `<div class="subject-class-panel" data-class="${className}">
         <div class="subject-class-title">
           <h3>Clasa ${className}</h3>
           <span class="subject-total-hours">${total} h/săpt.</span>
@@ -1456,7 +1481,8 @@ function renderSubjects(){
               <input class="hours-input" type="number" min="1"
                 value="${enabled?Number(s.hours||1):1}"
                 title="Ore pe săptămână"
-                onchange="setSubjectHoursForClass('${className}',${JSON.stringify(name)},this.value)">
+                oninput="setSubjectHoursForClass('${className}',${JSON.stringify(name)},this.value,this)"
+                onchange="renderTeachers();renderClasses()">
             </div>`;
           }).join("")}
         </div>
