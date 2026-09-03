@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ro">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Orar gimnaziu</title>
+  <style>
+    :root{
+      --bg:#f4f7fb; --card:#ffffff; --text:#172033; --muted:#6b7280;
+      --primary:#2563eb; --primary2:#1d4ed8; --line:#dbe3ef;
+      --green:#16a34a; --amber:#d97706; --red:#dc2626;
+      --shadow:0 10px 30px rgba(20,40,80,.08);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:var(--bg);color:var(--text)}
+    button,input,select{font:inherit}
+    button{cursor:pointer}
+    .app{min-height:100vh}
+    header{
+      background:#fff;border-bottom:1px solid var(--line);padding:16px 22px;
+      display:flex;align-items:center;justify-content:space-between;gap:16px;position:sticky;top:0;z-index:10
+    }
+    .brand{display:flex;align-items:center;gap:12px}
+    .logo{width:46px;height:46px;border-radius:14px;background:linear-gradient(135deg,#2563eb,#60a5fa);display:grid;place-items:center;color:#fff;font-size:24px}
+    .brand h1{font-size:20px;margin:0}.brand small{color:var(--muted)}
+    .schoolyear{padding:9px 12px;border:1px solid var(--line);border-radius:10px;background:#fff}
+    .layout{display:grid;grid-template-columns:230px 1fr;min-height:calc(100vh - 79px)}
+    aside{background:#fff;border-right:1px solid var(--line);padding:18px 14px}
+    .nav-btn{width:100%;border:0;background:transparent;text-align:left;padding:11px 12px;border-radius:10px;margin:3px 0;color:#334155}
+    .nav-btn:hover,.nav-btn.active{background:#eaf2ff;color:#1d4ed8;font-weight:700}
+    main{padding:24px;overflow:auto}
+    .page-head{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:20px}
+    .page-head h2{margin:0 0 5px;font-size:28px}.page-head p{margin:0;color:var(--muted)}
+    .grid{display:grid;grid-template-columns:repeat(4,minmax(150px,1fr));gap:16px}
+    .card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+    .class-card{min-height:135px;display:flex;flex-direction:column;justify-content:space-between}
+    .class-card h3{font-size:24px;margin:0}.class-card .count{color:var(--muted);font-size:14px}
+    .btn{border:0;border-radius:10px;padding:10px 14px;font-weight:700}
+    .btn-primary{background:var(--primary);color:#fff}.btn-primary:hover{background:var(--primary2)}
+    .btn-light{background:#eef3fa;color:#25324a}
+    .btn-danger{background:#fee2e2;color:#b91c1c}
+    .btn-green{background:#dcfce7;color:#166534}
+    .toolbar{display:flex;gap:10px;flex-wrap:wrap}
+    .section{display:none}.section.active{display:block}
+    table{width:100%;border-collapse:separate;border-spacing:0;background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+    th,td{padding:12px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+    th{background:#f8fafc;font-size:13px;color:#475569} tr:last-child td{border-bottom:0}
+    .badge{display:inline-block;padding:4px 8px;border-radius:999px;font-size:12px;font-weight:700;background:#eaf2ff;color:#1d4ed8}
+    .form-row{display:grid;grid-template-columns:1.2fr 1fr 1fr auto;gap:10px;margin-bottom:15px}
+    input,select{width:100%;padding:10px 12px;border:1px solid #cfd9e8;border-radius:10px;background:#fff;color:#172033}
+    .note{background:#fff8e8;border:1px solid #fde3a7;padding:12px 14px;border-radius:12px;color:#7c5300;margin-bottom:16px}
+    .timetable-wrap{overflow:auto}
+    .timetable{min-width:850px;table-layout:fixed}
+    .timetable th{text-align:center}.timetable td{height:76px;padding:6px}
+    .lesson{height:100%;border-radius:9px;padding:7px;background:#eaf2ff;font-size:12px}
+    .lesson b{display:block;font-size:13px;margin-bottom:3px}
+    .empty{color:#94a3b8;text-align:center;padding:24px}
+    .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:20px}
+    .stat strong{font-size:26px;display:block}.stat span{color:var(--muted);font-size:13px}
+    @media(max-width:900px){
+      .layout{grid-template-columns:1fr} aside{border-right:0;border-bottom:1px solid var(--line);display:flex;overflow:auto;gap:5px;padding:10px}
+      .nav-btn{min-width:max-content}.grid,.statgrid{grid-template-columns:repeat(2,1fr)}
+      main{padding:16px}.form-row{grid-template-columns:1fr}
+    }
+    @media(max-width:520px){.grid,.statgrid{grid-template-columns:1fr}.page-head{display:block}.toolbar{margin-top:12px}}
+  </style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="brand">
+      <div class="logo">🗓️</div>
+      <div><h1>Orar gimnaziu</h1><small>Generator și organizator de orar</small></div>
+    </div>
+    <select class="schoolyear" id="schoolYear">
+      <option>2026–2027</option>
+      <option>2027–2028</option>
+    </select>
+  </header>
+
+  <div class="layout">
+    <aside>
+      <button class="nav-btn active" data-target="dashboard">🏠 Panou principal</button>
+      <button class="nav-btn" data-target="classes">🏫 Clase</button>
+      <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
+      <button class="nav-btn" data-target="subjects">📚 Discipline</button>
+      <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
+      <button class="nav-btn" data-target="timetable">🗓️ Orar</button>
+    </aside>
+
+    <main>
+      <section id="dashboard" class="section active">
+        <div class="page-head">
+          <div><h2>Panou principal</h2><p>Pregătește datele școlii, apoi generează orarul.</p></div>
+          <div class="toolbar"><button class="btn btn-primary" onclick="showSection('timetable')">Deschide orarul</button></div>
+        </div>
+        <div class="statgrid">
+          <div class="card stat"><strong>4</strong><span>clase: V, VI, VII, VIII</span></div>
+          <div class="card stat"><strong id="statTeachers">0</strong><span>profesori introduși</span></div>
+          <div class="card stat"><strong id="statSubjects">0</strong><span>discipline introduse</span></div>
+          <div class="card stat"><strong id="statHours">0</strong><span>ore/săptămână definite</span></div>
+        </div>
+        <div class="note">Acesta este fișierul de pornire pentru proiectul <b>Orar-gimnaziu</b>. Datele introduse se păstrează în browser prin localStorage. Conectarea la Supabase și generatorul automat complet vor fi adăugate în pașii următori.</div>
+        <div class="grid">
+          <div class="card class-card"><div><h3>Clasa V</h3><div class="count">Gimnaziu</div></div><button class="btn btn-light" onclick="openClass('V')">Configurează</button></div>
+          <div class="card class-card"><div><h3>Clasa VI</h3><div class="count">Gimnaziu</div></div><button class="btn btn-light" onclick="openClass('VI')">Configurează</button></div>
+          <div class="card class-card"><div><h3>Clasa VII</h3><div class="count">Gimnaziu</div></div><button class="btn btn-light" onclick="openClass('VII')">Configurează</button></div>
+          <div class="card class-card"><div><h3>Clasa VIII</h3><div class="count">Gimnaziu</div></div><button class="btn btn-light" onclick="openClass('VIII')">Configurează</button></div>
+        </div>
+      </section>
+
+      <section id="classes" class="section">
+        <div class="page-head"><div><h2>Clase</h2><p>Clasele pentru care va fi construit orarul.</p></div></div>
+        <div class="grid" id="classesGrid"></div>
+      </section>
+
+      <section id="teachers" class="section">
+        <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorii care predau la gimnaziu.</p></div></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row" style="grid-template-columns:1fr 1fr auto">
+            <input id="teacherName" placeholder="Nume și prenume profesor">
+            <input id="teacherNote" placeholder="Observații (opțional)">
+            <button class="btn btn-primary" onclick="addTeacher()">Adaugă</button>
+          </div>
+        </div>
+        <div id="teachersTable"></div>
+      </section>
+
+      <section id="subjects" class="section">
+        <div class="page-head"><div><h2>Discipline</h2><p>Curriculum național + discipline la decizia școlii.</p></div></div>
+        <div class="card" style="margin-bottom:16px">
+          <div class="form-row">
+            <input id="subjectName" placeholder="Denumire disciplină">
+            <select id="subjectClass"><option>V</option><option>VI</option><option>VII</option><option>VIII</option></select>
+            <input id="subjectHours" type="number" min="1" max="10" value="1" placeholder="Ore/săptămână">
+            <button class="btn btn-primary" onclick="addSubject()">Adaugă</button>
+          </div>
+        </div>
+        <div id="subjectsTable"></div>
+      </section>
+
+      <section id="constraints" class="section">
+        <div class="page-head"><div><h2>Constrângeri</h2><p>Reguli care vor fi respectate de generator.</p></div></div>
+        <div class="card">
+          <p><b>Reguli pregătite pentru implementare:</b></p>
+          <p>• același profesor nu poate fi în două clase simultan;</p>
+          <p>• o clasă nu poate avea două discipline simultan;</p>
+          <p>• numărul de ore săptămânale trebuie respectat pentru fiecare disciplină;</p>
+          <p>• putem defini zile/ore în care un profesor nu este disponibil;</p>
+          <p>• putem evita ferestrele și prea multe ore consecutive;</p>
+          <p>• orele profesorilor care au și 1–2 ore la ciclul primar vor fi tratate separat, după stabilirea orarului de gimnaziu.</p>
+        </div>
+      </section>
+
+      <section id="timetable" class="section">
+        <div class="page-head">
+          <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase.</p></div>
+          <div class="toolbar">
+            <select id="viewClass" onchange="renderTimetable()"><option>V</option><option>VI</option><option>VII</option><option>VIII</option></select>
+            <button class="btn btn-primary" onclick="demoGenerate()">Generează variantă demonstrativă</button>
+            <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
+          </div>
+        </div>
+        <div class="card timetable-wrap"><table class="timetable" id="timetableTable"></table></div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script>
+const CLASSES=["V","VI","VII","VIII"];
+const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
+const HOURS=["08:00–08:50","09:00–09:50","10:00–10:50","11:00–11:50","12:00–12:50","13:00–13:50","14:00–14:50"];
+const KEY="orar_gimnaziu_v1";
+let state=JSON.parse(localStorage.getItem(KEY)||'null')||{teachers:[],subjects:[],timetable:{}};
+
+function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
+function showSection(id){
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));
+  document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.target===id));
+  if(id==="teachers")renderTeachers();
+  if(id==="subjects")renderSubjects();
+  if(id==="classes")renderClasses();
+  if(id==="timetable")renderTimetable();
+}
+document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>showSection(b.dataset.target)));
+
+function esc(s){return String(s??"").replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function updateStats(){
+  document.getElementById('statTeachers').textContent=state.teachers.length;
+  document.getElementById('statSubjects').textContent=state.subjects.length;
+  document.getElementById('statHours').textContent=state.subjects.reduce((a,s)=>a+(Number(s.hours)||0),0);
+}
+function openClass(cls){showSection('subjects');document.getElementById('subjectClass').value=cls}
+
+function renderClasses(){
+  classesGrid.innerHTML=CLASSES.map(c=>{
+    const list=state.subjects.filter(s=>s.className===c);
+    const hours=list.reduce((a,s)=>a+Number(s.hours||0),0);
+    return `<div class="card class-card"><div><h3>Clasa ${c}</h3><div class="count">${list.length} discipline · ${hours} ore/săptămână</div></div><button class="btn btn-light" onclick="openClass('${c}')">Configurează disciplinele</button></div>`
+  }).join('');
+}
+
+function addTeacher(){
+  const name=teacherName.value.trim(); if(!name)return alert("Introdu numele profesorului.");
+  state.teachers.push({id:crypto.randomUUID(),name,note:teacherNote.value.trim()});
+  teacherName.value="";teacherNote.value="";save();renderTeachers();
+}
+function deleteTeacher(id){state.teachers=state.teachers.filter(t=>t.id!==id);save();renderTeachers()}
+function renderTeachers(){
+  if(!state.teachers.length){teachersTable.innerHTML='<div class="card empty">Nu ai adăugat încă profesori.</div>';return}
+  teachersTable.innerHTML=`<table><thead><tr><th>Profesor</th><th>Observații</th><th></th></tr></thead><tbody>${
+    state.teachers.map(t=>`<tr><td><b>${esc(t.name)}</b></td><td>${esc(t.note||"—")}</td><td style="width:90px"><button class="btn btn-danger" onclick="deleteTeacher('${t.id}')">Șterge</button></td></tr>`).join('')
+  }</tbody></table>`
+}
+
+function addSubject(){
+  const name=subjectName.value.trim(); const hours=Number(subjectHours.value);
+  if(!name||!hours)return alert("Completează disciplina și numărul de ore.");
+  state.subjects.push({id:crypto.randomUUID(),name,className:subjectClass.value,hours});
+  subjectName.value="";subjectHours.value=1;save();renderSubjects();
+}
+function deleteSubject(id){state.subjects=state.subjects.filter(s=>s.id!==id);save();renderSubjects()}
+function renderSubjects(){
+  if(!state.subjects.length){subjectsTable.innerHTML='<div class="card empty">Nu ai adăugat încă discipline.</div>';return}
+  const rows=[...state.subjects].sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className)||a.name.localeCompare(b.name,'ro'));
+  subjectsTable.innerHTML=`<table><thead><tr><th>Clasa</th><th>Disciplina</th><th>Ore/săptămână</th><th></th></tr></thead><tbody>${
+    rows.map(s=>`<tr><td><span class="badge">Clasa ${esc(s.className)}</span></td><td><b>${esc(s.name)}</b></td><td>${s.hours}</td><td style="width:90px"><button class="btn btn-danger" onclick="deleteSubject('${s.id}')">Șterge</button></td></tr>`).join('')
+  }</tbody></table>`
+}
+
+function renderTimetable(){
+  const cls=viewClass.value;
+  const data=state.timetable[cls]||{};
+  timetableTable.innerHTML=`<thead><tr><th style="width:110px">Ora</th>${DAYS.map(d=>`<th>${d}</th>`).join('')}</tr></thead><tbody>${
+    HOURS.map((h,i)=>`<tr><th>${i+1}<br><small>${h}</small></th>${DAYS.map((d,j)=>{
+      const x=data[`${j}-${i}`];
+      return `<td>${x?`<div class="lesson"><b>${esc(x.subject)}</b>${esc(x.teacher||"")}</div>`:""}</td>`
+    }).join('')}</tr>`).join('')
+  }</tbody>`
+}
+
+function demoGenerate(){
+  const cls=viewClass.value;
+  const subjects=state.subjects.filter(s=>s.className===cls);
+  if(!subjects.length)return alert(`Adaugă mai întâi discipline pentru clasa ${cls}.`);
+  const slots=[];
+  for(let d=0;d<5;d++)for(let h=0;h<7;h++)slots.push([d,h]);
+  let p=0; const out={};
+  for(const s of subjects){
+    for(let k=0;k<s.hours;k++){
+      if(p>=slots.length)break;
+      const [d,h]=slots[p++];
+      out[`${d}-${h}`]={subject:s.name,teacher:""};
+    }
+  }
+  state.timetable[cls]=out;save();renderTimetable();
+}
+function clearTimetable(){delete state.timetable[viewClass.value];save();renderTimetable()}
+
+updateStats();renderClasses();renderTeachers();renderSubjects();renderTimetable();
+</script>
+</body>
+</html>
