@@ -845,6 +845,20 @@
   }
 }
 
+
+.teacher-unassigned-hours{
+  display:inline-block;
+  margin-top:4px;
+  padding:3px 7px;
+  border-radius:999px;
+  background:#fff1b8;
+  border:1px solid #f3d875;
+  color:#7c5700;
+  font-size:10px;
+  font-weight:900;
+  white-space:nowrap;
+}
+
 </style>
 </head>
 <body>
@@ -4247,6 +4261,7 @@ function renderTeacherTimetableTokens(){
 
     const extra=Math.max(0,scheduled-contract);
     const toComplete=Math.max(0,contract-assigned);
+    const unplaced=Math.max(0,remainingUnassignedHoursForTeacher(t.id));
     const main=String(t.mainSubject || t.primarySubject || "").trim().toLocaleLowerCase("ro");
 
     const groups={};
@@ -4285,7 +4300,9 @@ function renderTeacherTimetableTokens(){
 
       const isMain=subjectName.trim().toLocaleLowerCase("ro")===main;
 
+      const tokenColor=esc(t.color||teacherColor(t.id)||"#dbeafe");
       return `<div class="teacher-assignment-token ${totalRemaining<=0?"empty":""} ${selected?"token-selected":""}"
+                   style="background:${tokenColor};border-color:${tokenColor}"
                    data-assignment-ids="${esc(ids)}"
                    ${totalRemaining>0?'role="button" tabindex="0"':""}>
         <strong>${esc(subjectName)} ${isMain?'<span style="font-size:8px;color:#2563eb">PRINCIPALĂ</span>':""}</strong>
@@ -4293,7 +4310,7 @@ function renderTeacherTimetableTokens(){
       </div>`;
     }).join("") : '<div class="muted" style="font-size:10px">Fără încadrări.</div>';
 
-    return `<div class="teacher-prof-card" style="--teacher-color:${esc(t.color||"#dbeafe")}">
+    return `<div class="teacher-prof-card" style="--teacher-color:${esc(t.color||teacherColor(t.id)||"#dbeafe")}">
       <div class="teacher-prof-head">
         <div>
           <div class="teacher-prof-name">${esc(t.name||"Profesor")}</div>
@@ -4305,6 +4322,7 @@ function renderTeacherTimetableTokens(){
             ${extra>0?`<span class="teacher-extra-hours">+${extra}h</span>`:""}
           </div>
           <div class="teacher-prof-scheduled">${scheduled}h atribuite</div>
+          ${unplaced>0?`<div><span class="teacher-unassigned-hours">${unplaced}h ${unplaced===1?"neatribuită":"neatribuite"}</span></div>`:""}
           ${toComplete>0?`<span class="teacher-prof-complete">${toComplete}h de completat</span>`:""}
         </div>
       </div>
