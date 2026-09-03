@@ -1071,6 +1071,37 @@
   opacity:1!important;
 }
 
+
+.generator-discipline-btn{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  padding:10px 16px!important;
+  border:1px solid #8fc9a3!important;
+  border-radius:12px!important;
+  background:linear-gradient(180deg,#eaf8ef 0%,#d8f0e1 100%)!important;
+  color:#245c3b!important;
+  font-weight:900!important;
+  letter-spacing:.1px!important;
+  box-shadow:0 4px 12px rgba(36,92,59,.10)!important;
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease!important;
+}
+.generator-discipline-btn:hover{
+  background:linear-gradient(180deg,#e4f6eb 0%,#cdebd9 100%)!important;
+  box-shadow:0 6px 16px rgba(36,92,59,.14)!important;
+  transform:translateY(-1px)!important;
+}
+.generator-discipline-btn:active{
+  transform:translateY(0)!important;
+  box-shadow:0 2px 7px rgba(36,92,59,.10)!important;
+}
+.generator-discipline-btn:disabled{
+  opacity:.72!important;
+  cursor:wait!important;
+  transform:none!important;
+}
+
 </style>
 </head>
 <body>
@@ -1373,7 +1404,7 @@
         <div class="page-head">
           <div><h2>Orar</h2><p>Vizualizare săptămânală pe clase. Blocarea și deblocarea se fac direct din iconița 🔓 / 🔒 a fiecărei ore.</p></div>
           <div class="toolbar">
-            <button id="generateTimetableBtn" class="btn btn-primary" onclick="demoGenerate()">Generează din Discipline</button>
+            <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate()">✦ Generează orar după disciplină</button>
             <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
               <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
               <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
@@ -6046,7 +6077,7 @@ function applyGeneratedVariant(index){
 
 async function demoGenerate(){
   const btn=document.getElementById("generateTimetableBtn");
-  const oldText=btn?.textContent||"Generează din Discipline";
+  const oldText=btn?.textContent||"Generează orar după disciplină";
 
   try{
     // Generatorul lucrează exclusiv cu tabul Discipline.
