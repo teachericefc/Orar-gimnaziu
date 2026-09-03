@@ -303,6 +303,32 @@
             <h3>Prioritate titulari</h3>
             <p>La variante echivalente, titularii primesc cu prioritate un program mai compact și cu mai puține ferestre.</p>
           </div>
+
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">OBLIGATORIU</div>
+            <h3>Clasele încep la ora 08:00</h3>
+            <p>Toate clasele încep în fiecare zi cu ora 1. Nu este permis ca o clasă să înceapă programul de la ora a 2-a.</p>
+            <div class="rule-status">✓ Activă permanent</div>
+          </div>
+
+          <div class="card rule-card mandatory-rule">
+            <div class="rule-type">OBLIGATORIU</div>
+            <h3>Maximum 7 ore pe zi</h3>
+            <p>Nicio clasă nu poate avea mai mult de 7 ore de curs într-o zi.</p>
+            <div class="rule-status">✓ Activă permanent</div>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ PUTERNICĂ</div>
+            <h3>Distribuție echilibrată pentru clase</h3>
+            <p>Orele săptămânale sunt împărțite cât mai uniform între cele 5 zile. De exemplu, 28 de ore favorizează o distribuție apropiată de 6–6–6–5–5.</p>
+          </div>
+
+          <div class="card rule-card preference-rule">
+            <div class="rule-type">PREFERINȚĂ PUTERNICĂ</div>
+            <h3>Profesorul pe toate zilele disponibile</h3>
+            <p>Dacă profesorul este disponibil în toate cele 5 zile, generatorul încearcă să-i distribuie ore în toate zilele, fără să-i creeze artificial o zi liberă prin înghesuirea orelor în 4 zile.</p>
+          </div>
         </div>
       </section>
 
@@ -336,7 +362,11 @@ state.generatorRules ||= {
   noStudentGaps:true,
   preferOneSubjectHourPerDay:true,
   minimizeTeacherGaps:true,
-  prioritizeTenured:true
+  prioritizeTenured:true,
+  classesStartAtFirstHour:true,
+  maxClassHoursPerDay:7,
+  balanceClassDays:true,
+  spreadTeachersAcrossAvailableWeek:true
 };
 
 state.teachers.forEach(t=>{
@@ -782,6 +812,56 @@ function validateNoStudentGaps(timetableData=state.timetable){
     });
   });
   return {ok:problems.length===0,problems};
+}
+
+
+function classDayHours(className,day,timetableData=state.timetable){
+  let count=0;
+  for(let hour=1;hour<=7;hour++){
+    if(timetableData[`${className}|${day}|${hour}`]) count++;
+  }
+  return count;
+}
+
+function validateClassStartsAtFirstHour(timetableData=state.timetable){
+  const problems=[];
+  CLASSES.forEach(className=>{
+    ["Luni","Marți","Miercuri","Joi","Vineri"].forEach(day=>{
+      const count=classDayHours(className,day,timetableData);
+      if(count>0 && !timetableData[`${className}|${day}|1`]){
+        problems.push({className,day,reason:"Clasa nu începe cu ora 1"});
+      }
+    });
+  });
+  return {ok:problems.length===0,problems};
+}
+
+function validateMaxClassHoursPerDay(timetableData=state.timetable,maxHours=7){
+  const problems=[];
+  CLASSES.forEach(className=>{
+    ["Luni","Marți","Miercuri","Joi","Vineri"].forEach(day=>{
+      const count=classDayHours(className,day,timetableData);
+      if(count>maxHours) problems.push({className,day,count});
+    });
+  });
+  return {ok:problems.length===0,problems};
+}
+
+function teacherAvailableDays(teacherId){
+  ensureTeacherAvailability(teacherId);
+  return AVAIL_DAYS.filter(day =>
+    AVAIL_HOURS.some(h=>state.availability[teacherId][day][h]!==false)
+  );
+}
+
+function teacherAssignedDays(teacherId,timetableData=state.timetable){
+  const days=new Set();
+  Object.values(timetableData).forEach(slot=>{
+    if(slot && typeof slot==="object" && slot.teacherId===teacherId && slot.day){
+      days.add(slot.day);
+    }
+  });
+  return [...days];
 }
 
 function renderTimetable(){
