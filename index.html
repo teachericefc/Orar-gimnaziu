@@ -1506,11 +1506,35 @@ function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
 function showSection(id){
   document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id===id));
   document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.target===id));
-  if(id==="teachers"){refreshTeacherSubjectSuggestions();renderTeachers();}
-  if(id==="subjects")renderSubjects();
-  if(id==="assignments"){renderAssignmentSelectors();renderAssignments();}
-  if(id==="classes")renderClasses();
-  if(id==="timetable")renderTimetable();
+
+  try{
+    if(id==="teachers"){
+      refreshTeacherSubjectSuggestions();
+      renderTeachers();
+    }
+    if(id==="subjects"){
+      renderSubjects();
+    }
+    if(id==="assignments"){
+      renderAssignmentSelectors();
+      renderAssignments();
+    }
+    if(id==="timetable"){
+      renderTimetable();
+    }
+  }catch(err){
+    console.error("Eroare la afișarea secțiunii",id,err);
+    const target = id==="subjects"
+      ? document.getElementById("subjectsTable")
+      : id==="teachers"
+        ? document.getElementById("teachersTable")
+        : null;
+    if(target){
+      target.innerHTML = `<div class="card" style="border-color:#fecaca;background:#fff7f7;color:#991b1b">
+        Nu am putut afișa această secțiune. Reîncarcă pagina; dacă problema persistă, datele sunt păstrate și secțiunea poate fi reparată fără pierderea lor.
+      </div>`;
+    }
+  }
 }
 document.querySelectorAll('.nav-btn').forEach(b=>b.addEventListener('click',()=>showSection(b.dataset.target)));
 showSection('timetable');
@@ -2092,57 +2116,75 @@ function toggleSubjectPriority(id,value){
 
 function renderSubjects(){
   const box=document.getElementById("subjectsTable");
-  if(!box)return;
+  if(!box) return;
 
-  const names=allSubjectNamesForPanels();
+  const defaults=Array.isArray(DEFAULT_GYMNASIUM_SUBJECTS)
+    ? DEFAULT_GYMNASIUM_SUBJECTS.slice()
+    : [];
 
-  box.innerHTML=`<div class="subject-class-grid">
-    ${CLASSES.map(className=>{
-      const active=(state.subjects||[]).filter(s=>s.className===className);
-      const total=active.reduce((sum,s)=>sum+Number(s.hours||0),0);
+  const currentSubjects=Array.isArray(state.subjects) ? state.subjects : [];
+  const names=defaults.slice();
 
-      return `<div class="subject-class-panel" data-class="${className}">
-        <div class="subject-class-title">
-          <h3>Clasa ${className}</h3>
-          <span class="subject-total-hours">${total} h/săpt.</span>
+  currentSubjects.forEach(function(s){
+    if(!s || !s.name) return;
+    const clean=String(s.name).trim();
+    const exists=names.some(function(n){
+      return String(n).trim().toLocaleLowerCase("ro")===clean.toLocaleLowerCase("ro");
+    });
+    if(!exists) names.push(clean);
+  });
+
+  let html='<div class="subject-class-grid">';
+
+  CLASSES.forEach(function(className){
+    const active=currentSubjects.filter(function(s){ return s && s.className===className; });
+    const total=active.reduce(function(sum,s){ return sum+Number(s.hours||0); },0);
+
+    html+=`<div class="subject-class-panel" data-class="${className}">
+      <div class="subject-class-title">
+        <h3>Clasa ${className}</h3>
+        <span class="subject-total-hours">${total} h/săpt.</span>
+      </div>
+      <div class="subject-list">`;
+
+    names.forEach(function(name){
+      const s=active.find(function(x){
+        return String(x.name||"").trim().toLocaleLowerCase("ro")===
+               String(name||"").trim().toLocaleLowerCase("ro");
+      });
+      const enabled=!!s;
+      html+=`<div class="subject-config-row ${enabled?"":"inactive"}" data-subject-name="${esc(name)}">
+        <input type="checkbox" ${enabled?"checked":""}
+          onchange="this.closest('.subject-config-row').classList.toggle('inactive',!this.checked)">
+        <div class="subject-label">
+          ${esc(name)}
+          ${s && s.prioritized ? '<span class="subject-priority-star">★ prioritară</span>' : ''}
         </div>
-
-        <div class="subject-list">
-          ${names.map(name=>{
-            const s=subjectEntry(className,name);
-            const enabled=!!s;
-            return `<div class="subject-config-row ${enabled?"":"inactive"}" data-subject-name="${esc(name)}">
-              <input type="checkbox"
-                ${enabled?"checked":""}
-                onchange="this.closest('.subject-config-row').classList.toggle('inactive',!this.checked)">
-              <div class="subject-label">
-                ${esc(name)}
-                ${s?.prioritized ? '<span class="subject-priority-star">★ prioritară</span>' : ''}
-              </div>
-              <input class="hours-input" type="number" min="1"
-                value="${enabled?Number(s.hours||1):1}"
-                title="Ore pe săptămână"
-                oninput="this.closest('.subject-config-row').querySelector('input[type=checkbox]').checked=true; this.closest('.subject-config-row').classList.remove('inactive')">
-            </div>`;
-          }).join("")}
-        </div>
-
-        <div class="subject-panel-add">
-          <div class="add-subject-line">
-            <input id="newSubject-${className}" placeholder="Altă disciplină / opțional">
-            <input id="newSubjectHours-${className}" type="number" min="1" value="1" title="Ore/săpt.">
-            <button class="subject-plus-btn" onclick="addCustomSubjectToClass('${className}')" title="Adaugă">+</button>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
-            <button class="btn btn-primary" style="flex:1" onclick="saveSubjectClassPanel('${className}')">💾 Salvează clasa ${className}</button>
-            <span id="subjectSaved-${className}" style="font-weight:700;color:#16803a;min-width:58px"></span>
-          </div>
-        </div>
+        <input class="hours-input" type="number" min="1"
+          value="${enabled?Number(s.hours||1):1}"
+          title="Ore pe săptămână"
+          oninput="this.closest('.subject-config-row').querySelector('input[type=checkbox]').checked=true;this.closest('.subject-config-row').classList.remove('inactive')">
       </div>`;
-    }).join("")}
-  </div>`;
-}
+    });
 
+    html+=`</div>
+      <div class="subject-panel-add">
+        <div class="add-subject-line">
+          <input id="newSubject-${className}" placeholder="Altă disciplină / opțional">
+          <input id="newSubjectHours-${className}" type="number" min="1" value="1" title="Ore/săpt.">
+          <button class="subject-plus-btn" onclick="addCustomSubjectToClass('${className}')" title="Adaugă">+</button>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;margin-top:12px">
+          <button class="btn btn-primary" style="flex:1" onclick="saveSubjectClassPanel('${className}')">💾 Salvează clasa ${className}</button>
+          <span id="subjectSaved-${className}" style="font-weight:700;color:#16803a;min-width:58px"></span>
+        </div>
+      </div>
+    </div>`;
+  });
+
+  html+='</div>';
+  box.innerHTML=html;
+}
 
 function renderAssignmentSelectors(){
   const teacherSel=document.getElementById("assignmentTeacher");
@@ -5571,7 +5613,11 @@ synchronizeAssignmentsWithSubjects();
 ensureTeacherContractHours();
 ensureTeacherColors();
 refreshTeacherSubjectSuggestions();
-updateStats();renderTeachers();renderSubjects();renderAssignmentSelectors();renderAssignments();renderTimetable();
+updateStats();
+try{renderTeachers();}catch(e){console.error("renderTeachers",e);}
+try{renderSubjects();}catch(e){console.error("renderSubjects",e);}
+try{renderAssignmentSelectors();renderAssignments();}catch(e){console.error("renderAssignments",e);}
+try{renderTimetable();}catch(e){console.error("renderTimetable",e);}
 
 document.addEventListener("keydown",e=>{
   if(e.key==="Escape" && document.getElementById("availabilityModal")?.style.display!=="none"){
