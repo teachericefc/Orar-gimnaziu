@@ -1439,6 +1439,60 @@ state.teachers.forEach(t=>{
 });
 
 
+// Valori implicite după planul-cadru național pentru gimnaziu.
+// Sunt doar valori de pornire: utilizatorul le poate modifica oricând din +/-.
+const NATIONAL_CURRICULUM_DEFAULT_HOURS={
+  "Limba și literatura română": {V:4,VI:4,VII:4,VIII:4},
+  "Limba engleză": {V:2,VI:2,VII:2,VIII:2},
+  "Limba franceză": {V:2,VI:2,VII:2,VIII:2},
+  "Elemente de limbă latină și de cultură romanică": {V:0,VI:0,VII:1,VIII:0},
+  "Matematică": {V:4,VI:4,VII:4,VIII:4},
+  "Fizică": {V:0,VI:2,VII:2,VIII:2},
+  "Chimie": {V:0,VI:0,VII:2,VIII:2},
+  "Biologie": {V:1,VI:2,VII:2,VIII:1},
+  "Educație socială": {V:1,VI:1,VII:1,VIII:1},
+  "Istorie": {V:2,VI:1,VII:1,VIII:2},
+  "Geografie": {V:1,VI:1,VII:1,VIII:2},
+  "Religie": {V:1,VI:1,VII:1,VIII:1},
+  "Educație plastică": {V:1,VI:1,VII:1,VIII:1},
+  "Educație muzicală": {V:1,VI:1,VII:1,VIII:1},
+  "Educație fizică și sport": {V:2,VI:2,VII:2,VIII:2},
+  "Educație tehnologică și aplicații practice": {V:1,VI:1,VII:1,VIII:1},
+  "Informatică și TIC": {V:1,VI:1,VII:1,VIII:1},
+  "Consiliere și dezvoltare personală": {V:1,VI:1,VII:1,VIII:1}
+};
+
+function applyNationalCurriculumDefaultsOnce(){
+  const totalCurrentHours=(state.subjects||[])
+    .reduce((sum,s)=>sum+Math.max(0,Number(s?.hours)||0),0);
+
+  // Se aplică o singură dată, doar dacă utilizatorul a făcut un reset real.
+  // După aceea, valorile rămân complet ajustabile și nu sunt refăcute automat.
+  if(Number(state.curriculumDefaultsVersion||0)>=1 || totalCurrentHours>0) return false;
+
+  const next=[];
+  Object.entries(NATIONAL_CURRICULUM_DEFAULT_HOURS).forEach(([name,byClass])=>{
+    CLASSES.forEach(className=>{
+      const hours=Number(byClass?.[className]||0);
+      if(hours<=0) return;
+      next.push({
+        id:crypto.randomUUID(),
+        name,
+        className,
+        hours,
+        prioritized:false
+      });
+    });
+  });
+
+  state.subjects=next;
+  state.curriculumDefaultsVersion=1;
+  save();
+  return true;
+}
+
+
+
 function save(){localStorage.setItem(KEY,JSON.stringify(state));updateStats()}
 applyNationalCurriculumDefaultsOnce();
 function showSection(id){
@@ -1841,58 +1895,6 @@ const DEFAULT_GYMNASIUM_SUBJECTS=[
   "Informatică și TIC",
   "Consiliere și dezvoltare personală"
 ];
-
-// Valori implicite după planul-cadru național pentru gimnaziu.
-// Sunt doar valori de pornire: utilizatorul le poate modifica oricând din +/-.
-const NATIONAL_CURRICULUM_DEFAULT_HOURS={
-  "Limba și literatura română": {V:4,VI:4,VII:4,VIII:4},
-  "Limba engleză": {V:2,VI:2,VII:2,VIII:2},
-  "Limba franceză": {V:2,VI:2,VII:2,VIII:2},
-  "Elemente de limbă latină și de cultură romanică": {V:0,VI:0,VII:1,VIII:0},
-  "Matematică": {V:4,VI:4,VII:4,VIII:4},
-  "Fizică": {V:0,VI:2,VII:2,VIII:2},
-  "Chimie": {V:0,VI:0,VII:2,VIII:2},
-  "Biologie": {V:1,VI:2,VII:2,VIII:1},
-  "Educație socială": {V:1,VI:1,VII:1,VIII:1},
-  "Istorie": {V:2,VI:1,VII:1,VIII:2},
-  "Geografie": {V:1,VI:1,VII:1,VIII:2},
-  "Religie": {V:1,VI:1,VII:1,VIII:1},
-  "Educație plastică": {V:1,VI:1,VII:1,VIII:1},
-  "Educație muzicală": {V:1,VI:1,VII:1,VIII:1},
-  "Educație fizică și sport": {V:2,VI:2,VII:2,VIII:2},
-  "Educație tehnologică și aplicații practice": {V:1,VI:1,VII:1,VIII:1},
-  "Informatică și TIC": {V:1,VI:1,VII:1,VIII:1},
-  "Consiliere și dezvoltare personală": {V:1,VI:1,VII:1,VIII:1}
-};
-
-function applyNationalCurriculumDefaultsOnce(){
-  const totalCurrentHours=(state.subjects||[])
-    .reduce((sum,s)=>sum+Math.max(0,Number(s?.hours)||0),0);
-
-  // Se aplică o singură dată, doar dacă utilizatorul a făcut un reset real.
-  // După aceea, valorile rămân complet ajustabile și nu sunt refăcute automat.
-  if(Number(state.curriculumDefaultsVersion||0)>=1 || totalCurrentHours>0) return false;
-
-  const next=[];
-  Object.entries(NATIONAL_CURRICULUM_DEFAULT_HOURS).forEach(([name,byClass])=>{
-    CLASSES.forEach(className=>{
-      const hours=Number(byClass?.[className]||0);
-      if(hours<=0) return;
-      next.push({
-        id:crypto.randomUUID(),
-        name,
-        className,
-        hours,
-        prioritized:false
-      });
-    });
-  });
-
-  state.subjects=next;
-  state.curriculumDefaultsVersion=1;
-  save();
-  return true;
-}
 
 
 function subjectEntry(className,name){
