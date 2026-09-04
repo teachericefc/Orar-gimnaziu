@@ -1624,6 +1624,83 @@
   color:#64748b;
 }
 
+
+/* Panou compact adăugare profesor */
+.teacher-add-card{
+  background:#fff;
+  border:1px solid #dfe8e5;
+  border-radius:16px;
+  box-shadow:0 2px 10px rgba(15,23,42,.05);
+}
+.teacher-add-top{
+  display:grid;
+  grid-template-columns:minmax(210px,1.4fr) minmax(130px,.8fr) minmax(170px,1fr) auto;
+  gap:10px;
+  align-items:end;
+}
+.teacher-add-row{
+  display:grid;
+  grid-template-columns:minmax(180px,.9fr) minmax(320px,1.8fr) minmax(120px,.6fr);
+  gap:10px;
+  align-items:center;
+  margin-top:10px;
+}
+.teacher-class-picks{
+  display:flex;
+  gap:7px;
+  flex-wrap:wrap;
+  align-items:center;
+}
+.teacher-class-picks label{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  padding:7px 9px;
+  background:#f8fafc;
+  border:1px solid #dbe5ea;
+  border-radius:10px;
+  font-weight:800;
+}
+.teacher-subject-inline{
+  min-width:0;
+}
+.teacher-subject-inline select{
+  width:100%;
+  min-height:40px;
+}
+.teacher-total-inline{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+}
+.teacher-add-submit{
+  min-height:44px;
+  padding:10px 16px!important;
+  border-radius:11px!important;
+  border:1px solid #a8d5c1!important;
+  background:linear-gradient(180deg,#e9f7ef 0%,#d8efe3 100%)!important;
+  color:#245b45!important;
+  font-weight:900!important;
+  box-shadow:0 3px 10px rgba(36,91,69,.08)!important;
+}
+.teacher-add-submit:hover{
+  background:linear-gradient(180deg,#e3f4eb 0%,#cee9dc 100%)!important;
+}
+@media(max-width:900px){
+  .teacher-add-top{grid-template-columns:1fr 1fr}
+  .teacher-add-row{grid-template-columns:1fr}
+}
+
+
+#teacherSubject,
+#teacherClassChecks,
+#teacherWeeklyHours{
+  align-self:center;
+}
+#teacherClassChecks{
+  margin:0!important;
+}
+
 </style>
 </head>
 <body>
@@ -1674,7 +1751,7 @@
     <main>
 <section id="teachers" class="section">
         <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorul împreună cu încadrarea inițială. Datele pot fi ajustate oricând din Fișă profesor.</p></div></div>
-        <div class="card" style="margin-bottom:16px">
+        <div class="card teacher-add-card" style="margin-bottom:16px">
           <div class="teacher-complete-form">
             <div class="form-row" style="grid-template-columns:1.4fr 1fr 1.4fr">
               <input id="teacherName" placeholder="Nume și prenume profesor">
@@ -1698,11 +1775,11 @@
                   <option value="">Alege disciplina</option>
                 </select>
                 <div class="class-checkbox-group" id="teacherInitialClasses">
-                  <label><input type="checkbox" value="V" checked> V</label>
+                  <label><input type="checkbox" value="V"> V</label>
                   <label><input type="checkbox" value="V B"> V B</label>
-                  <label><input type="checkbox" value="VI" checked> VI</label>
-                  <label><input type="checkbox" value="VII" checked> VII</label>
-                  <label><input type="checkbox" value="VIII" checked> VIII</label>
+                  <label><input type="checkbox" value="VI"> VI</label>
+                  <label><input type="checkbox" value="VII"> VII</label>
+                  <label><input type="checkbox" value="VIII"> VIII</label>
                 </div>
                 <label style="margin:0">
   <span style="display:block;font-size:12px;font-weight:700;margin-bottom:4px">Total ore în încadrare</span>
@@ -1711,7 +1788,7 @@
                 <button class="btn btn-primary" onclick="addTeacher()">Adaugă profesor</button>
               </div>
               <div class="note" style="margin:10px 0 0">
-                Profesorul se adaugă direct alegând disciplina din lista disciplinelor active și clasele la care o predă. Implicit sunt bifate toate clasele. O disciplină din aceeași clasă aparține integral unui singur profesor.
+                Profesorul se adaugă direct alegând disciplina din lista disciplinelor active și clasele la care o predă. Clasele sunt debifate implicit. O disciplină din aceeași clasă aparține integral unui singur profesor.
               </div>
             </div>
           </div>
