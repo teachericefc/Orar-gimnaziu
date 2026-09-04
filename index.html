@@ -1088,34 +1088,7 @@
   gap:8px!important;
   align-items:center!important;
 }
-.generator-teacher-btn{
-  display:inline-flex!important;
-  align-items:center!important;
-  justify-content:center!important;
-  gap:8px!important;
-  padding:10px 16px!important;
-  border:1px solid #d9b66f!important;
-  border-radius:12px!important;
-  background:linear-gradient(180deg,#fff7df 0%,#f7e9be 100%)!important;
-  color:#70511d!important;
-  font-weight:900!important;
-  letter-spacing:.1px!important;
-  box-shadow:0 4px 12px rgba(112,81,29,.10)!important;
-  transition:transform .15s ease,box-shadow .15s ease,background .15s ease!important;
-}
-.generator-teacher-btn:hover{
-  background:linear-gradient(180deg,#fff4d4 0%,#f3e1aa 100%)!important;
-  box-shadow:0 6px 16px rgba(112,81,29,.14)!important;
-  transform:translateY(-1px)!important;
-}
-.generator-teacher-btn:active{
-  transform:translateY(0)!important;
-}
-.generator-teacher-btn:disabled{
-  opacity:.72!important;
-  cursor:wait!important;
-  transform:none!important;
-}
+
 .undo-command-btn{
   display:inline-flex!important;
   align-items:center!important;
@@ -1315,6 +1288,101 @@
 @media(max-width:760px){
   .cloud-status{padding:5px 7px;font-size:10px}
 }
+
+
+    .timetable-view-tabs{
+      display:flex;
+      gap:8px;
+      margin:0 0 12px;
+      flex-wrap:wrap;
+    }
+    .timetable-view-tab{
+      border:1px solid #cbd5e1;
+      background:#fff;
+      color:#334155;
+      border-radius:10px;
+      padding:9px 14px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow:0 1px 2px rgba(15,23,42,.05);
+    }
+    .timetable-view-tab.active{
+      background:#e8f0ff;
+      border-color:#93b4f4;
+      color:#1d4ed8;
+    }
+    .timetable-view-pane{display:none}
+    .timetable-view-pane.active{display:block}
+    .teacher-schedules-page{
+      display:flex;
+      flex-direction:column;
+      gap:16px;
+    }
+    .teacher-schedule-card{
+      background:#fff;
+      border:1px solid #dbe3ee;
+      border-radius:14px;
+      padding:12px;
+      box-shadow:0 2px 8px rgba(15,23,42,.05);
+      overflow:hidden;
+    }
+    .teacher-schedule-name{
+      font-size:18px;
+      line-height:1.2;
+      font-weight:900;
+      color:#0f172a;
+      margin:0 0 10px;
+    }
+    .teacher-schedule-scroll{overflow-x:auto}
+    .teacher-schedule-table{
+      width:100%;
+      min-width:690px;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:12px;
+    }
+    .teacher-schedule-table th,
+    .teacher-schedule-table td{
+      border:1px solid #dbe3ee;
+      text-align:center;
+      vertical-align:middle;
+      padding:6px;
+      height:46px;
+    }
+    .teacher-schedule-table thead th{
+      background:#f8fafc;
+      font-weight:800;
+    }
+    .teacher-schedule-table .teacher-hour-col{
+      width:62px;
+      background:#f8fafc;
+      font-weight:900;
+    }
+    .teacher-schedule-class{
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      min-height:26px;
+      padding:3px 8px;
+      border-radius:8px;
+      background:#eef4ff;
+      border:1px solid #c7d7fe;
+      font-weight:800;
+      color:#1e3a8a;
+      white-space:nowrap;
+    }
+    .teacher-schedule-empty{
+      color:#94a3b8;
+      font-weight:700;
+    }
+    .teacher-schedules-empty{
+      background:#fff;
+      border:1px dashed #cbd5e1;
+      border-radius:12px;
+      padding:18px;
+      color:#64748b;
+      text-align:center;
+    }
 
 </style>
 </head>
@@ -1643,30 +1711,42 @@
       </section>
 
       <section id="timetable" class="section active">
-        <div class="page-head timetable-actions-head">
-          <div class="toolbar">
-            <div class="generator-actions">
-              <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate('disciplines')">✦ Generează orar după disciplină</button>
-              <button id="generateTeacherTimetableBtn" class="btn generator-teacher-btn" onclick="demoGenerate('teachers')">♟ Generează orar după profesori</button>
+        <div class="timetable-view-tabs" role="tablist" aria-label="Vizualizare orar">
+          <button type="button" id="classTimetableViewBtn" class="timetable-view-tab active"
+                  onclick="switchMainTimetableView('classes')">🗓️ Orar clase</button>
+          <button type="button" id="teacherSchedulesViewBtn" class="timetable-view-tab"
+                  onclick="switchMainTimetableView('teachers')">👨‍🏫 Orar profesori</button>
+        </div>
+
+        <div id="classTimetableView" class="timetable-view-pane active">
+          <div class="page-head timetable-actions-head">
+            <div class="toolbar">
+              <div class="generator-actions">
+                <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate()">✦ Generează orar după disciplină</button>
+              </div>
+              <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
+                <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
+                <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
+              </div>
+              <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
             </div>
-            <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
-              <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
-              <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
-            </div>
-            <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
+          </div>
+          <div class="orar-workspace">
+            <div id="allClassTimetables" class="all-class-timetables"></div>
+            <aside class="card teacher-token-panel">
+              <div class="token-panel-tabs">
+                <button type="button" id="teacherTokenTabBtn" class="token-panel-tab active" role="tab" aria-selected="true" onclick="switchTimetableTokenTab('teachers')">🧩 Profesori</button>
+                <button type="button" id="disciplineTokenTabBtn" class="token-panel-tab" role="tab" aria-selected="false" onclick="switchTimetableTokenTab('disciplines')">📚 Discipline</button>
+              </div>
+              <p id="tokenPanelHelp" class="teacher-token-help">Selectează un profesor și apoi apasă succesiv pe orele libere din orar.</p>
+              <div id="teacherTimetableTokens" class="token-tab-content"></div>
+              <div id="disciplineTimetableTokens" class="token-tab-content" hidden></div>
+            </aside>
           </div>
         </div>
-        <div class="orar-workspace">
-          <div id="allClassTimetables" class="all-class-timetables"></div>
-          <aside class="card teacher-token-panel">
-            <div class="token-panel-tabs">
-              <button type="button" id="teacherTokenTabBtn" class="token-panel-tab active" role="tab" aria-selected="true" onclick="switchTimetableTokenTab('teachers')">🧩 Profesori</button>
-              <button type="button" id="disciplineTokenTabBtn" class="token-panel-tab" role="tab" aria-selected="false" onclick="switchTimetableTokenTab('disciplines')">📚 Discipline</button>
-            </div>
-            <p id="tokenPanelHelp" class="teacher-token-help">Selectează un profesor și apoi apasă succesiv pe orele libere din orar.</p>
-            <div id="teacherTimetableTokens" class="token-tab-content"></div>
-            <div id="disciplineTimetableTokens" class="token-tab-content" hidden></div>
-          </aside>
+
+        <div id="teacherSchedulesView" class="timetable-view-pane">
+          <div id="allTeacherSchedules" class="teacher-schedules-page"></div>
         </div>
       </section>
 </main>
@@ -5596,7 +5676,7 @@ function appMessage(message,type="error",duration=2600){
 }
 
 function classLabelRomanian(className){
-  const map={"V":"a V-a","VI":"a VI-a","VII":"a VII-a","VIII":"a VIII-a"};
+  const map={"V":"a V-a","V B":"a V-a B","VI":"a VI-a","VII":"a VII-a","VIII":"a VIII-a"};
   return map[className] || className;
 }
 
@@ -5693,6 +5773,87 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   renderGlobalHoursSummary();
   showPlacementSuccess(to);
 }
+
+let activeMainTimetableView="classes";
+
+function switchMainTimetableView(view){
+  activeMainTimetableView=view==="teachers" ? "teachers" : "classes";
+
+  const classPane=document.getElementById("classTimetableView");
+  const teacherPane=document.getElementById("teacherSchedulesView");
+  const classBtn=document.getElementById("classTimetableViewBtn");
+  const teacherBtn=document.getElementById("teacherSchedulesViewBtn");
+
+  if(classPane) classPane.classList.toggle("active",activeMainTimetableView==="classes");
+  if(teacherPane) teacherPane.classList.toggle("active",activeMainTimetableView==="teachers");
+  if(classBtn) classBtn.classList.toggle("active",activeMainTimetableView==="classes");
+  if(teacherBtn) teacherBtn.classList.toggle("active",activeMainTimetableView==="teachers");
+
+  if(activeMainTimetableView==="teachers"){
+    renderAllTeacherSchedules();
+  }else{
+    renderTimetable();
+  }
+}
+
+function teacherClassesAtHour(teacherId,dayIndex,hourIndex){
+  const classes=[];
+  CLASSES.forEach(className=>{
+    const slot=state.timetable?.[className]?.[`${dayIndex}-${hourIndex}`];
+    if(slot && !slot.unassigned && slot.teacherId===teacherId){
+      classes.push(className);
+    }
+  });
+  return classes;
+}
+
+function renderAllTeacherSchedules(){
+  const box=document.getElementById("allTeacherSchedules");
+  if(!box) return;
+
+  const teachers=(state.teachers||[])
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ro"));
+
+  if(!teachers.length){
+    box.innerHTML='<div class="teacher-schedules-empty">Nu există încă profesori.</div>';
+    return;
+  }
+
+  box.innerHTML=teachers.map(t=>{
+    let rows="";
+    for(let hourIndex=0;hourIndex<6;hourIndex++){
+      rows+=`<tr>
+        <th class="teacher-hour-col">${hourIndex+1}</th>
+        ${DAYS.map((day,dayIndex)=>{
+          const classes=teacherClassesAtHour(t.id,dayIndex,hourIndex);
+          if(!classes.length){
+            return '<td><span class="teacher-schedule-empty">−</span></td>';
+          }
+          return `<td>${classes.map(c=>
+            `<span class="teacher-schedule-class">${esc(classLabelRomanian(c))}</span>`
+          ).join(" ")}</td>`;
+        }).join("")}
+      </tr>`;
+    }
+
+    return `<section class="teacher-schedule-card">
+      <h3 class="teacher-schedule-name">${esc(t.name||"Profesor")}</h3>
+      <div class="teacher-schedule-scroll">
+        <table class="teacher-schedule-table">
+          <thead>
+            <tr>
+              <th class="teacher-hour-col">Ora</th>
+              ${DAYS.map(day=>`<th>${esc(day)}</th>`).join("")}
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </section>`;
+  }).join("");
+}
+
 function renderTimetable(){
   const box=document.getElementById("allClassTimetables");
   if(!box) return;
@@ -5711,6 +5872,10 @@ function renderTimetable(){
 
   const reportBox=document.getElementById("scheduleReport");
   if(reportBox && reportBox.innerHTML.trim()) renderScheduleReport();
+
+  if(activeMainTimetableView==="teachers"){
+    renderAllTeacherSchedules();
+  }
 }
 
 
@@ -7115,38 +7280,26 @@ async function restoreBackupFile(file){
   }catch(e){appMessage("Nu am putut restaura copia: "+(e?.message||e),"error",4500)}
   finally{isRestoringHistory=false}
 }
-async function demoGenerate(mode="disciplines"){
-  mode=mode==="teachers" ? "teachers" : "disciplines";
-  const isTeachers=mode==="teachers";
-  const btn=document.getElementById(
-    isTeachers ? "generateTeacherTimetableBtn" : "generateTimetableBtn"
-  );
-  const oldText=btn?.textContent||(
-    isTeachers ? "♟ Generează orar după profesori" : "✦ Generează orar după disciplină"
-  );
+async function demoGenerate(){
+  const btn=document.getElementById("generateTimetableBtn");
+  const oldText=btn?.textContent||"✦ Generează orar după disciplină";
 
   try{
-    switchTimetableTokenTab(isTeachers ? "teachers" : "disciplines");
+    switchTimetableTokenTab("disciplines");
 
     if(btn){
       btn.disabled=true;
-      btn.textContent=isTeachers ? "Așez profesorii…" : "Amestec disciplinele…";
+      btn.textContent="Amestec disciplinele…";
     }
 
     await new Promise(resolve=>setTimeout(resolve,30));
     normalizeLockedSlots();
 
-    const inventory=isTeachers ? teacherTokenInventory() : disciplineTokenInventory();
+    const inventory=disciplineTokenInventory();
     const totalTokens=CLASSES.reduce((sum,cls)=>sum+(inventory[cls]?.length||0),0);
 
     if(totalTokens===0){
-      appMessage(
-        isTeachers
-          ? "Nu există jetoane de profesori. Configurează mai întâi profesorii și încadrările."
-          : "Nu există jetoane active în tabul Discipline.",
-        "error",
-        4200
-      );
+      appMessage("Nu există jetoane active în tabul Discipline.","error",4200);
       return;
     }
 
@@ -7155,7 +7308,7 @@ async function demoGenerate(mode="disciplines"){
     let lastError="Nu am putut construi orarul.";
 
     for(let attempt=0;attempt<100 && variants.length<2;attempt++){
-      const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
+      const result=buildDisciplineVariant();
 
       if(result.ok){
         const sig=JSON.stringify(result.tt);
@@ -7189,9 +7342,7 @@ async function demoGenerate(mode="disciplines"){
     applyGeneratedVariant(0);
 
     appMessage(
-      isTeachers
-        ? `Am folosit ${totalTokens} jetoane de profesori și am creat 2 variante fără ferestre și fără suprapuneri de profesori.`
-        : `Am folosit ${totalTokens} jetoane din Discipline și am creat 2 variante fără ferestre la elevi.`,
+      `Am folosit ${totalTokens} jetoane din Discipline și am creat 2 variante fără ferestre la elevi.`,
       "success",
       3800
     );
