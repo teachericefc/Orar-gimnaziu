@@ -349,27 +349,6 @@
   gap:8px;
   margin-top:10px;
 }
-@media print{
-  body.print-class-mode .sidebar,
-  body.print-class-mode header,
-  body.print-class-mode .toolbar,
-  body.print-class-mode button,
-  body.print-class-mode #scheduleReport,
-  body.print-class-mode #globalHoursSummary,
-  body.print-class-mode #classHoursCounter,
-  body.print-class-mode #freeHoursBanner,
-  body.print-teacher-mode .sidebar,
-  body.print-teacher-mode header,
-  body.print-teacher-mode .toolbar,
-  body.print-teacher-mode button,
-  body.print-teacher-mode #scheduleReport,
-  body.print-teacher-mode #globalHoursSummary,
-  body.print-teacher-mode #classHoursCounter,
-  body.print-teacher-mode #freeHoursBanner{
-    display:none !important;
-  }
-  .print-only{display:block !important}
-}
 .print-only{display:none}
 .teacher-print-sheet{
   padding:18px;
@@ -1303,9 +1282,6 @@
   gap:8px;
   margin-top:14px;
 }
-.print-paper{
-  display:none;
-}
 @media print{
   body *{visibility:hidden!important}
   #printPaper,#printPaper *{visibility:visible!important}
@@ -1390,7 +1366,7 @@
 <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
       <button class="nav-btn" data-target="subjects">📚 Discipline</button>
       <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
-      <button type="button" class="nav-btn nav-print-pdf" onclick="openPrintPdfDialog()">🖨️ Print / PDF</button>
+      <button type="button" class="nav-btn nav-print-pdf" onclick="openPrintPdfDialog()">⬇ Descarcă PDF</button>
     </aside>
 
     <main>
@@ -1702,7 +1678,6 @@
   </div>
 </div>
 
-<div id="printPaper" class="print-paper"></div>
 <script>
 const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
@@ -6139,58 +6114,6 @@ function renderFinalScheduleStatus(){
     </div>`;
 }
 
-function printTeacherSchedule(){
-  const teachers=(state.teachers||[]).filter(t=>scheduledHoursForTeacher(t.id,state.timetable)>0);
-  if(!teachers.length){
-    appMessage("Nu există profesori cu ore repartizate.","error");
-    return;
-  }
-
-  const options=teachers.map((t,i)=>`${i+1}. ${t.name}`).join("\n");
-  const answer=prompt("Alege profesorul după număr:\n"+options,"1");
-  if(answer===null) return;
-  const idx=Number(answer)-1;
-  if(!Number.isInteger(idx) || idx<0 || idx>=teachers.length){
-    appMessage("Selecție invalidă.","error");
-    return;
-  }
-
-  const t=teachers[idx];
-  const rows=[];
-  DAYS.forEach((day,d)=>{
-    for(let h=0;h<7;h++){
-      CLASSES.forEach(cls=>{
-        const slot=solverGetSlot(state.timetable,cls,d,h);
-        if(slot && !slot.unassigned && slot.teacherId===t.id){
-          rows.push({
-            day,
-            hour:h+1,
-            cls,
-            subject:slot.subject || (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name || "Disciplină"
-          });
-        }
-      });
-    }
-  });
-
-  rows.sort((a,b)=>DAYS.indexOf(a.day)-DAYS.indexOf(b.day) || a.hour-b.hour);
-
-  const area=document.getElementById("teacherPrintArea");
-  area.innerHTML=`
-    <div class="teacher-print-sheet">
-      <h2>Orar profesor — ${t.name}</h2>
-      <table class="teacher-print-table">
-        <thead><tr><th>Ziua</th><th>Ora</th><th>Clasa</th><th>Disciplina</th></tr></thead>
-        <tbody>
-          ${rows.map(r=>`<tr><td>${r.day}</td><td>${r.hour}</td><td>${r.cls}</td><td>${r.subject}</td></tr>`).join("")}
-        </tbody>
-      </table>
-    </div>`;
-
-  document.body.classList.add("print-teacher-mode");
-  window.print();
-  document.body.classList.remove("print-teacher-mode");
-}
 
 function invalidateFinalSchedule(){
   if(state.finalSchedule?.finalized){
@@ -6731,7 +6654,7 @@ function openPrintPdfDialog(){
   overlay.innerHTML=`
     <div class="print-dialog">
       <div class="print-dialog-head">
-        <h3>Print / PDF</h3>
+        <h3>Descarcă PDF</h3>
         <button type="button" class="print-dialog-close" aria-label="Închide">×</button>
       </div>
       <div class="print-kind-tabs">
@@ -6751,7 +6674,6 @@ function openPrintPdfDialog(){
       </div>
       <div class="print-dialog-actions">
         <button type="button" class="btn btn-light print-cancel">Anulează</button>
-        <button type="button" class="btn btn-light print-go">🖨 Print</button>
         <button type="button" class="btn print-pdf-btn pdf-go">⬇ Descarcă PDF</button>
       </div>
     </div>`;
@@ -6769,19 +6691,6 @@ function openPrintPdfDialog(){
   overlay.querySelector(".print-dialog-close").onclick=()=>overlay.remove();
   overlay.querySelector(".print-cancel").onclick=()=>overlay.remove();
   overlay.onclick=e=>{if(e.target===overlay) overlay.remove();};
-  overlay.querySelector(".print-go").onclick=()=>{
-    if(printPdfMode==="class"){
-      const className=overlay.querySelector("#printClassSelect")?.value;
-      if(className) printClassSchedule(className);
-    }else{
-      const teacherId=overlay.querySelector("#printTeacherSelect")?.value;
-      if(!teacherId){
-        appMessage("Nu există niciun profesor selectat.","error",2000);
-        return;
-      }
-      printTeacherSchedule(teacherId);
-    }
-  };
 
   overlay.querySelector(".pdf-go").onclick=()=>{
     if(printPdfMode==="class"){
@@ -7016,43 +6925,6 @@ function downloadTeacherSchedulePdf(teacherId){
   appMessage(`PDF creat pentru ${teacher.name||"profesor"}.`,"success",1800);
 }
 
-function printClassSchedule(className){
-  const hours=classDisplayHours(className);
-  const paper=document.getElementById("printPaper");
-  if(!paper) return;
-
-  let rows="";
-  for(let h=1;h<=hours;h++){
-    rows+=`<tr>
-      <th class="print-hour-col">${printHourLabel(h)}</th>
-      ${DAYS.map((day,d)=>{
-        const slot=state.timetable?.[className]?.[`${d}-${h-1}`];
-        if(!slot) return "<td>–</td>";
-        const subject=slot.subject ||
-          (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
-          "Disciplină";
-        const teacher=slot.unassigned
-          ? "Profesor neatribuit"
-          : (slot.teacher || solverTeacherName(slot.teacherId));
-        return `<td>
-          <span class="print-cell-subject">${esc(subject)}</span>
-          <span class="print-cell-teacher">${esc(teacher)}</span>
-        </td>`;
-      }).join("")}
-    </tr>`;
-  }
-
-  paper.innerHTML=`
-    <h1 class="print-title">${classPrintLabel(className)}</h1>
-    <div class="print-subtitle">Școala Gimnazială Dăneasa • Orar 2026–2027</div>
-    <table class="print-schedule-table">
-      <thead><tr><th>Ora</th>${DAYS.map(d=>`<th>${d}</th>`).join("")}</tr></thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-
-  document.getElementById("printDialogOverlay")?.remove();
-  setTimeout(()=>window.print(),60);
-}
 
 function teacherSlotAt(teacherId,dayIndex,hourIndex){
   for(const className of CLASSES){
