@@ -1696,7 +1696,7 @@
           <div class="card rule-card preference-rule">
             <div class="rule-type">INFORMARE CLASĂ</div>
             <h3>Contor ore ocupate</h3>
-            <p>La fiecare orar de clasă se afișează permanent raportul „Ore ocupate / Total ore prevăzute”, de exemplu 27 / 30. Contorul se actualizează automat după generare, atribuire manuală, blocare sau modificarea orarului.</p>
+            <p>La fiecare orar de clasă se afișează permanent raportul „Ore ocupate / Total ore prevăzute”, de exemplu 27 / 30. Contorul se actualizează automat după generare, repartizare manuală, blocare sau modificarea orarului.</p>
           </div>
 
           <div class="card rule-card preference-rule">
@@ -5023,8 +5023,8 @@ function assignUnassignedSlot(className,day,hour){
   );
 
   // Dacă disciplina nu a fost încă repartizată, o putem atribui direct de aici
-  // oricărui profesor existent. Dacă există deja o atribuire, păstrăm profesorul
-  // acelei atribuiri pentru a evita împărțirea accidentală a disciplinei.
+  // oricărui profesor existent. Dacă există deja o repartizare, păstrăm profesorul
+  // acelei repartizări pentru a evita împărțirea accidentală a disciplinei.
   const choices=existingAssignments.length
     ? existingAssignments.map(a=>({teacherId:a.teacherId,assignment:a}))
     : (state.teachers||[]).map(t=>({teacherId:t.id,assignment:null}));
@@ -5047,7 +5047,7 @@ function assignUnassignedSlot(className,day,hour){
   }
 
   box.innerHTML=`<div class="app-message-icon">👤</div>
-    <div>Atribuie <b>${esc(subjectName||"disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
+    <div>Repartizează <b>${esc(subjectName||"disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
     <div style="margin-top:5px;font-size:12px;opacity:.78">Profesorul ales va primi disciplina la această clasă, iar orele deja puse în orar fără profesor vor fi repartizate automat.</div>
     <div class="assign-teacher-list"></div>`;
   const list=box.querySelector(".assign-teacher-list");
@@ -5063,7 +5063,7 @@ function assignUnassignedSlot(className,day,hour){
       e.stopPropagation();
 
       // Verificăm toate orele deja așezate pentru această disciplină/clasă,
-      // nu doar ora pe care s-a apăsat butonul „Atribuie…”.
+      // nu doar ora pe care s-a apăsat butonul „Repartizează…”.
       const matchingSlots=[];
       Object.entries(state.timetable?.[className]||{}).forEach(([key,current])=>{
         if(!current || !current.unassigned) return;
@@ -5081,11 +5081,11 @@ function assignUnassignedSlot(className,day,hour){
       for(const item of matchingSlots){
         if(!isTeacherAvailable(teacher.id,item.day,item.hour)){
           overlay.remove();
-          return appMessage(`${teacher.name} este indisponibil în ${item.day}, ora ${item.hour}. Atribuirea nu a fost făcută.`,"error",3600);
+          return appMessage(`${teacher.name} este indisponibil în ${item.day}, ora ${item.hour}. Repartizarea nu a fost făcută.`,"error",3600);
         }
         if(teacherHasConflictAt(teacher.id,item.day,item.hour)){
           overlay.remove();
-          return appMessage(`${teacher.name} are deja oră la altă clasă în ${item.day}, ora ${item.hour}. Atribuirea nu a fost făcută.`,"error",3600);
+          return appMessage(`${teacher.name} are deja oră la altă clasă în ${item.day}, ora ${item.hour}. Repartizarea nu a fost făcută.`,"error",3600);
         }
       }
 
@@ -5147,6 +5147,26 @@ function setNestedSlot(className,day,hour,value){
   else delete state.timetable[className][key];
 }
 
+function teacherConflictDetails(teacherId,day,hour,ignoreClass=null,ignoreDay=null,ignoreHour=null){
+  if(!teacherId) return null;
+
+  for(const cls of CLASSES){
+    const slot=getNestedSlot(cls,day,hour);
+    if(!slot || slot.unassigned) continue;
+
+    if(
+      cls===ignoreClass &&
+      day===ignoreDay &&
+      Number(hour)===Number(ignoreHour)
+    ) continue;
+
+    if(slot.teacherId===teacherId){
+      return {className:cls,slot};
+    }
+  }
+  return null;
+}
+
 function teacherHasConflictAt(teacherId,day,hour,ignoreClass=null,ignoreDay=null,ignoreHour=null){
   if(!teacherId) return false;
 
@@ -5197,7 +5217,12 @@ function canMoveTimetableSlot(from,to){
       from.hour
     )){
       const teacher=state.teachers.find(t=>t.id===source.teacherId);
-      return {ok:false,message:`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`};
+      const conflict=teacherConflictDetails(
+        source.teacherId,to.day,to.hour,
+        from.className,from.day,from.hour
+      );
+      const cls=conflict?.className ? ` la clasa ${classLabelRomanian(conflict.className)}` : " la altă clasă";
+      return {ok:false,message:`${teacher?.name||"Profesorul"} are deja oră${cls} în acest interval.`};
     }
   }
 
@@ -5402,6 +5427,12 @@ function removeScheduledLesson(className,day,hour){
   const slot=getNestedSlot(className,day,hour);
   if(!slot) return;
 
+  const subject=slot.subject || slot.subjectName ||
+    (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name || "această oră";
+  if(!confirm(`Ștergi ora?\n\n${subject} — clasa ${classLabelRomanian(className)}, ${day}, ora ${hour}`)){
+    return;
+  }
+
   setNestedSlot(className,day,hour,null);
   selectedTimetableActionSlot=null;
   invalidateFinalSchedule();
@@ -5429,6 +5460,24 @@ function moveOrSwapSelectedLesson(to){
   }
 
   const target=getNestedSlot(to.className,to.day,to.hour);
+
+  if(target){
+    const source=getNestedSlot(from.className,from.day,from.hour);
+    const sourceSubject=source?.subject || source?.subjectName ||
+      (state.subjects||[]).find(s=>s.id===source?.subjectId)?.name || "prima disciplină";
+    const targetSubject=target?.subject || target?.subjectName ||
+      (state.subjects||[]).find(s=>s.id===target?.subjectId)?.name || "a doua disciplină";
+
+    if(!confirm(
+      `Schimbi locul disciplinelor între ele?\n\n`+
+      `${sourceSubject} — clasa ${classLabelRomanian(from.className)}\n`+
+      `↔\n`+
+      `${targetSubject} — clasa ${classLabelRomanian(to.className)}`
+    )){
+      return true;
+    }
+  }
+
   const ok=target
     ? swapTimetableSlots(from,to)
     : moveTimetableSlot(from,to);
@@ -5697,7 +5746,7 @@ function renderSingleClassTimetable(className){
                       aria-label="Mută sau schimbă ora"
                       onclick="event.stopPropagation();selectLessonForMove('${className}','${day}',${h+1})">↻</button>
             </div>
-            ${slot.unassigned ? `<button class="assign-unassigned-inline" onclick="event.stopPropagation();assignUnassignedSlot('${className}','${day}',${h+1})">Atribuie…</button>` : ""}
+            ${slot.unassigned ? `<button class="assign-unassigned-inline" onclick="event.stopPropagation();assignUnassignedSlot('${className}','${day}',${h+1})">Repartizează…</button>` : ""}
           </div>`;
       }
 
@@ -6227,7 +6276,9 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
 
   if(teacherHasConflictAt(a.teacherId,to.day,to.hour)){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
-    return appMessage(`${teacher?.name||"Profesorul"} are deja oră la altă clasă în acest interval.`,"error");
+    const conflict=teacherConflictDetails(a.teacherId,to.day,to.hour);
+    const cls=conflict?.className ? ` la clasa ${classLabelRomanian(conflict.className)}` : " la altă clasă";
+    return appMessage(`${teacher?.name||"Profesorul"} are deja oră${cls}, ${to.day}, ora ${to.hour}.`,"error",3600);
   }
 
   const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
