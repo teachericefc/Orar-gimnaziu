@@ -6617,8 +6617,13 @@ function openPrintPdfDialog(){
             .map(t=>`<option value="${esc(t.id)}">${esc(t.name||"Profesor")}</option>`).join("")}
         </select>
       </div>
+      <div id="pdfResultArea" style="display:none;margin-top:12px;padding:10px;border:1px solid #bbd7c3;border-radius:10px;background:#f1faf3">
+        <div style="font-weight:900;color:#285c35;margin-bottom:7px">✓ PDF creat</div>
+        <a id="pdfOpenLink" class="btn print-pdf-btn" href="#" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">Deschide PDF</a>
+        <div style="font-size:11px;color:#64748b;margin-top:7px">Pe Android, deschide PDF-ul și folosește apoi butonul de descărcare din vizualizator.</div>
+      </div>
       <div class="print-dialog-actions">
-        <button type="button" class="btn btn-light print-cancel">Anulează</button>
+        <button type="button" class="btn btn-light print-cancel">Închide</button>
         <button type="button" class="btn print-pdf-btn pdf-go">⬇ Descarcă PDF</button>
       </div>
     </div>`;
@@ -6633,9 +6638,20 @@ function openPrintPdfDialog(){
 
   overlay.querySelector("#printClassTab").onclick=()=>setMode("class");
   overlay.querySelector("#printTeacherTab").onclick=()=>setMode("teacher");
-  overlay.querySelector(".print-dialog-close").onclick=()=>overlay.remove();
-  overlay.querySelector(".print-cancel").onclick=()=>overlay.remove();
-  overlay.onclick=e=>{if(e.target===overlay) overlay.remove();};
+  overlay.querySelector(".print-dialog-close").onclick=()=>{
+    overlay.remove();
+    if(lastGeneratedPdfUrl){ URL.revokeObjectURL(lastGeneratedPdfUrl); lastGeneratedPdfUrl=null; }
+  };
+  overlay.querySelector(".print-cancel").onclick=()=>{
+    overlay.remove();
+    if(lastGeneratedPdfUrl){ URL.revokeObjectURL(lastGeneratedPdfUrl); lastGeneratedPdfUrl=null; }
+  };
+  overlay.onclick=e=>{
+    if(e.target===overlay){
+      overlay.remove();
+      if(lastGeneratedPdfUrl){ URL.revokeObjectURL(lastGeneratedPdfUrl); lastGeneratedPdfUrl=null; }
+    }
+  };
 
   overlay.querySelector(".pdf-go").onclick=()=>{
     if(printPdfMode==="class"){
@@ -6715,6 +6731,44 @@ function buildPdfDocument(title,subtitle,head,body){
   return doc;
 }
 
+
+let lastGeneratedPdfUrl=null;
+
+function offerPdfBlob(blob,filename){
+  try{
+    if(lastGeneratedPdfUrl){
+      URL.revokeObjectURL(lastGeneratedPdfUrl);
+      lastGeneratedPdfUrl=null;
+    }
+
+    const url=URL.createObjectURL(blob);
+    lastGeneratedPdfUrl=url;
+
+    const area=document.getElementById("pdfResultArea");
+    const link=document.getElementById("pdfOpenLink");
+    if(area && link){
+      link.href=url;
+      link.download=filename;
+      area.style.display="block";
+    }
+
+    // Încercare de descărcare directă. Pe unele versiuni Chrome Android
+    // atributul download pentru blob este ignorat; linkul vizibil rămâne fallback.
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=filename;
+    a.style.display="none";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+
+    return url;
+  }catch(err){
+    console.error("offerPdfBlob",err);
+    return null;
+  }
+}
+
 function downloadClassSchedulePdf(className){
   try{
     const head=["Ora",...DAYS];
@@ -6746,9 +6800,14 @@ function downloadClassSchedulePdf(className){
     );
     if(!doc) return;
 
-    doc.save(`orar-clasa-${String(className).toLowerCase()}.pdf`);
-    document.getElementById("printDialogOverlay")?.remove();
-    appMessage(`PDF descărcat pentru ${classPrintLabel(className)}.`,"success",1800);
+    const filename=`orar-clasa-${String(className).toLowerCase()}.pdf`;
+    const blob=doc.output("blob");
+    const url=offerPdfBlob(blob,filename);
+    if(url){
+      appMessage(`PDF creat pentru ${classPrintLabel(className)}.`,"success",1800);
+    }else{
+      appMessage("PDF-ul a fost creat, dar browserul nu a putut pregăti descărcarea.","error",3000);
+    }
   }catch(err){
     console.error(err);
     appMessage("Nu am putut crea PDF-ul clasei.","error",3000);
@@ -6799,9 +6858,14 @@ function downloadTeacherSchedulePdf(teacherId){
       .replace(/[^a-z0-9]+/g,"-")
       .replace(/^-|-$/g,"") || "profesor";
 
-    doc.save(`orar-profesor-${safeName}.pdf`);
-    document.getElementById("printDialogOverlay")?.remove();
-    appMessage(`PDF descărcat pentru ${teacher.name||"profesor"}.`,"success",1800);
+    const filename=`orar-profesor-${safeName}.pdf`;
+    const blob=doc.output("blob");
+    const url=offerPdfBlob(blob,filename);
+    if(url){
+      appMessage(`PDF creat pentru ${teacher.name||"profesor"}.`,"success",1800);
+    }else{
+      appMessage("PDF-ul a fost creat, dar browserul nu a putut pregăti descărcarea.","error",3000);
+    }
   }catch(err){
     console.error(err);
     appMessage("Nu am putut crea PDF-ul profesorului.","error",3000);
