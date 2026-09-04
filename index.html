@@ -1433,6 +1433,41 @@
   touch-action:manipulation;
   cursor:pointer;
 }
+
+.teacher-pdf-toolbar{
+  display:flex;
+  justify-content:flex-start;
+  align-items:center;
+  margin:0 0 12px;
+}
+.teacher-pdf-btn{
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  font-weight:800;
+}
+.teacher-pdf-choice{
+  display:grid;
+  gap:10px;
+  margin-top:16px;
+}
+.teacher-pdf-option{
+  display:flex;
+  align-items:flex-start;
+  gap:10px;
+  padding:12px;
+  border:1px solid #dbe3ee;
+  border-radius:12px;
+  background:#f8fafc;
+  cursor:pointer;
+}
+.teacher-pdf-option input{margin-top:3px}
+.teacher-pdf-option strong{display:block;margin-bottom:3px}
+.teacher-pdf-option span{display:block;color:#64748b;font-size:13px}
+.teacher-pdf-select-wrap{margin-top:12px}
+.teacher-pdf-select-wrap select{width:100%;padding:10px;border:1px solid #cbd5e1;border-radius:9px;background:white}
+.teacher-pdf-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:16px;flex-wrap:wrap}
+
 </style>
 </head>
 <body>
@@ -1792,6 +1827,9 @@
         </div>
 
         <div id="teacherSchedulesView" class="timetable-view-pane">
+          <div class="teacher-pdf-toolbar">
+            <button type="button" class="btn btn-light teacher-pdf-btn" onclick="openTeacherPdfModal()">⬇ PDF profesori</button>
+          </div>
           <div id="allTeacherSchedules" class="teacher-schedules-page"></div>
         </div>
       </section>
@@ -7616,13 +7654,197 @@ function openAllClassesPdf(){
       return;
     }
 
-    appMessage("PDF-ul cu cele 4 clase a fost creat.","success",1800);
+    appMessage("PDF-ul cu toate clasele a fost creat.","success",1800);
 
     // Nu revocăm imediat URL-ul, pentru ca vizualizatorul PDF să-l poată încărca.
     setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(err){
     console.error("PDF toate clasele:",err);
     appMessage("Nu am putut crea PDF-ul.","error",3000);
+  }
+}
+
+
+function teacherPdfTeachers(){
+  return (state.teachers||[])
+    .slice()
+    .sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ro"));
+}
+
+function openTeacherPdfModal(){
+  const teachers=teacherPdfTeachers();
+  if(!teachers.length){
+    appMessage("Nu există profesori pentru PDF.","error",2500);
+    return;
+  }
+
+  const modal=document.getElementById("teacherPdfModal");
+  const select=document.getElementById("teacherPdfSelect");
+  if(select){
+    select.innerHTML=teachers.map(t=>`<option value="${esc(t.id)}">${esc(t.name||"Profesor")}</option>`).join("");
+  }
+  const allRadio=document.getElementById("teacherPdfAll");
+  if(allRadio) allRadio.checked=true;
+  updateTeacherPdfMode();
+  if(modal) modal.style.display="flex";
+}
+
+function closeTeacherPdfModal(){
+  const modal=document.getElementById("teacherPdfModal");
+  if(modal) modal.style.display="none";
+}
+
+function updateTeacherPdfMode(){
+  const personalized=!!document.getElementById("teacherPdfOne")?.checked;
+  const wrap=document.getElementById("teacherPdfSelectWrap");
+  if(wrap) wrap.style.display=personalized?"block":"none";
+}
+
+function teacherClassPdfLabel(className){
+  const map={"V":"a V-a","V B":"a V-a B","VI":"a VI-a","VII":"a VII-a","VIII":"a VIII-a"};
+  return map[className]||String(className||"");
+}
+
+function buildTeacherPageStream(teacher){
+  const W=841.89,H=595.28;
+  const margin=34;
+  const titleY=H-42;
+  const subtitleY=titleY-20;
+  const tableTop=H-105;
+  const rows=7; // antet + 6 ore
+  const tableW=W-margin*2;
+  const firstW=72;
+  const dayW=(tableW-firstW)/5;
+  const rowH=58;
+  const tableBottom=tableTop-rowH*rows;
+  const x=[margin];
+  for(let c=1;c<=5;c++) x[c]=margin+firstW+(c-1)*dayW;
+  x[6]=margin+tableW;
+
+  const cmd=[];
+  cmd.push("0 G 0 g");
+  cmd.push("1 w");
+
+  const title=pdfTrim(teacher?.name||"Profesor",70);
+  const subtitle="Scoala Gimnaziala Daneasa - Orar profesor - 2026-2027";
+  cmd.push(`BT /F1 19 Tf ${Math.max(margin,(W-pdfAscii(title).length*8.7)/2).toFixed(2)} ${titleY.toFixed(2)} Td (${pdfEscape(title)}) Tj ET`);
+  cmd.push(`BT /F1 9 Tf ${Math.max(margin,(W-pdfAscii(subtitle).length*4.4)/2).toFixed(2)} ${subtitleY.toFixed(2)} Td (${pdfEscape(subtitle)}) Tj ET`);
+
+  for(let r=0;r<=rows;r++){
+    const y=tableTop-r*rowH;
+    cmd.push(`${margin.toFixed(2)} ${y.toFixed(2)} m ${(margin+tableW).toFixed(2)} ${y.toFixed(2)} l S`);
+  }
+  for(let c=0;c<=6;c++){
+    cmd.push(`${x[c].toFixed(2)} ${tableTop.toFixed(2)} m ${x[c].toFixed(2)} ${tableBottom.toFixed(2)} l S`);
+  }
+
+  function draw(textValue,c,r,fs=10,bold=false){
+    const x1=x[c],x2=x[c+1],w=x2-x1;
+    const line=pdfTrim(textValue,Math.max(4,Math.floor(w/(fs*.53))));
+    const yTop=tableTop-r*rowH;
+    const y=yTop-rowH/2-3;
+    const tx=x1+Math.max(3,(w-line.length*fs*.47)/2);
+    cmd.push(`BT /F1 ${bold?fs+0.5:fs} Tf ${tx.toFixed(2)} ${y.toFixed(2)} Td (${pdfEscape(line||"-")}) Tj ET`);
+  }
+
+  draw("Ora",0,0,9.5,true);
+  DAYS.forEach((d,i)=>draw(d,i+1,0,9.5,true));
+
+  for(let h=0;h<6;h++){
+    draw(String(h+1),0,h+1,10,true);
+    for(let d=0;d<5;d++){
+      const classes=teacherClassesAtHour(teacher.id,d,h);
+      const label=classes.length ? classes.map(teacherClassPdfLabel).join(" / ") : "-";
+      draw(label,d+1,h+1,9.5,classes.length>0);
+    }
+  }
+
+  return cmd.join("\n");
+}
+
+function makeTeacherPdfBlob(teachers){
+  const enc=new TextEncoder();
+  const streams=teachers.map(buildTeacherPageStream);
+  const pageCount=streams.length;
+  const firstPageObj=3;
+  const firstContentObj=firstPageObj+pageCount;
+  const fontObj=firstContentObj+pageCount;
+  const lastObj=fontObj;
+  const objs=[];
+
+  objs[1]="<< /Type /Catalog /Pages 2 0 R >>";
+  const kids=Array.from({length:pageCount},(_,i)=>`${firstPageObj+i} 0 R`).join(" ");
+  objs[2]=`<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>`;
+
+  for(let i=0;i<pageCount;i++){
+    const pageObj=firstPageObj+i;
+    const contentObj=firstContentObj+i;
+    objs[pageObj]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /F1 ${fontObj} 0 R >> >> /Contents ${contentObj} 0 R >>`;
+  }
+  for(let i=0;i<pageCount;i++){
+    const contentObj=firstContentObj+i;
+    const stream=streams[i];
+    objs[contentObj]=`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
+  }
+  objs[fontObj]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+  let pdf="%PDF-1.4\n";
+  const offsets=[0];
+  for(let i=1;i<=lastObj;i++){
+    offsets[i]=enc.encode(pdf).length;
+    pdf+=`${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+  const xref=enc.encode(pdf).length;
+  pdf+=`xref\n0 ${lastObj+1}\n`;
+  pdf+="0000000000 65535 f \n";
+  for(let i=1;i<=lastObj;i++) pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  pdf+=`trailer\n<< /Size ${lastObj+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  return new Blob([enc.encode(pdf)],{type:"application/pdf"});
+}
+
+function safePdfFileName(value){
+  return pdfAscii(value).trim().replace(/[^A-Za-z0-9 _-]+/g,"").replace(/\s+/g," ")||"profesor";
+}
+
+function downloadTeacherPdf(){
+  try{
+    const all=!!document.getElementById("teacherPdfAll")?.checked;
+    const teachers=teacherPdfTeachers();
+    let chosen=[];
+    let fileName="Orar profesori.pdf";
+
+    if(all){
+      chosen=teachers;
+    }else{
+      const id=document.getElementById("teacherPdfSelect")?.value;
+      const teacher=teachers.find(t=>t.id===id);
+      if(!teacher){
+        appMessage("Alege un profesor.","error",2200);
+        return;
+      }
+      chosen=[teacher];
+      fileName=`Orar ${safePdfFileName(teacher.name)}.pdf`;
+    }
+
+    if(!chosen.length){
+      appMessage("Nu există profesori pentru PDF.","error",2200);
+      return;
+    }
+
+    const blob=makeTeacherPdfBlob(chosen);
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download=fileName;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+    closeTeacherPdfModal();
+    appMessage(all ? `PDF creat: ${chosen.length} profesori, câte unul pe pagină.` : "PDF-ul profesorului a fost creat.","success",2600);
+  }catch(err){
+    console.error("PDF profesori:",err);
+    appMessage("Nu am putut crea PDF-ul profesorilor.","error",3000);
   }
 }
 
@@ -7861,6 +8083,11 @@ document.getElementById("availabilityModal")?.addEventListener("click",e=>{
 });
 
 
+document.getElementById("teacherPdfModal")?.addEventListener("click",e=>{
+  if(e.target.id==="teacherPdfModal") closeTeacherPdfModal();
+});
+
+
 document.getElementById("teacherProfileModal")?.addEventListener("click",e=>{
   if(e.target.id==="teacherProfileModal") closeTeacherProfile();
 });
@@ -7878,6 +8105,39 @@ document.addEventListener("DOMContentLoaded",()=>{
 });
 
 </script>
+
+<div id="teacherPdfModal" class="modal-overlay" style="display:none">
+  <div class="modal-card" style="max-width:520px">
+    <div class="modal-head">
+      <div>
+        <h3>PDF orar profesori</h3>
+        <p>Alege dacă descarci toate orarele sau doar orarul unui profesor.</p>
+      </div>
+      <button class="btn" onclick="closeTeacherPdfModal()">✕</button>
+    </div>
+
+    <div class="teacher-pdf-choice">
+      <label class="teacher-pdf-option">
+        <input id="teacherPdfAll" type="radio" name="teacherPdfMode" value="all" checked onchange="updateTeacherPdfMode()">
+        <div><strong>Toți profesorii</strong><span>Un singur PDF, câte un profesor pe fiecare pagină.</span></div>
+      </label>
+      <label class="teacher-pdf-option">
+        <input id="teacherPdfOne" type="radio" name="teacherPdfMode" value="one" onchange="updateTeacherPdfMode()">
+        <div><strong>Personalizat</strong><span>Descarcă doar orarul profesorului ales.</span></div>
+      </label>
+    </div>
+
+    <div id="teacherPdfSelectWrap" class="teacher-pdf-select-wrap" style="display:none">
+      <label><strong>Profesor</strong></label>
+      <select id="teacherPdfSelect"></select>
+    </div>
+
+    <div class="teacher-pdf-actions">
+      <button class="btn btn-light" onclick="closeTeacherPdfModal()">Renunță</button>
+      <button class="btn btn-primary" onclick="downloadTeacherPdf()">⬇ Descarcă PDF</button>
+    </div>
+  </div>
+</div>
 
 <div id="availabilityModal" class="modal-overlay" style="display:none">
   <div class="modal-card">
