@@ -6082,6 +6082,24 @@ function renderTeacherTimetableTokens(){
       return;
     }
 
+    const currentIds=selectedTeacherToken?.assignmentIds||[];
+    const sameSelected=
+      currentIds.length===validIds.length &&
+      currentIds.every((id,i)=>id===validIds[i]);
+
+    if(sameSelected){
+      // Tap/click pe același jeton = deselectare.
+      selectedTeacherToken=null;
+      selectedDisciplineToken=null;
+      box.querySelectorAll(".teacher-assignment-token").forEach(x=>
+        x.classList.remove("token-selected")
+      );
+      markTimetableCellsForTokenSelection();
+      updateTeacherTokenSelectionUI();
+      return;
+    }
+
+    // Tap/click pe alt jeton = selectăm noul jeton și îl deselectăm pe cel vechi.
     selectedTeacherToken={assignmentIds:validIds};
     selectedDisciplineToken=null;
 
@@ -6089,7 +6107,8 @@ function renderTeacherTimetableTokens(){
       const xids=(x.dataset.assignmentIds||"").split(",").filter(Boolean);
       x.classList.toggle(
         "token-selected",
-        JSON.stringify(xids)===JSON.stringify(validIds)
+        xids.length===validIds.length &&
+        xids.every((id,i)=>id===validIds[i])
       );
     });
 
@@ -6097,7 +6116,11 @@ function renderTeacherTimetableTokens(){
     updateTeacherTokenSelectionUI();
   };
 
+  // Evităm dublul eveniment touchend + click pe telefon.
+  let lastTouchSelectionAt=0;
+
   box.onclick=e=>{
+    if(Date.now()-lastTouchSelectionAt<700) return;
     const token=e.target.closest(".teacher-assignment-token:not(.empty)");
     if(!token || !box.contains(token)) return;
     e.preventDefault();
@@ -6110,6 +6133,7 @@ function renderTeacherTimetableTokens(){
     if(!token || !box.contains(token)) return;
     e.preventDefault();
     e.stopPropagation();
+    lastTouchSelectionAt=Date.now();
     selectToken(token);
   };
 
@@ -6356,7 +6380,8 @@ function appConfirm({
   details=[],
   confirmText="Confirmă",
   cancelText="Renunță",
-  danger=false
+  danger=false,
+  singleButton=false
 }={}){
   return new Promise(resolve=>{
     const backdrop=document.getElementById("appConfirmBackdrop");
@@ -6380,6 +6405,7 @@ function appConfirm({
     messageEl.style.display=message ? "" : "none";
     cancelBtn.textContent=cancelText;
     okBtn.textContent=confirmText;
+    cancelBtn.style.display=singleButton ? "none" : "";
 
     detailsEl.innerHTML="";
     const rows=Array.isArray(details) ? details : [];
@@ -6478,7 +6504,7 @@ function showNiceMessage(message,icon){
 }
 
 
-function placeTeacherTokenInTimetable(assignmentIds,to){
+async function placeTeacherTokenInTimetable(assignmentIds,to){
   const ids=Array.isArray(assignmentIds)?assignmentIds:[assignmentIds];
   const candidates=(state.assignments||[]).filter(a=>ids.includes(a.id));
   const a=candidates.find(x=>x.className===to.className);
@@ -6513,8 +6539,29 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   if(teacherHasConflictAt(a.teacherId,to.day,to.hour)){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
     const conflict=teacherConflictDetails(a.teacherId,to.day,to.hour);
-    const cls=conflict?.className ? ` la clasa ${classLabelRomanian(conflict.className)}` : " la altă clasă";
-    return appMessage(`${teacher?.name||"Profesorul"} are deja oră${cls}, ${to.day}, ora ${to.hour}.`,"error",3600);
+    const conflictClass=conflict?.className
+      ? classLabelRomanian(conflict.className)
+      : "altă clasă";
+    const conflictSubject=
+      conflict?.slot?.subject ||
+      conflict?.slot?.subjectName ||
+      (state.subjects||[]).find(s=>s.id===conflict?.slot?.subjectId)?.name ||
+      "—";
+
+    await appConfirm({
+      title:"Profesorul este deja ocupat",
+      message:"Nu poți repartiza profesorul la două clase în aceeași oră.",
+      icon:"⚠️",
+      confirmText:"Am înțeles",
+      singleButton:true,
+      details:[
+        {label:"Profesor",value:teacher?.name||"Profesor"},
+        {label:"Are deja",value:conflictClass},
+        {label:"Disciplina",value:conflictSubject},
+        {label:"Când",value:`${to.day}, ora ${to.hour}`}
+      ]
+    });
+    return false;
   }
 
   const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
@@ -6541,7 +6588,7 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   invalidateFinalSchedule();
   save();
 
-  // Clear tap selection only after a successful placement.
+  // Profesorul rămâne selectat după plasare pentru repartizări succesive.
   draggedTeacherToken=null;
 
   renderTimetable();
