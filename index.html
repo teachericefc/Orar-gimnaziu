@@ -1310,7 +1310,7 @@
 <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
       <button class="nav-btn" data-target="subjects">📚 Discipline</button>
       <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
-      <button type="button" class="nav-btn nav-print-pdf" onclick="openPrintPdfDialog()">⬇ Descarcă PDF</button>
+      <button type="button" class="nav-btn nav-print-pdf" onclick="openAllClassesPdf()">⬇ PDF toate clasele</button>
     </aside>
 
     <main>
@@ -6051,7 +6051,7 @@ function renderFinalScheduleStatus(){
       <div>${formatFinalizedDate(state.finalSchedule.finalizedAt)}</div>
       ${notes.length ? `<div class="muted" style="margin-top:6px">Situații rămase: ${notes.join(" · ")}</div>` : `<div class="muted" style="margin-top:6px">Toate orele sunt repartizate.</div>`}
       <div class="final-actions">
-        <button onclick="openPrintPdfDialog()">⬇ Descarcă PDF</button>
+        <button onclick="openAllClassesPdf()">⬇ Descarcă PDF</button>
         <button onclick="reopenFinalSchedule()">Redeschide pentru modificări</button>
       </div>
     </div>`;
@@ -6587,98 +6587,21 @@ function classPrintLabel(className){
   return labels[className] || `Clasa ${className}`;
 }
 
-function openPrintPdfDialog(){
-  const old=document.getElementById("printDialogOverlay");
-  if(old) old.remove();
 
-  const overlay=document.createElement("div");
-  overlay.id="printDialogOverlay";
-  overlay.className="print-dialog-overlay";
-  overlay.innerHTML=`
-    <div class="print-dialog">
-      <div class="print-dialog-head">
-        <h3>Descarcă PDF</h3>
-        <button type="button" class="print-dialog-close" aria-label="Închide">×</button>
-      </div>
-      <div class="print-kind-tabs">
-        <button id="printClassTab" type="button" class="active">Orar clasă</button>
-        <button id="printTeacherTab" type="button">Orar profesor</button>
-      </div>
-      <div id="printClassChoice">
-        <select id="printClassSelect">
-          ${CLASSES.map(c=>`<option value="${c}">${classPrintLabel(c)}</option>`).join("")}
-        </select>
-      </div>
-      <div id="printTeacherChoice" hidden>
-        <select id="printTeacherSelect">
-          ${(state.teachers||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ro"))
-            .map(t=>`<option value="${esc(t.id)}">${esc(t.name||"Profesor")}</option>`).join("")}
-        </select>
-      </div>
-      <div id="pdfResultArea" style="display:none;margin-top:12px;padding:10px;border:1px solid #bbd7c3;border-radius:10px;background:#f1faf3">
-        <div style="font-weight:900;color:#285c35;margin-bottom:7px">✓ PDF creat</div>
-        <iframe id="pdfPreviewFrame" title="Previzualizare PDF" style="width:100%;height:300px;border:1px solid #cbd5e1;border-radius:8px;background:#fff"></iframe>
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:9px">
-          <button id="pdfNativeSaveBtn" type="button" class="btn print-pdf-btn">⬇ Salvează / distribuie PDF</button>
-          <a id="pdfOpenLink" class="btn btn-light" href="#" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">Deschide separat</a>
-        </div>
-        <div id="pdfResultInfo" style="font-size:11px;color:#64748b;margin-top:7px"></div>
-      </div>
-      <div class="print-dialog-actions">
-        <button type="button" class="btn btn-light print-cancel">Închide</button>
-        <button type="button" class="btn print-pdf-btn pdf-go">⬇ Descarcă PDF</button>
-      </div>
-    </div>`;
-
-  const setMode=mode=>{
-    printPdfMode=mode;
-    overlay.querySelector("#printClassTab").classList.toggle("active",mode==="class");
-    overlay.querySelector("#printTeacherTab").classList.toggle("active",mode==="teacher");
-    overlay.querySelector("#printClassChoice").hidden=mode!=="class";
-    overlay.querySelector("#printTeacherChoice").hidden=mode!=="teacher";
+function classPrintLabel(className){
+  const labels={
+    V:"Clasa a V-a",
+    VI:"Clasa a VI-a",
+    VII:"Clasa a VII-a",
+    VIII:"Clasa a VIII-a"
   };
-
-  overlay.querySelector("#printClassTab").onclick=()=>setMode("class");
-  overlay.querySelector("#printTeacherTab").onclick=()=>setMode("teacher");
-  overlay.querySelector(".print-dialog-close").onclick=()=>{
-    overlay.remove();
-    if(lastGeneratedPdfUrl){ URL.revokeObjectURL(lastGeneratedPdfUrl); lastGeneratedPdfUrl=null; lastGeneratedPdfFile=null; }
-  };
-  overlay.querySelector(".print-cancel").onclick=()=>{
-    overlay.remove();
-    if(lastGeneratedPdfUrl){ URL.revokeObjectURL(lastGeneratedPdfUrl); lastGeneratedPdfUrl=null; lastGeneratedPdfFile=null; }
-  };
-  overlay.onclick=e=>{
-    if(e.target===overlay){
-      overlay.remove();
-      if(lastGeneratedPdfUrl){ URL.revokeObjectURL(lastGeneratedPdfUrl); lastGeneratedPdfUrl=null; lastGeneratedPdfFile=null; }
-    }
-  };
-
-  overlay.querySelector(".pdf-go").onclick=()=>{
-    if(printPdfMode==="class"){
-      const className=overlay.querySelector("#printClassSelect")?.value;
-      if(className) downloadClassSchedulePdf(className);
-    }else{
-      const teacherId=overlay.querySelector("#printTeacherSelect")?.value;
-      if(!teacherId){
-        appMessage("Nu există niciun profesor selectat.","error",2000);
-        return;
-      }
-      downloadTeacherSchedulePdf(teacherId);
-    }
-  };
-
-  document.body.appendChild(overlay);
+  return labels[className] || `Clasa ${className}`;
 }
 
 function printHourLabel(hour){
   const info=informationalHourRange(hour);
-  return `${hour}. ${info.start}–${info.end}`;
+  return `${hour}. ${info.start}-${info.end}`;
 }
-
-
-
 
 function pdfAscii(value){
   return String(value ?? "")
@@ -6704,17 +6627,19 @@ function pdfTrim(value,maxChars){
   return s.slice(0,Math.max(1,maxChars-3))+"...";
 }
 
-function makeSimpleSchedulePdf(title,subtitle,headers,rows){
+function buildClassPageStream(className){
   const W=841.89, H=595.28;
   const margin=28;
-  const titleY=H-34;
-  const tableTop=H-90;
+  const titleY=H-32;
+  const tableTop=H-86;
+  const hours=classDisplayHours(className);
+  const headers=["Ora",...DAYS];
   const cols=headers.length;
-  const firstW=88;
+  const firstW=86;
   const tableW=W-margin*2;
   const otherW=(tableW-firstW)/(cols-1);
-  const totalRows=rows.length+1;
-  const rowH=Math.min(54,Math.max(34,(tableTop-38)/Math.max(1,totalRows)));
+  const totalRows=hours+1;
+  const rowH=Math.min(54,Math.max(34,(tableTop-34)/Math.max(1,totalRows)));
   const tableBottom=tableTop-rowH*totalRows;
 
   const x=[margin];
@@ -6725,13 +6650,12 @@ function makeSimpleSchedulePdf(title,subtitle,headers,rows){
   cmd.push("0 G 0 g");
   cmd.push("1 w");
 
-  // title/subtitle
-  const t=pdfEscape(title);
-  const st=pdfEscape(subtitle);
-  cmd.push(`BT /F1 17 Tf ${Math.max(margin,(W-pdfAscii(title).length*8)/2).toFixed(2)} ${titleY.toFixed(2)} Td (${t}) Tj ET`);
-  cmd.push(`BT /F1 9 Tf ${Math.max(margin,(W-pdfAscii(subtitle).length*4.5)/2).toFixed(2)} ${(titleY-22).toFixed(2)} Td (${st}) Tj ET`);
+  const title=classPrintLabel(className);
+  const subtitle="Scoala Gimnaziala Daneasa - Orar 2026-2027";
 
-  // grid
+  cmd.push(`BT /F1 18 Tf ${Math.max(margin,(W-pdfAscii(title).length*8.3)/2).toFixed(2)} ${titleY.toFixed(2)} Td (${pdfEscape(title)}) Tj ET`);
+  cmd.push(`BT /F1 9 Tf ${Math.max(margin,(W-pdfAscii(subtitle).length*4.4)/2).toFixed(2)} ${(titleY-21).toFixed(2)} Td (${pdfEscape(subtitle)}) Tj ET`);
+
   for(let r=0;r<=totalRows;r++){
     const y=tableTop-r*rowH;
     cmd.push(`${margin.toFixed(2)} ${y.toFixed(2)} m ${(margin+tableW).toFixed(2)} ${y.toFixed(2)} l S`);
@@ -6740,246 +6664,123 @@ function makeSimpleSchedulePdf(title,subtitle,headers,rows){
     cmd.push(`${x[c].toFixed(2)} ${tableTop.toFixed(2)} m ${x[c].toFixed(2)} ${tableBottom.toFixed(2)} l S`);
   }
 
-  function cellText(main,sub,c,r,bold=false){
+  function drawCell(main,sub,c,r,bold=false){
     const x1=x[c], x2=x[c+1], w=x2-x1;
-    const fs=bold?9.5:8.5;
-    const maxChars=Math.max(5,Math.floor(w/(fs*0.52)));
+    const fs=bold?9.5:8.6;
+    const maxChars=Math.max(5,Math.floor(w/(fs*.52)));
     const line1=pdfTrim(main,maxChars);
     const hasSub=!!String(sub||"").trim();
     const yTop=tableTop-r*rowH;
     const y1=yTop-rowH/2+(hasSub?6:-3);
-    const est1=line1.length*fs*.47;
-    const tx1=x1+Math.max(3,(w-est1)/2);
+    const tx1=x1+Math.max(3,(w-line1.length*fs*.47)/2);
+
     cmd.push(`BT /F1 ${fs} Tf ${tx1.toFixed(2)} ${y1.toFixed(2)} Td (${pdfEscape(line1||"-")}) Tj ET`);
 
     if(hasSub){
       const fs2=7.2;
       const line2=pdfTrim(sub,Math.max(5,Math.floor(w/(fs2*.52))));
-      const est2=line2.length*fs2*.47;
-      const tx2=x1+Math.max(3,(w-est2)/2);
+      const tx2=x1+Math.max(3,(w-line2.length*fs2*.47)/2);
       cmd.push(`BT /F1 ${fs2} Tf ${tx2.toFixed(2)} ${(y1-13).toFixed(2)} Td (${pdfEscape(line2)}) Tj ET`);
     }
   }
 
-  headers.forEach((h,c)=>cellText(h,"",c,0,true));
-  rows.forEach((row,ri)=>{
-    row.forEach((cell,c)=>{
-      if(cell && typeof cell==="object") cellText(cell.main||"-",cell.sub||"",c,ri+1,c===0);
-      else cellText(cell||"-","",c,ri+1,c===0);
-    });
-  });
+  headers.forEach((h,c)=>drawCell(h,"",c,0,true));
 
-  const stream=cmd.join("\n");
+  for(let h=1;h<=hours;h++){
+    drawCell(printHourLabel(h),"",0,h,true);
+
+    for(let d=0;d<DAYS.length;d++){
+      const slot=state.timetable?.[className]?.[`${d}-${h-1}`];
+      if(!slot){
+        drawCell("-","",d+1,h,false);
+        continue;
+      }
+
+      const subject=slot.subject ||
+        (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+        "Disciplina";
+
+      const teacher=slot.unassigned
+        ? "Profesor neatribuit"
+        : (slot.teacher || solverTeacherName(slot.teacherId));
+
+      drawCell(subject,teacher,d+1,h,false);
+    }
+  }
+
+  return cmd.join("\n");
+}
+
+function makeAllClassesPdfBlob(){
   const enc=new TextEncoder();
+  const streams=CLASSES.map(buildClassPageStream);
 
+  // Object layout:
+  // 1 Catalog
+  // 2 Pages
+  // 3-6 Page objects
+  // 7-10 Content streams
+  // 11 Font
   const objs=[];
   objs[1]="<< /Type /Catalog /Pages 2 0 R >>";
-  objs[2]="<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
-  objs[3]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`;
-  objs[4]=`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
-  objs[5]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  objs[2]="<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>";
+
+  for(let i=0;i<4;i++){
+    const pageObj=3+i;
+    const contentObj=7+i;
+    objs[pageObj]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /F1 11 0 R >> >> /Contents ${contentObj} 0 R >>`;
+  }
+
+  for(let i=0;i<4;i++){
+    const contentObj=7+i;
+    const stream=streams[i];
+    objs[contentObj]=`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
+  }
+
+  objs[11]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
 
   let pdf="%PDF-1.4\n";
   const offsets=[0];
 
-  for(let i=1;i<=5;i++){
+  for(let i=1;i<=11;i++){
     offsets[i]=enc.encode(pdf).length;
     pdf+=`${i} 0 obj\n${objs[i]}\nendobj\n`;
   }
 
   const xref=enc.encode(pdf).length;
-  pdf+="xref\n0 6\n";
+  pdf+="xref\n0 12\n";
   pdf+="0000000000 65535 f \n";
-  for(let i=1;i<=5;i++) pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
-  pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+  for(let i=1;i<=11;i++){
+    pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  }
+  pdf+=`trailer\n<< /Size 12 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
 
   return new Blob([enc.encode(pdf)],{type:"application/pdf"});
 }
 
-
-let lastGeneratedPdfUrl=null;
-let lastGeneratedPdfFile=null;
-
-async function saveOrShareGeneratedPdf(){
-  if(!lastGeneratedPdfFile){
-    appMessage("Mai întâi creează PDF-ul.","error",2200);
-    return;
-  }
-
+function openAllClassesPdf(){
   try{
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[lastGeneratedPdfFile]})){
-      await navigator.share({
-        files:[lastGeneratedPdfFile],
-        title:lastGeneratedPdfFile.name,
-        text:"Orar PDF"
-      });
-      return;
-    }
-  }catch(err){
-    if(err?.name==="AbortError") return;
-    console.warn("Partajare PDF:",err);
-  }
+    const blob=makeAllClassesPdfBlob();
+    const url=URL.createObjectURL(blob);
 
-  // Fallback desktop / browsere care nu au Web Share pentru fișiere.
-  try{
-    const a=document.createElement("a");
-    a.href=lastGeneratedPdfUrl;
-    a.download=lastGeneratedPdfFile.name;
-    a.style.display="none";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  }catch(err){
-    console.error("Salvare PDF:",err);
-    appMessage("Browserul nu permite salvarea directă. Folosește „Deschide separat”.","error",3000);
-  }
-}
+    // Deschidem direct PDF-ul în browser. De acolo poate fi salvat/imprimat.
+    const opened=window.open(url,"_blank");
 
-function showGeneratedPdf(blob,filename){
-  if(lastGeneratedPdfUrl){
-    URL.revokeObjectURL(lastGeneratedPdfUrl);
-    lastGeneratedPdfUrl=null;
-  }
-
-  const file=new File([blob],filename,{type:"application/pdf"});
-  const url=URL.createObjectURL(file);
-  lastGeneratedPdfUrl=url;
-  lastGeneratedPdfFile=file;
-
-  const area=document.getElementById("pdfResultArea");
-  const link=document.getElementById("pdfOpenLink");
-  const frame=document.getElementById("pdfPreviewFrame");
-  const saveBtn=document.getElementById("pdfNativeSaveBtn");
-  const info=document.getElementById("pdfResultInfo");
-
-  if(area) area.style.display="block";
-  if(link){
-    link.href=url;
-    link.download=filename;
-  }
-  if(frame) frame.src=url;
-  if(saveBtn) saveBtn.onclick=saveOrShareGeneratedPdf;
-  if(info){
-    const kb=Math.max(1,Math.round(file.size/1024));
-    info.textContent=`Fișier: ${filename} • ${kb} KB`;
-  }
-
-  return url;
-}
-
-function downloadClassSchedulePdf(className){
-  try{
-    const hours=classDisplayHours(className);
-    const headers=["Ora",...DAYS];
-    const rows=[];
-
-    for(let h=1;h<=hours;h++){
-      const row=[{main:printHourLabel(h)}];
-      for(let d=0;d<DAYS.length;d++){
-        const slot=state.timetable?.[className]?.[`${d}-${h-1}`];
-        if(!slot){
-          row.push({main:"-"});
-          continue;
-        }
-
-        const subject=slot.subject ||
-          (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
-          "Disciplina";
-        const teacher=slot.unassigned
-          ? "Profesor neatribuit"
-          : (slot.teacher || solverTeacherName(slot.teacherId));
-
-        row.push({main:subject,sub:teacher});
-      }
-      rows.push(row);
-    }
-
-    const blob=makeSimpleSchedulePdf(
-      classPrintLabel(className),
-      "Scoala Gimnaziala Daneasa - Orar 2026-2027",
-      headers,
-      rows
-    );
-
-    showGeneratedPdf(blob,`orar-clasa-${String(className).toLowerCase()}.pdf`);
-    appMessage(`PDF creat pentru ${classPrintLabel(className)}.`,"success",1800);
-  }catch(err){
-    console.error("PDF clasa:",err);
-    appMessage("Nu am putut crea PDF-ul clasei.","error",3000);
-  }
-}
-
-function downloadTeacherSchedulePdf(teacherId){
-  try{
-    const teacher=(state.teachers||[]).find(t=>t.id===teacherId);
-    if(!teacher){
-      appMessage("Profesorul nu mai există.","error",2000);
+    if(!opened){
+      // Dacă browserul blochează tabul nou, deschidem în aceeași filă.
+      window.location.href=url;
       return;
     }
 
-    let maxHour=6;
-    for(let d=0;d<DAYS.length;d++){
-      for(let h=0;h<10;h++){
-        if(teacherSlotAt(teacherId,d,h)) maxHour=Math.max(maxHour,h+1);
-      }
-    }
+    appMessage("PDF-ul cu cele 4 clase a fost creat.","success",1800);
 
-    const headers=["Ora",...DAYS];
-    const rows=[];
-
-    for(let h=1;h<=maxHour;h++){
-      const row=[{main:printHourLabel(h)}];
-
-      for(let d=0;d<DAYS.length;d++){
-        const found=teacherSlotAt(teacherId,d,h-1);
-        if(!found){
-          row.push({main:"-"});
-          continue;
-        }
-
-        const subject=found.slot.subject ||
-          (state.subjects||[]).find(s=>s.id===found.slot.subjectId)?.name ||
-          "";
-
-        row.push({
-          main:classPrintLabel(found.className),
-          sub:subject
-        });
-      }
-
-      rows.push(row);
-    }
-
-    const safeName=pdfAscii(teacher.name||"profesor")
-      .trim().toLowerCase()
-      .replace(/[^a-z0-9]+/g,"-")
-      .replace(/^-|-$/g,"") || "profesor";
-
-    const blob=makeSimpleSchedulePdf(
-      teacher.name||"Profesor",
-      "Orar profesor - Scoala Gimnaziala Daneasa - 2026-2027",
-      headers,
-      rows
-    );
-
-    showGeneratedPdf(blob,`orar-profesor-${safeName}.pdf`);
-    appMessage(`PDF creat pentru ${teacher.name||"profesor"}.`,"success",1800);
+    // Nu revocăm imediat URL-ul, pentru ca vizualizatorul PDF să-l poată încărca.
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
   }catch(err){
-    console.error("PDF profesor:",err);
-    appMessage("Nu am putut crea PDF-ul profesorului.","error",3000);
+    console.error("PDF toate clasele:",err);
+    appMessage("Nu am putut crea PDF-ul.","error",3000);
   }
 }
-
-function teacherSlotAt(teacherId,dayIndex,hourIndex){
-  for(const className of CLASSES){
-    const slot=state.timetable?.[className]?.[`${dayIndex}-${hourIndex}`];
-    if(slot && !slot.unassigned && slot.teacherId===teacherId){
-      return {className,slot};
-    }
-  }
-  return null;
-}
-
 
 function verifyTimetable(){
   const issues=[], stats={};
