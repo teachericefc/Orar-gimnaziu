@@ -1636,14 +1636,14 @@
 
           <div class="card rule-card preference-rule">
             <div class="rule-type">GENERARE PERMISĂ</div>
-            <h3>Ore de profesor rămase neatribuite</h3>
-            <p>Dacă generatorul nu poate plasa toate orele prevăzute în încadrarea unui profesor, orarul se generează totuși. Pe jetonul profesorului rămâne afișat numărul de ore neatribuite, inclusiv disciplina și clasa, pentru ca directorul să știe exact ce mai trebuie introdus manual.</p>
+            <h3>Ore de profesor rămase nerepartizate</h3>
+            <p>Dacă generatorul nu poate plasa toate orele prevăzute în încadrarea unui profesor, orarul se generează totuși. Pe jetonul profesorului rămâne afișat numărul de ore nerepartizate, inclusiv disciplina și clasa, pentru ca directorul să știe exact ce mai trebuie introdus manual.</p>
           </div>
 
           <div class="card rule-card preference-rule">
             <div class="rule-type">GENERARE PERMISĂ</div>
             <h3>Ore neacoperite de profesori</h3>
-            <p>Lipsa profesorilor pentru toate orele prevăzute nu blochează generarea. Orele fără profesor rămân marcate „neatribuite”, iar aplicația afișează câte ore libere au rămas la fiecare clasă. Ele pot fi atribuite ulterior.</p>
+            <p>Lipsa profesorilor pentru toate orele prevăzute nu blochează generarea. Orele fără profesor rămân marcate „nerepartizate”, iar aplicația afișează câte ore libere au rămas la fiecare clasă. Ele pot fi repartizate ulterior.</p>
           </div>
 
           <div class="card rule-card preference-rule">
@@ -2602,7 +2602,7 @@ function ensureWholeClassSubjectAssignment(subjectName,className,teacherId,hours
   if(other){
     return {
       ok:false,
-      message:`${subjectName} la clasa ${className} este deja atribuită integral profesorului ${other.name}.`
+      message:`${subjectName} la clasa ${className} este deja repartizată integral profesorului ${other.name}.`
     };
   }
 
@@ -3046,7 +3046,7 @@ function saveSubjectClassPanel(className){
   });
 
   if(conflicts.length){
-    appMessage("Nu pot debifa aceste discipline deoarece sunt deja atribuite unui profesor: "+conflicts.join(", "),"error");
+    appMessage("Nu pot debifa aceste discipline deoarece sunt deja repartizate unui profesor: "+conflicts.join(", "),"error");
     renderSubjects();
     return;
   }
@@ -3571,7 +3571,7 @@ function updateProfileAssignment(assignmentId,field,value){
   }else if(field==="className"){
     const owner=assignmentOwnerForSubjectClass(a.subjectName||"",value,currentTeacherProfileId);
     if(owner){
-      appMessage(`${a.subjectName} la clasa ${value} este deja atribuită integral profesorului ${owner.name}.`,"error");
+      appMessage(`${a.subjectName} la clasa ${value} este deja repartizată integral profesorului ${owner.name}.`,"error");
       return renderTeacherProfileAssignments();
     }
     a.className=value;
@@ -3583,7 +3583,7 @@ function updateProfileAssignment(assignmentId,field,value){
 
     const owner=assignmentOwnerForSubjectClass(clean,a.className,currentTeacherProfileId);
     if(owner){
-      appMessage(`${clean} la clasa ${a.className} este deja atribuită integral profesorului ${owner.name}.`,"error");
+      appMessage(`${clean} la clasa ${a.className} este deja repartizată integral profesorului ${owner.name}.`,"error");
       return renderTeacherProfileAssignments();
     }
 
@@ -4059,7 +4059,7 @@ function validateBeforeGeneration(){
   if(!lockedCheck.ok) errors.push(lockedCheck.message);
 
   // Missing teacher coverage is allowed. The generator will leave those
-  // curriculum periods as "Profesor neatribuit".
+  // curriculum periods as "Profesor nerepartizat".
   CLASSES.forEach(className=>{
     const required=requiredHoursForClass(className);
     const covered=(state.assignments||[])
@@ -4067,7 +4067,7 @@ function validateBeforeGeneration(){
       .reduce((sum,a)=>sum+Number(a.hours||0),0);
 
     if(required>covered){
-      warnings.push(`Clasa ${className}: ${required-covered}h nu sunt încă acoperite de profesori. Vor putea rămâne neatribuite după generare.`);
+      warnings.push(`Clasa ${className}: ${required-covered}h nu sunt încă acoperite de profesori. Vor putea rămâne nerepartizate după generare.`);
     }
   });
 
@@ -4813,7 +4813,7 @@ function renderFreeHoursBanner(className){
 
   const free=classUnassignedHours(className);
   if(free>0){
-    box.innerHTML=`<div class="free-hours-banner">⚠️ Au rămas ${free}h libere în orar, clasa ${escapeHtml(className)}. Aceste ore pot fi atribuite și după generare.</div>`;
+    box.innerHTML=`<div class="free-hours-banner">⚠️ Au rămas ${free}h libere în orar, clasa ${escapeHtml(className)}. Aceste ore pot fi repartizate și după generare.</div>`;
   }else{
     box.innerHTML="";
   }
@@ -4838,7 +4838,7 @@ function assignUnassignedSlot(className,day,hour){
     String(a.subjectName||"").trim().toLocaleLowerCase("ro")===cleanSubject
   );
 
-  // Dacă disciplina nu a fost încă atribuită, o putem atribui direct de aici
+  // Dacă disciplina nu a fost încă repartizată, o putem atribui direct de aici
   // oricărui profesor existent. Dacă există deja o atribuire, păstrăm profesorul
   // acelei atribuiri pentru a evita împărțirea accidentală a disciplinei.
   const choices=existingAssignments.length
@@ -4864,7 +4864,7 @@ function assignUnassignedSlot(className,day,hour){
 
   box.innerHTML=`<div class="app-message-icon">👤</div>
     <div>Atribuie <b>${esc(subjectName||"disciplina")}</b> — clasa ${esc(classLabelRomanian(className))}</div>
-    <div style="margin-top:5px;font-size:12px;opacity:.78">Profesorul ales va primi disciplina la această clasă, iar orele deja puse în orar fără profesor vor fi atribuite automat.</div>
+    <div style="margin-top:5px;font-size:12px;opacity:.78">Profesorul ales va primi disciplina la această clasă, iar orele deja puse în orar fără profesor vor fi repartizate automat.</div>
     <div class="assign-teacher-list"></div>`;
   const list=box.querySelector(".assign-teacher-list");
 
@@ -4911,7 +4911,7 @@ function assignUnassignedSlot(className,day,hour){
         const result=ensureWholeClassSubjectAssignment(subjectName,className,teacher.id,hours);
         if(!result.ok){
           overlay.remove();
-          return appMessage(result.message||"Disciplina nu a putut fi atribuită.","error",3600);
+          return appMessage(result.message||"Disciplina nu a putut fi repartizată.","error",3600);
         }
         assignment=(state.assignments||[]).find(a=>
           a.teacherId===teacher.id && a.className===className &&
@@ -4937,7 +4937,7 @@ function assignUnassignedSlot(className,day,hour){
       renderTeachers();
       renderGlobalHoursSummary();
       showPlacementSuccess({className,day,hour:Number(hour)});
-      appMessage(`${subjectName} la clasa ${classLabelRomanian(className)} a fost atribuită profesorului ${teacher.name}.`,"success",2200);
+      appMessage(`${subjectName} la clasa ${classLabelRomanian(className)} a fost repartizată profesorului ${teacher.name}.`,"success",2200);
     };
     list.appendChild(btn);
   });
@@ -5489,7 +5489,7 @@ function renderSingleClassTimetable(className){
           (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
           "Disciplină";
         const teacher=slot.unassigned
-          ? "Profesor neatribuit"
+          ? "Profesor nerepartizat"
           : (slot.teacher || solverTeacherName(slot.teacherId));
 
         content=`
@@ -5673,8 +5673,8 @@ function renderTeacherTimetableTokens(){
             <span>${contract}h încadrare</span>
             ${extra>0?`<span class="teacher-extra-hours">+${extra}h</span>`:""}
           </div>
-          <div class="teacher-prof-scheduled">${scheduled}h atribuite</div>
-          ${unplaced>0?`<div><span class="teacher-unassigned-hours">${unplaced}h ${unplaced===1?"neatribuită":"neatribuite"}</span></div>`:""}
+          <div class="teacher-prof-scheduled">${scheduled}h repartizate</div>
+          ${unplaced>0?`<div><span class="teacher-unassigned-hours">${unplaced}h ${unplaced===1?"nerepartizată":"nerepartizate"}</span></div>`:""}
           ${toComplete>0?`<span class="teacher-prof-complete">${toComplete}h de completat</span>`:""}
         </div>
       </div>
@@ -5682,31 +5682,44 @@ function renderTeacherTimetableTokens(){
     </div>`;
   }).join("");
 
+  // Selecție robustă prin click/tap, inclusiv după orice rerandare.
+  box.onclick=e=>{
+    const token=e.target.closest(".teacher-assignment-token:not(.empty)");
+    if(!token || !box.contains(token)) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
+    if(!ids.length) return;
+
+    selectedTeacherToken={assignmentIds:ids};
+    selectedDisciplineToken=null;
+
+    // Actualizăm doar starea vizuală; nu reconstruim imediat panoul,
+    // astfel încât selecția să nu se piardă pe telefon.
+    box.querySelectorAll(".teacher-assignment-token").forEach(x=>
+      x.classList.toggle(
+        "token-selected",
+        JSON.stringify((x.dataset.assignmentIds||"").split(",").filter(Boolean))===JSON.stringify(ids)
+      )
+    );
+
+    renderDisciplineTimetableTokens();
+    markTimetableCellsForTokenSelection();
+    updateTeacherTokenSelectionUI();
+  };
+
+  box.onkeydown=e=>{
+    if(e.key!=="Enter" && e.key!==" ") return;
+    const token=e.target.closest(".teacher-assignment-token:not(.empty)");
+    if(!token || !box.contains(token)) return;
+    e.preventDefault();
+    token.click();
+  };
+
   box.querySelectorAll(".teacher-assignment-token:not(.empty)").forEach(token=>{
     const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
-
-    const selectToken=()=>{
-      if(!ids.length) return;
-      selectedTeacherToken={assignmentIds:ids};
-      selectedDisciplineToken=null;
-      renderTeacherTimetableTokens();
-      renderDisciplineTimetableTokens();
-      markTimetableCellsForTokenSelection();
-    };
-
-    token.onclick=e=>{
-      e.preventDefault();
-      e.stopPropagation();
-      selectToken();
-    };
-
-    token.onkeydown=e=>{
-      if(e.key==="Enter" || e.key===" "){
-        e.preventDefault();
-        selectToken();
-      }
-    };
-
     token.setAttribute("draggable","true");
     token.ondragstart=e=>{
       selectedDisciplineToken=null;
@@ -5892,7 +5905,7 @@ function placeDisciplineTokenInTimetable(subjectName,to){
   setNestedSlot(to.className,to.day,to.hour,{
     subject:subjectName,
     subjectId:subject.id,
-    teacher:"Profesor neatribuit",
+    teacher:"Profesor nerepartizat",
     teacherId:null,
     className:to.className,
     day:to.day,
@@ -5925,8 +5938,8 @@ function markTimetableCellsForTokenSelection(){
     }
     if(hint){
       hint.textContent=selectedTeacherToken
-        ? "Profesor selectat — apasă succesiv pe orele libere pentru a-i așeza programul."
-        : "Disciplină selectată — apasă succesiv pe orele libere; profesorul poate fi atribuit mai târziu.";
+        ? "Profesor selectat — apasă succesiv pe orele libere pentru a-l repartiza în orar."
+        : "Disciplină selectată — apasă succesiv pe orele libere; profesorul poate fi repartizat mai târziu.";
     }
   }else if(hint){
     hint.remove();
@@ -6048,6 +6061,8 @@ function placeTeacherTokenInTimetable(assignmentIds,to){
   renderDisciplineTimetableTokens();
   renderTeachers();
   renderGlobalHoursSummary();
+  markTimetableCellsForTokenSelection();
+  updateTeacherTokenSelectionUI();
   showPlacementSuccess(to);
 }
 
@@ -6887,7 +6902,7 @@ function disciplineTokenInventory(){
           subjectId:subject?.id||null,
           subject:subjectName,
           teacherId:null,
-          teacher:"Profesor neatribuit",
+          teacher:"Profesor nerepartizat",
           unassigned:true
         });
       }
@@ -7386,7 +7401,7 @@ function buildClassPageStream(className){
         "Disciplina";
 
       const teacher=slot.unassigned
-        ? "Profesor neatribuit"
+        ? "Profesor nerepartizat"
         : (slot.teacher || solverTeacherName(slot.teacherId));
 
       drawCell(subject,teacher,d+1,h,false);
