@@ -1220,6 +1220,10 @@
 @media(max-width:760px){.verify-grid{grid-template-columns:repeat(2,1fr)}.history-controls{flex-wrap:wrap!important}}
 
 
+.nav-print-pdf{
+  margin-top:8px!important;
+  border-top:1px solid rgba(148,163,184,.35)!important;
+}
 .print-pdf-btn{
   border:1px solid #c7b58a!important;
   border-radius:12px!important;
@@ -1386,6 +1390,7 @@
 <button class="nav-btn" data-target="teachers">👩‍🏫 Profesori</button>
       <button class="nav-btn" data-target="subjects">📚 Discipline</button>
       <button class="nav-btn" data-target="constraints">⚙️ Constrângeri</button>
+      <button type="button" class="nav-btn nav-print-pdf" onclick="openPrintPdfDialog()">🖨️ Print / PDF</button>
     </aside>
 
     <main>
@@ -1677,7 +1682,6 @@
               <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
               <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
             </div>
-            <button class="btn print-pdf-btn" onclick="openPrintPdfDialog()">🖨 Print / PDF</button>
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
         </div>
@@ -1685,8 +1689,8 @@
           <div id="allClassTimetables" class="all-class-timetables"></div>
           <aside class="card teacher-token-panel">
             <div class="token-panel-tabs">
-              <button type="button" id="teacherTokenTabBtn" class="token-panel-tab active" onclick="switchTimetableTokenTab('teachers')">🧩 Profesori</button>
-              <button type="button" id="disciplineTokenTabBtn" class="token-panel-tab" onclick="switchTimetableTokenTab('disciplines')">📚 Discipline</button>
+              <button type="button" id="teacherTokenTabBtn" class="token-panel-tab active" role="tab" aria-selected="true" onclick="switchTimetableTokenTab('teachers')">🧩 Profesori</button>
+              <button type="button" id="disciplineTokenTabBtn" class="token-panel-tab" role="tab" aria-selected="false" onclick="switchTimetableTokenTab('disciplines')">📚 Discipline</button>
             </div>
             <p id="tokenPanelHelp" class="teacher-token-help">Selectează un profesor și apoi apasă succesiv pe orele libere din orar.</p>
             <div id="teacherTimetableTokens" class="token-tab-content"></div>
@@ -5223,8 +5227,21 @@ function remainingSubjectHoursForClass(className,subjectName,timetableData=state
 }
 
 function switchTimetableTokenTab(tab){
-  activeTimetableTokenTab=tab==="disciplines"?"disciplines":"teachers";
+  const next=tab==="disciplines"?"disciplines":"teachers";
+  activeTimetableTokenTab=next;
+
+  // Nu păstrăm un jeton selectat din celălalt tab.
+  if(next==="disciplines"){
+    selectedTeacherToken=null;
+    draggedTeacherToken=null;
+    renderDisciplineTimetableTokens();
+  }else{
+    selectedDisciplineToken=null;
+    renderTeacherTimetableTokens();
+  }
+
   updateTimetableTokenTabs();
+  markTimetableCellsForTokenSelection();
 }
 
 function updateTimetableTokenTabs(){
@@ -5234,11 +5251,24 @@ function updateTimetableTokenTabs(){
   const db=document.getElementById("disciplineTokenTabBtn");
   const help=document.getElementById("tokenPanelHelp");
   if(!teachers||!disciplines) return;
+
   const disciplineMode=activeTimetableTokenTab==="disciplines";
+
+  // Dublă protecție: atât atribut hidden, cât și display explicit.
   teachers.hidden=disciplineMode;
   disciplines.hidden=!disciplineMode;
-  tb?.classList.toggle("active",!disciplineMode);
-  db?.classList.toggle("active",disciplineMode);
+  teachers.style.display=disciplineMode ? "none" : "grid";
+  disciplines.style.display=disciplineMode ? "grid" : "none";
+
+  if(tb){
+    tb.classList.toggle("active",!disciplineMode);
+    tb.setAttribute("aria-selected",String(!disciplineMode));
+  }
+  if(db){
+    db.classList.toggle("active",disciplineMode);
+    db.setAttribute("aria-selected",String(disciplineMode));
+  }
+
   if(help){
     help.textContent=disciplineMode
       ? "Selectează o disciplină și așază orele chiar dacă profesorul nu este încă stabilit."
