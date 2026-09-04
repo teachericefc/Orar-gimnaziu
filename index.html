@@ -2183,7 +2183,7 @@
           <div class="card rule-card preference-rule">
             <div class="rule-type">PREFERINȚĂ CONFIGURABILĂ</div>
             <h3>Prioritizare disciplină</h3>
-            <p>Disciplinele bifate cu „Prioritizare” sunt favorizate în primele ore ale zilei. Generatorul poate folosi și ore mai târzii dacă astfel obține un orar general mai bun.</p>
+            <p>Disciplinele bifate cu „Prioritizare” sunt favorizate în primele ore ale zilei de generator. <strong>La completarea manuală, prioritatea nu impune nicio ordine:</strong> poți pune orice disciplină oricând, în limita numărului ei de ore pe săptămână.</p>
           </div>
 
           <div class="card rule-card preference-rule">
@@ -5085,19 +5085,15 @@ function remainingUnassignedHoursForTeacher(teacherId,timetableData=state.timeta
 function remainingUnassignedHoursForAssignment(assignment,timetableData=state.timetable){
   if(!assignment) return 0;
 
-  const subjectName=
-    assignment.subjectName ||
-    (state.subjects||[]).find(s=>s.id===assignment.subjectId)?.name ||
-    "";
+  const subject=canonicalSubjectForAssignment(assignment);
+  if(!subject) return 0;
 
-  // Limita reală este programa disciplinei la clasa respectivă,
-  // NU norma/încadrarea profesorului și nici o valoare veche din assignment.hours.
-  const required=subjectRequiredHours(assignment.className,subjectName);
-  if(required<=0) return 0;
-
+  // La plasarea manuală nu există nicio ordine obligatorie de prioritate.
+  // Singura limită este numărul de ore al ACESTEI discipline la ACEASTĂ clasă.
+  const required=Math.max(0,Number(subject.hours||0));
   const scheduled=scheduledSubjectHoursInClass(
     assignment.className,
-    subjectName,
+    subject.name,
     timetableData
   );
 
@@ -5144,10 +5140,39 @@ function classScheduledHours(className,timetableData=state.timetable){
   return Object.values(timetableData?.[className]||{}).filter(Boolean).length;
 }
 
+function normalizedSubjectKey(value){
+  return String(value||"")
+    .trim()
+    .toLocaleLowerCase("ro")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/\s+/g," ");
+}
+
 function subjectRequiredHours(className,subjectName){
+  const key=normalizedSubjectKey(subjectName);
   return (state.subjects||[])
-    .filter(s=>s.className===className && s.name===subjectName)
+    .filter(s=>s.className===className && normalizedSubjectKey(s.name)===key)
     .reduce((sum,s)=>sum+Number(s.hours||0),0);
+}
+
+function canonicalSubjectForAssignment(assignment){
+  if(!assignment) return null;
+
+  // ID-ul disciplinei este sursa principală de adevăr.
+  const byId=(state.subjects||[]).find(
+    s=>s.id===assignment.subjectId && s.className===assignment.className
+  );
+  if(byId) return byId;
+
+  // Compatibilitate cu încadrări mai vechi salvate în cloud.
+  const key=normalizedSubjectKey(
+    assignment.subjectName || solverSubjectName(assignment.subjectId)
+  );
+  return (state.subjects||[]).find(
+    s=>s.className===assignment.className &&
+       normalizedSubjectKey(s.name)===key
+  ) || null;
 }
 
 function subjectApprovedCoverage(className,subjectName){
@@ -6645,10 +6670,16 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
     return appMessage(`Acest jeton poate fi folosit la clasele: ${cls}.`,"error");
   }
 
-  const subjectNameForLimit=a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
-  const configuredSubjectHours=subjectRequiredHours(a.className,subjectNameForLimit);
+  const canonicalSubject=canonicalSubjectForAssignment(a);
+  const subjectNameForLimit=canonicalSubject?.name || a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
+  const configuredSubjectHours=Math.max(
+    0,
+    Number(canonicalSubject?.hours ?? subjectRequiredHours(a.className,subjectNameForLimit))
+  );
 
-  if(remainingSubjectHoursForClass(a.className,subjectNameForLimit)<=0){
+  // Prioritatea disciplinei NU blochează niciodată plasarea manuală.
+  // Verificăm numai limita săptămânală a disciplinei pentru clasa respectivă.
+  if(scheduledSubjectHoursInClass(a.className,subjectNameForLimit)>=configuredSubjectHours){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
 
     await appConfirm({
@@ -6708,7 +6739,7 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
     return false;
   }
 
-  const subject=(state.subjects||[]).find(s=>s.id===a.subjectId);
+  const subject=canonicalSubject || canonicalSubjectForAssignment(a);
   const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
 
   setNestedSlot(to.className,to.day,to.hour,{
