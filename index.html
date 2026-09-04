@@ -1414,6 +1414,16 @@
       text-align:center;
     }
 
+
+.generator-actions{
+  display:flex;
+  gap:8px;
+  align-items:center;
+  justify-content:flex-start;
+  flex-wrap:wrap;
+  margin-right:auto;
+}
+
 </style>
 </head>
 <body>
@@ -1752,8 +1762,8 @@
           <div class="page-head timetable-actions-head">
             <div class="toolbar">
               <div class="generator-actions">
-                <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate('disciplines')">✦ Generează orar după disciplină</button>
                 <button id="generateTeacherTimetableBtn" class="btn generator-teacher-btn" onclick="demoGenerate('teachers')">♟ Generează orar după profesori</button>
+                <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate('disciplines')">✦ Generează orar după disciplină</button>
               </div>
               <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
             </div>
