@@ -1607,6 +1607,23 @@
   .app-confirm-btn{width:100%;min-width:0}
 }
 
+
+.teacher-hour-number{
+  display:block;
+  font-size:13px;
+  line-height:1;
+  font-weight:900;
+  color:#334155;
+}
+.teacher-hour-time{
+  display:block;
+  margin-top:4px;
+  font-size:8px;
+  line-height:1.2;
+  font-weight:700;
+  color:#64748b;
+}
+
 </style>
 </head>
 <body>
@@ -6668,8 +6685,12 @@ function renderAllTeacherSchedules(){
   box.innerHTML=teachers.map(t=>{
     let rows="";
     for(let hourIndex=0;hourIndex<6;hourIndex++){
+      const infoTime=informationalHourRange(hourIndex+1);
       rows+=`<tr>
-        <th class="teacher-hour-col">${hourIndex+1}</th>
+        <th class="teacher-hour-col">
+          <span class="teacher-hour-number">${hourIndex+1}</span>
+          <span class="teacher-hour-time">${infoTime.start}<br>${infoTime.end}</span>
+        </th>
         ${DAYS.map((day,dayIndex)=>{
           const lessons=teacherLessonsAtHour(t.id,dayIndex,hourIndex);
           if(!lessons.length){
@@ -8098,74 +8119,91 @@ function teacherClassPdfLabel(className){
 
 function buildTeacherPageStream(teacher){
   const W=841.89,H=595.28;
-  const margin=34;
-  const titleY=H-42;
-  const subtitleY=titleY-20;
-  const tableTop=H-105;
-  const rows=7; // antet + 6 ore
+  const margin=32;
+  const titleY=H-34;
+  const tableTop=H-72;
+
+  const headerH=42;
+  const rowH=70;
+  const rows=6;
+
   const tableW=W-margin*2;
-  const firstW=72;
+  const firstW=70;
   const dayW=(tableW-firstW)/5;
-  const rowH=58;
-  const tableBottom=tableTop-rowH*rows;
+
   const x=[margin];
   for(let c=1;c<=5;c++) x[c]=margin+firstW+(c-1)*dayW;
   x[6]=margin+tableW;
 
+  const tableBottom=tableTop-headerH-rowH*rows;
+
   const cmd=[];
   cmd.push("0 G 0 g");
-  cmd.push("1 w");
+  cmd.push("0.75 w");
 
   const title=pdfTrim(teacher?.name||"Profesor",70);
-  const subtitle="Scoala Gimnaziala Daneasa - Orar profesor - 2026-2027";
-  cmd.push(`BT /F1 19 Tf ${Math.max(margin,(W-pdfAscii(title).length*8.7)/2).toFixed(2)} ${titleY.toFixed(2)} Td (${pdfEscape(title)}) Tj ET`);
-  cmd.push(`BT /F1 9 Tf ${Math.max(margin,(W-pdfAscii(subtitle).length*4.4)/2).toFixed(2)} ${subtitleY.toFixed(2)} Td (${pdfEscape(subtitle)}) Tj ET`);
+  cmd.push(`BT /F1 18 Tf ${Math.max(margin,(W-pdfAscii(title).length*8.2)/2).toFixed(2)} ${titleY.toFixed(2)} Td (${pdfEscape(title)}) Tj ET`);
 
-  for(let r=0;r<=rows;r++){
-    const y=tableTop-r*rowH;
+  // Linii orizontale
+  cmd.push(`${margin.toFixed(2)} ${tableTop.toFixed(2)} m ${(margin+tableW).toFixed(2)} ${tableTop.toFixed(2)} l S`);
+  cmd.push(`${margin.toFixed(2)} ${(tableTop-headerH).toFixed(2)} m ${(margin+tableW).toFixed(2)} ${(tableTop-headerH).toFixed(2)} l S`);
+  for(let r=1;r<=rows;r++){
+    const y=tableTop-headerH-r*rowH;
     cmd.push(`${margin.toFixed(2)} ${y.toFixed(2)} m ${(margin+tableW).toFixed(2)} ${y.toFixed(2)} l S`);
   }
+
+  // Linii verticale
   for(let c=0;c<=6;c++){
     cmd.push(`${x[c].toFixed(2)} ${tableTop.toFixed(2)} m ${x[c].toFixed(2)} ${tableBottom.toFixed(2)} l S`);
   }
 
-  function centered(textValue,c,r,fs=10,yOffset=0){
-    const x1=x[c],x2=x[c+1],w=x2-x1;
+  function centeredAt(textValue,x1,x2,y,fs=10){
+    const w=x2-x1;
     const line=pdfTrim(textValue,Math.max(4,Math.floor(w/(fs*.53))));
-    const yTop=tableTop-r*rowH;
-    const y=yTop-rowH/2-3+yOffset;
     const tx=x1+Math.max(3,(w-line.length*fs*.47)/2);
     cmd.push(`BT /F1 ${fs} Tf ${tx.toFixed(2)} ${y.toFixed(2)} Td (${pdfEscape(line||"-")}) Tj ET`);
   }
 
-  // Antet mai mare.
-  centered("Ora",0,0,12,0);
-  DAYS.forEach((d,i)=>centered(d,i+1,0,12,0));
+  // Antet: același tabel ca în aplicație.
+  centeredAt("Ora",x[0],x[1],tableTop-headerH/2-4,12);
+  DAYS.forEach((d,i)=>centeredAt(d,x[i+1],x[i+2],tableTop-headerH/2-4,13));
 
   for(let h=0;h<6;h++){
-    centered(String(h+1),0,h+1,11,0);
+    const rowTop=tableTop-headerH-h*rowH;
+    const rowMid=rowTop-rowH/2;
+    const info=informationalHourRange(h+1);
+
+    // Numărul orei + timpul informativ dedesubt.
+    centeredAt(String(h+1),x[0],x[1],rowMid+12,11);
+    centeredAt(info.start,x[0],x[1],rowMid-3,7.5);
+    centeredAt(info.end,x[0],x[1],rowMid-14,7.5);
 
     for(let d=0;d<5;d++){
       const lessons=teacherLessonsAtHour(teacher.id,d,h);
 
       if(!lessons.length){
-        centered("-",d+1,h+1,10,0);
+        centeredAt("-",x[d+1],x[d+2],rowMid-3,10);
         continue;
       }
 
-      // În mod normal un profesor are o singură lecție simultan.
-      // Dacă datele conțin accidental mai multe, le afișăm compact.
       if(lessons.length===1){
         const lesson=lessons[0];
-        centered(teacherClassPdfLabel(lesson.className),d+1,h+1,11,8);
+
+        // Clasa sus, disciplina dedesubt, identic ca structură cu tabelul de pe ecran.
+        centeredAt(teacherClassPdfLabel(lesson.className),x[d+1],x[d+2],rowMid+9,10.5);
+
         if(lesson.subjectName){
-          centered(lesson.subjectName,d+1,h+1,8.5,-9);
+          const subject=pdfTrim(lesson.subjectName,34);
+          centeredAt(subject,x[d+1],x[d+2],rowMid-10,7.6);
         }
       }else{
         const classLine=lessons.map(l=>teacherClassPdfLabel(l.className)).join(" / ");
         const subjectLine=lessons.map(l=>l.subjectName||"").filter(Boolean).join(" / ");
-        centered(classLine,d+1,h+1,9.5,8);
-        if(subjectLine) centered(subjectLine,d+1,h+1,7.5,-9);
+
+        centeredAt(classLine,x[d+1],x[d+2],rowMid+9,9);
+        if(subjectLine){
+          centeredAt(pdfTrim(subjectLine,36),x[d+1],x[d+2],rowMid-10,7);
+        }
       }
     }
   }
