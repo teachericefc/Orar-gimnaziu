@@ -1209,6 +1209,16 @@
   }
 }
 
+
+.verify-overlay{position:fixed;inset:0;z-index:10000;background:rgba(15,23,42,.38);display:flex;align-items:center;justify-content:center;padding:14px}
+.verify-dialog{width:min(720px,96vw);max-height:86vh;overflow:auto;background:#fff;border-radius:16px;border:1px solid #dbe2ea;box-shadow:0 22px 55px rgba(15,23,42,.22);padding:18px}
+.verify-head{display:flex;justify-content:space-between;align-items:center;gap:10px}.verify-head h3{margin:0}
+.verify-close{border:0;background:#f1f5f9;border-radius:9px;width:34px;height:34px;font-size:20px}
+.verify-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin:12px 0}.verify-grid div{padding:9px;border:1px solid #e2e8f0;border-radius:10px;text-align:center;font-size:12px;font-weight:800}
+.verify-ok{padding:12px;border:1px solid #b9dfc2;background:#effaf2;color:#285c36;border-radius:11px;font-weight:800}
+.verify-issues{padding-left:20px}.verify-issues li{margin:7px 0}
+@media(max-width:760px){.verify-grid{grid-template-columns:repeat(2,1fr)}.history-controls{flex-wrap:wrap!important}}
+
 </style>
 </head>
 <body>
@@ -1223,6 +1233,10 @@
   <div class="history-controls">
     <button id="undoLastCommandBtn" class="history-btn" onclick="undoLastCommand()" title="Anulează ultima comandă">↶ Undo</button>
     <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ redo</button>
+    <button class="history-btn" onclick="verifyTimetable()">✓ Verifică</button>
+    <button class="history-btn" onclick="exportBackup()">⇩ Copie</button>
+    <button class="history-btn" onclick="document.getElementById('backupRestoreInput').click()">⇧ Restaurează</button>
+    <input id="backupRestoreInput" type="file" accept=".json,application/json" hidden onchange="restoreBackupFile(this.files?.[0]);this.value=''">
   </div>
 </div>
 <div class="layout">
@@ -6520,6 +6534,74 @@ function applyGeneratedVariant(index){
   }
 }
 
+
+function verifyTimetable(){
+  const issues=[], stats={};
+  CLASSES.forEach(c=>{
+    const required=(state.subjects||[]).filter(s=>s.className===c).reduce((n,s)=>n+Math.max(0,Number(s.hours)||0),0);
+    const slots=state.timetable?.[c]||{};
+    const scheduled=Object.values(slots).filter(Boolean).length;
+    stats[c]={required,scheduled};
+    if(scheduled!==required) issues.push(`Clasa ${c}: ${scheduled}/${required} ore.`);
+    for(let d=0;d<DAYS.length;d++){
+      const occ=[];
+      for(let h=0;h<classDisplayHours(c);h++) if(slots[`${d}-${h}`]) occ.push(h);
+      if(occ.length){
+        const first=Math.min(...occ),last=Math.max(...occ);
+        for(let h=first;h<=last;h++) if(!slots[`${d}-${h}`]) issues.push(`Clasa ${c}: fereastră ${DAYS[d]}, ora ${h+1}.`);
+      }
+    }
+  });
+  for(let d=0;d<DAYS.length;d++){
+    const max=Math.max(...CLASSES.map(classDisplayHours));
+    for(let h=0;h<max;h++){
+      const teachers=new Map(), subjects=new Map();
+      CLASSES.forEach(c=>{
+        const s=state.timetable?.[c]?.[`${d}-${h}`]; if(!s)return;
+        if(s.teacherId){
+          if(teachers.has(s.teacherId)) issues.push(`${DAYS[d]}, ora ${h+1}: ${s.teacher||solverTeacherName(s.teacherId)} este simultan la ${teachers.get(s.teacherId)} și ${c}.`);
+          else teachers.set(s.teacherId,c);
+          if(!isTeacherAvailable(s.teacherId,DAYS[d],h+1)) issues.push(`${s.teacher||solverTeacherName(s.teacherId)} este indisponibil(ă) ${DAYS[d]}, ora ${h+1}.`);
+        }
+        const name=String(s.subject||s.subjectName||(state.subjects||[]).find(x=>x.id===s.subjectId)?.name||"").trim();
+        const k=name.toLocaleLowerCase("ro");
+        if(k){
+          if(subjects.has(k)) issues.push(`${DAYS[d]}, ora ${h+1}: „${name}” apare simultan la clasele ${subjects.get(k)} și ${c}.`);
+          else subjects.set(k,c);
+        }
+      });
+    }
+  }
+  CLASSES.forEach(c=>(state.subjects||[]).filter(s=>s.className===c).forEach(s=>{
+    const need=Math.max(0,Number(s.hours)||0), got=scheduledSubjectHoursInClass(c,s.name,state.timetable);
+    if(got!==need) issues.push(`Clasa ${c} – ${s.name}: ${got}/${need} ore.`);
+  }));
+  const unique=[...new Set(issues)];
+  const ov=document.createElement("div"); ov.className="verify-overlay";
+  ov.innerHTML=`<div class="verify-dialog"><div class="verify-head"><h3>Verificarea orarului</h3><button class="verify-close">×</button></div>
+  <div class="verify-grid">${CLASSES.map(c=>`<div>Clasa ${c}<br>${stats[c].scheduled}/${stats[c].required} ore</div>`).join("")}</div>
+  ${unique.length?`<b>Probleme găsite: ${unique.length}</b><ul class="verify-issues">${unique.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:`<div class="verify-ok">✓ Orarul trece verificările: ore complete, fără ferestre, suprapuneri sau indisponibilități.</div>`}</div>`;
+  ov.onclick=e=>{if(e.target===ov||e.target.classList.contains("verify-close"))ov.remove()}; document.body.appendChild(ov);
+}
+function exportBackup(){
+  const payload={app:"Orar gimnaziu",version:1,exportedAt:new Date().toISOString(),state};
+  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
+  a.href=url;a.download=`orar-gimnaziu-backup-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
+  appMessage("Copia de siguranță a fost creată.","success",1500);
+}
+async function restoreBackupFile(file){
+  if(!file)return;
+  try{
+    const p=JSON.parse(await file.text()),r=p?.state||p;
+    if(!r||!Array.isArray(r.teachers)||!Array.isArray(r.subjects))throw new Error("Fișier invalid.");
+    const current=localStorage.getItem(KEY);
+    if(current){const u=readHistoryStack(UNDO_STACK_KEY);u.push(current);writeHistoryStack(UNDO_STACK_KEY,u);writeHistoryStack(REDO_STACK_KEY,[]);}
+    isRestoringHistory=true;Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,r);localStorage.setItem(KEY,JSON.stringify(state));
+    renderTimetable();renderTeachers();renderSubjects();renderClasses();renderAssignmentSelectors();updateStats();updateUndoButtonState();
+    appMessage("Copia de siguranță a fost restaurată.","success",1800);
+  }catch(e){appMessage("Nu am putut restaura copia: "+(e?.message||e),"error",4500)}
+  finally{isRestoringHistory=false}
+}
 async function demoGenerate(mode="disciplines"){
   mode=mode==="teachers" ? "teachers" : "disciplines";
   const isTeachers=mode==="teachers";
