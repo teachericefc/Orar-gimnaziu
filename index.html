@@ -1089,6 +1089,36 @@
   align-items:center!important;
 }
 
+
+.generator-teacher-btn{
+  display:inline-flex!important;
+  align-items:center!important;
+  justify-content:center!important;
+  gap:8px!important;
+  padding:10px 16px!important;
+  border:1px solid #d9b66f!important;
+  border-radius:12px!important;
+  background:linear-gradient(180deg,#fff7df 0%,#f7e9be 100%)!important;
+  color:#70511d!important;
+  font-weight:900!important;
+  letter-spacing:.1px!important;
+  box-shadow:0 4px 12px rgba(112,81,29,.10)!important;
+  transition:transform .15s ease,box-shadow .15s ease,background .15s ease!important;
+}
+.generator-teacher-btn:hover{
+  background:linear-gradient(180deg,#fff4d4 0%,#f3e1aa 100%)!important;
+  box-shadow:0 6px 16px rgba(112,81,29,.14)!important;
+  transform:translateY(-1px)!important;
+}
+.generator-teacher-btn:active{
+  transform:translateY(0)!important;
+}
+.generator-teacher-btn:disabled{
+  opacity:.72!important;
+  cursor:wait!important;
+  transform:none!important;
+}
+
 .undo-command-btn{
   display:inline-flex!important;
   align-items:center!important;
@@ -1722,11 +1752,8 @@
           <div class="page-head timetable-actions-head">
             <div class="toolbar">
               <div class="generator-actions">
-                <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate()">✦ Generează orar după disciplină</button>
-              </div>
-              <div id="generatedVariantControls" style="display:none;gap:6px;align-items:center">
-                <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
-                <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
+                <button id="generateTimetableBtn" class="btn generator-discipline-btn" onclick="demoGenerate('disciplines')">✦ Generează orar după disciplină</button>
+                <button id="generateTeacherTimetableBtn" class="btn generator-teacher-btn" onclick="demoGenerate('teachers')">♟ Generează orar după profesori</button>
               </div>
               <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
             </div>
@@ -6992,27 +7019,6 @@ function buildDisciplineVariant(){
   return {ok:true,tt};
 }
 
-function applyGeneratedVariant(index){
-  const variant=generatedTimetableVariants[index];
-  if(!variant) return;
-
-  state.timetable=JSON.parse(JSON.stringify(variant));
-  activeGeneratedVariantIndex=index;
-  invalidateFinalSchedule();
-  save();
-  renderTimetable();
-
-  const b1=document.getElementById("variantBtn1");
-  const b2=document.getElementById("variantBtn2");
-  if(b1){
-    b1.classList.toggle("btn-primary",index===0);
-    b1.classList.toggle("btn-light",index!==0);
-  }
-  if(b2){
-    b2.classList.toggle("btn-primary",index===1);
-    b2.classList.toggle("btn-light",index!==1);
-  }
-}
 
 
 
@@ -7280,71 +7286,83 @@ async function restoreBackupFile(file){
   }catch(e){appMessage("Nu am putut restaura copia: "+(e?.message||e),"error",4500)}
   finally{isRestoringHistory=false}
 }
-async function demoGenerate(){
-  const btn=document.getElementById("generateTimetableBtn");
-  const oldText=btn?.textContent||"✦ Generează orar după disciplină";
+async function demoGenerate(mode="disciplines"){
+  mode=mode==="teachers" ? "teachers" : "disciplines";
+  const isTeachers=mode==="teachers";
+
+  const btn=document.getElementById(
+    isTeachers ? "generateTeacherTimetableBtn" : "generateTimetableBtn"
+  );
+
+  const oldText=btn?.textContent||(
+    isTeachers
+      ? "♟ Generează orar după profesori"
+      : "✦ Generează orar după disciplină"
+  );
 
   try{
-    switchTimetableTokenTab("disciplines");
+    switchTimetableTokenTab(isTeachers ? "teachers" : "disciplines");
 
     if(btn){
       btn.disabled=true;
-      btn.textContent="Amestec disciplinele…";
+      btn.textContent=isTeachers ? "Așez profesorii…" : "Amestec disciplinele…";
     }
 
     await new Promise(resolve=>setTimeout(resolve,30));
     normalizeLockedSlots();
 
-    const inventory=disciplineTokenInventory();
+    const inventory=isTeachers ? teacherTokenInventory() : disciplineTokenInventory();
     const totalTokens=CLASSES.reduce((sum,cls)=>sum+(inventory[cls]?.length||0),0);
 
     if(totalTokens===0){
-      appMessage("Nu există jetoane active în tabul Discipline.","error",4200);
+      appMessage(
+        isTeachers
+          ? "Nu există jetoane de profesori. Configurează mai întâi profesorii și încadrările."
+          : "Nu există jetoane active în tabul Discipline.",
+        "error",
+        4200
+      );
       return;
     }
 
-    const variants=[];
-    const signatures=new Set();
+    let chosen=null;
     let lastError="Nu am putut construi orarul.";
 
-    for(let attempt=0;attempt<100 && variants.length<2;attempt++){
-      const result=buildDisciplineVariant();
+    // Căutăm o singură soluție validă.
+    for(let attempt=0;attempt<100;attempt++){
+      const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
-        const sig=JSON.stringify(result.tt);
-        if(!signatures.has(sig)){
-          signatures.add(sig);
-          variants.push(result.tt);
-        }
-      }else{
-        lastError=result.message||lastError;
+        chosen=result.tt;
+        break;
       }
+
+      lastError=result.message||lastError;
 
       if(attempt>0 && attempt%10===0){
         await new Promise(resolve=>setTimeout(resolve,0));
       }
     }
 
-    if(!variants.length){
+    if(!chosen){
       appMessage(lastError,"error",5500);
       return;
     }
 
-    if(variants.length===1){
-      variants.push(JSON.parse(JSON.stringify(variants[0])));
-    }
+    state.timetable=JSON.parse(JSON.stringify(chosen));
+    generatedTimetableVariants=[];
+    activeGeneratedVariantIndex=-1;
 
-    generatedTimetableVariants=variants;
-
-    const controls=document.getElementById("generatedVariantControls");
-    if(controls) controls.style.display="flex";
-
-    applyGeneratedVariant(0);
+    invalidateFinalSchedule();
+    save();
+    renderTimetable();
 
     appMessage(
-      `Am folosit ${totalTokens} jetoane din Discipline și am creat 2 variante fără ferestre la elevi.`,
+      isTeachers
+        ? `Am generat un singur orar folosind ${totalTokens} jetoane de profesori.`
+        : `Am generat un singur orar folosind ${totalTokens} jetoane din Discipline.`,
       "success",
-      3800
+      3200
     );
 
   }catch(err){
@@ -7361,6 +7379,7 @@ async function demoGenerate(){
     }
   }
 }
+
 function clearTimetable(){
   let removed=0;
   let keptLocked=0;
