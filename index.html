@@ -6751,7 +6751,8 @@ function openPrintPdfDialog(){
       </div>
       <div class="print-dialog-actions">
         <button type="button" class="btn btn-light print-cancel">Anulează</button>
-        <button type="button" class="btn print-pdf-btn print-go">🖨 Print / Salvează PDF</button>
+        <button type="button" class="btn btn-light print-go">🖨 Print</button>
+        <button type="button" class="btn print-pdf-btn pdf-go">⬇ Descarcă PDF</button>
       </div>
     </div>`;
 
@@ -6782,12 +6783,237 @@ function openPrintPdfDialog(){
     }
   };
 
+  overlay.querySelector(".pdf-go").onclick=()=>{
+    if(printPdfMode==="class"){
+      const className=overlay.querySelector("#printClassSelect")?.value;
+      if(className) downloadClassSchedulePdf(className);
+    }else{
+      const teacherId=overlay.querySelector("#printTeacherSelect")?.value;
+      if(!teacherId){
+        appMessage("Nu există niciun profesor selectat.","error",2000);
+        return;
+      }
+      downloadTeacherSchedulePdf(teacherId);
+    }
+  };
+
   document.body.appendChild(overlay);
 }
 
 function printHourLabel(hour){
   const info=informationalHourRange(hour);
   return `${hour}. ${info.start}–${info.end}`;
+}
+
+
+function pdfAscii(value){
+  return String(value ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g,"")
+    .replace(/[șş]/gi,m=>m===m.toUpperCase()?"S":"s")
+    .replace(/[țţ]/gi,m=>m===m.toUpperCase()?"T":"t")
+    .replace(/[ăâ]/gi,m=>m===m.toUpperCase()?"A":"a")
+    .replace(/[î]/gi,m=>m===m.toUpperCase()?"I":"i")
+    .replace(/[^\x20-\x7E]/g," ");
+}
+
+function pdfEscapeText(value){
+  return pdfAscii(value)
+    .replace(/\\/g,"\\\\")
+    .replace(/\(/g,"\\(")
+    .replace(/\)/g,"\\)");
+}
+
+function fitPdfText(value,maxChars){
+  const s=pdfAscii(value).trim();
+  if(s.length<=maxChars) return s;
+  return s.slice(0,Math.max(1,maxChars-3))+"...";
+}
+
+function createSchedulePdfBlob(title,subtitle,headers,rows){
+  // A4 landscape, points
+  const W=841.89, H=595.28;
+  const margin=34;
+  const top=H-38;
+  const tableTop=top-54;
+  const cols=headers.length;
+  const tableW=W-margin*2;
+  const firstW=82;
+  const otherW=(tableW-firstW)/(cols-1);
+  const rowCount=Math.max(1,rows.length+1);
+  const maxTableH=tableTop-42;
+  const rowH=Math.min(52,Math.max(31,maxTableH/rowCount));
+  const tableH=rowH*rowCount;
+  const bottom=tableTop-tableH;
+
+  const colX=[margin];
+  for(let c=1;c<cols;c++){
+    colX[c]=margin+firstW+(c-1)*otherW;
+  }
+  colX[cols]=margin+tableW;
+
+  const cmds=[];
+  cmds.push("0 G 0 g");
+  cmds.push("1 w");
+
+  // Title
+  cmds.push("BT /F1 17 Tf");
+  const titleSafe=pdfEscapeText(title);
+  cmds.push(`${Math.max(margin,(W-titleSafe.length*8.2)/2).toFixed(2)} ${top.toFixed(2)} Td (${titleSafe}) Tj ET`);
+  cmds.push("BT /F1 9 Tf");
+  const subSafe=pdfEscapeText(subtitle);
+  cmds.push(`${Math.max(margin,(W-subSafe.length*4.6)/2).toFixed(2)} ${(top-21).toFixed(2)} Td (${subSafe}) Tj ET`);
+
+  // Grid
+  for(let r=0;r<=rowCount;r++){
+    const y=tableTop-r*rowH;
+    cmds.push(`${margin.toFixed(2)} ${y.toFixed(2)} m ${(margin+tableW).toFixed(2)} ${y.toFixed(2)} l S`);
+  }
+  for(let c=0;c<=cols;c++){
+    const x=colX[c];
+    cmds.push(`${x.toFixed(2)} ${tableTop.toFixed(2)} m ${x.toFixed(2)} ${bottom.toFixed(2)} l S`);
+  }
+
+  function drawCentered(text,c,r,fontSize=9,secondLine=null){
+    const x1=colX[c], x2=colX[c+1], yTop=tableTop-r*rowH;
+    const width=x2-x1;
+    const maxChars=Math.max(5,Math.floor(width/(fontSize*0.52)));
+    const line1=fitPdfText(text,maxChars);
+    const tx=x1+Math.max(4,(width-line1.length*fontSize*0.48)/2);
+    const ty=yTop-rowH/2+(secondLine?5:-3);
+    cmds.push(`BT /F1 ${fontSize} Tf ${tx.toFixed(2)} ${ty.toFixed(2)} Td (${pdfEscapeText(line1)}) Tj ET`);
+    if(secondLine){
+      const line2=fitPdfText(secondLine,Math.max(5,Math.floor(width/(7.5*0.52))));
+      const tx2=x1+Math.max(4,(width-line2.length*7.5*0.48)/2);
+      cmds.push(`BT /F1 7.5 Tf ${tx2.toFixed(2)} ${(ty-12).toFixed(2)} Td (${pdfEscapeText(line2)}) Tj ET`);
+    }
+  }
+
+  headers.forEach((h,c)=>drawCentered(h,c,0,9.5));
+
+  rows.forEach((row,ri)=>{
+    row.forEach((cell,c)=>{
+      const obj=(cell && typeof cell==="object") ? cell : {main:String(cell??"")};
+      drawCentered(obj.main||"-",c,ri+1,c===0?8.5:9,obj.sub||null);
+    });
+  });
+
+  const stream=cmds.join("\n");
+  const objects=[];
+  objects[1]="<< /Type /Catalog /Pages 2 0 R >>";
+  objects[2]="<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
+  objects[3]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`;
+  objects[4]=`<< /Length ${new TextEncoder().encode(stream).length} >>\nstream\n${stream}\nendstream`;
+  objects[5]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+  let pdf="%PDF-1.4\n";
+  const offsets=[0];
+  for(let i=1;i<=5;i++){
+    offsets[i]=new TextEncoder().encode(pdf).length;
+    pdf+=`${i} 0 obj\n${objects[i]}\nendobj\n`;
+  }
+  const xrefOffset=new TextEncoder().encode(pdf).length;
+  pdf+="xref\n0 6\n";
+  pdf+="0000000000 65535 f \n";
+  for(let i=1;i<=5;i++){
+    pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  }
+  pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xrefOffset}\n%%EOF`;
+
+  return new Blob([pdf],{type:"application/pdf"});
+}
+
+function triggerPdfDownload(blob,filename){
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement("a");
+  a.href=url;
+  a.download=filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url),1800);
+}
+
+function downloadClassSchedulePdf(className){
+  const hours=classDisplayHours(className);
+  const headers=["Ora",...DAYS];
+  const rows=[];
+
+  for(let h=1;h<=hours;h++){
+    const row=[{main:printHourLabel(h)}];
+    for(let d=0;d<DAYS.length;d++){
+      const slot=state.timetable?.[className]?.[`${d}-${h-1}`];
+      if(!slot){
+        row.push({main:"-"});
+        continue;
+      }
+      const subject=slot.subject ||
+        (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+        "Disciplina";
+      const teacher=slot.unassigned
+        ? "Profesor neatribuit"
+        : (slot.teacher || solverTeacherName(slot.teacherId));
+      row.push({main:subject,sub:teacher});
+    }
+    rows.push(row);
+  }
+
+  const blob=createSchedulePdfBlob(
+    classPrintLabel(className),
+    "Scoala Gimnaziala Daneasa - Orar 2026-2027",
+    headers,
+    rows
+  );
+  triggerPdfDownload(blob,`orar-${className.toLowerCase()}.pdf`);
+  document.getElementById("printDialogOverlay")?.remove();
+  appMessage(`PDF creat pentru ${classPrintLabel(className)}.`,"success",1800);
+}
+
+function downloadTeacherSchedulePdf(teacherId){
+  const teacher=(state.teachers||[]).find(t=>t.id===teacherId);
+  if(!teacher){
+    appMessage("Profesorul nu mai există.","error",2000);
+    return;
+  }
+
+  let maxHour=6;
+  for(let d=0;d<DAYS.length;d++){
+    for(let h=0;h<10;h++){
+      if(teacherSlotAt(teacherId,d,h)) maxHour=Math.max(maxHour,h+1);
+    }
+  }
+
+  const headers=["Ora",...DAYS];
+  const rows=[];
+  for(let h=1;h<=maxHour;h++){
+    const row=[{main:printHourLabel(h)}];
+    for(let d=0;d<DAYS.length;d++){
+      const found=teacherSlotAt(teacherId,d,h-1);
+      if(!found){
+        row.push({main:"-"});
+        continue;
+      }
+      const subject=found.slot.subject ||
+        (state.subjects||[]).find(s=>s.id===found.slot.subjectId)?.name ||
+        "";
+      row.push({
+        main:classPrintLabel(found.className),
+        sub:subject
+      });
+    }
+    rows.push(row);
+  }
+
+  const blob=createSchedulePdfBlob(
+    teacher.name||"Profesor",
+    "Orar profesor - Scoala Gimnaziala Daneasa - 2026-2027",
+    headers,
+    rows
+  );
+  const safeName=pdfAscii(teacher.name||"profesor").trim().toLowerCase().replace(/[^a-z0-9]+/g,"-").replace(/^-|-$/g,"")||"profesor";
+  triggerPdfDownload(blob,`orar-profesor-${safeName}.pdf`);
+  document.getElementById("printDialogOverlay")?.remove();
+  appMessage(`PDF creat pentru ${teacher.name||"profesor"}.`,"success",1800);
 }
 
 function printClassSchedule(className){
