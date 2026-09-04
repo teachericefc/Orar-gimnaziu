@@ -2448,39 +2448,6 @@ function repairTeacherAssignments(target){
 }
 
 
-// Curățare unică a profesorilor fictivi folosiți la test.
-(function removeTestTeachers(){
-  const TEST_TEACHER_NAMES=["Andrei Popescu", "Maria Ionescu", "Cristina Dumitrescu", "Elena Marinescu", "Mihai Stan", "Ioana Georgescu", "Radu Enache", "Adriana Pavel", "Sorin Matei", "Laura Petrescu", "Daniel Rusu", "Simona Tudor"];
-  const testSet=new Set(TEST_TEACHER_NAMES.map(x=>String(x).trim().toLocaleLowerCase("ro")));
-
-  state.teachers ||= [];
-  state.assignments ||= [];
-  state.timetable ||= {};
-
-  const removedIds=new Set(
-    state.teachers
-      .filter(t=>testSet.has(String(t.name||"").trim().toLocaleLowerCase("ro")))
-      .map(t=>t.id)
-  );
-
-  if(!removedIds.size) return;
-
-  state.teachers=state.teachers.filter(t=>!removedIds.has(t.id));
-  state.assignments=state.assignments.filter(a=>!removedIds.has(a.teacherId));
-
-  Object.values(state.timetable||{}).forEach(classSchedule=>{
-    Object.keys(classSchedule||{}).forEach(key=>{
-      const slot=classSchedule[key];
-      if(slot && removedIds.has(slot.teacherId)){
-        classSchedule[key]=null;
-      }
-    });
-  });
-
-  try{
-    localStorage.setItem(KEY,JSON.stringify(state));
-  }catch(e){}
-})();
 
 function cloudStableStringify(value){
   if(Array.isArray(value)){
@@ -2636,6 +2603,41 @@ const REDO_STACK_KEY=KEY+"_redo_stack";
 const HISTORY_LIMIT=40;
 let isRestoringHistory=false;
 
+
+// Curățare unică a profesorilor fictivi folosiți la test.
+function removeTestTeachersFromState(){
+  const TEST_TEACHER_NAMES=["Andrei Popescu", "Maria Ionescu", "Cristina Dumitrescu", "Elena Marinescu", "Mihai Stan", "Ioana Georgescu", "Radu Enache", "Adriana Pavel", "Sorin Matei", "Laura Petrescu", "Daniel Rusu", "Simona Tudor"];
+  const testSet=new Set(TEST_TEACHER_NAMES.map(x=>String(x).trim().toLocaleLowerCase("ro")));
+
+  state.teachers ||= [];
+  state.assignments ||= [];
+  state.timetable ||= {};
+
+  const removedIds=new Set(
+    state.teachers
+      .filter(t=>testSet.has(String(t.name||"").trim().toLocaleLowerCase("ro")))
+      .map(t=>t.id)
+  );
+
+  if(!removedIds.size) return;
+
+  state.teachers=state.teachers.filter(t=>!removedIds.has(t.id));
+  state.assignments=state.assignments.filter(a=>!removedIds.has(a.teacherId));
+
+  Object.values(state.timetable||{}).forEach(classSchedule=>{
+    Object.keys(classSchedule||{}).forEach(key=>{
+      const slot=classSchedule[key];
+      if(slot && removedIds.has(slot.teacherId)){
+        classSchedule[key]=null;
+      }
+    });
+  });
+
+  try{
+    localStorage.setItem(KEY,JSON.stringify(state));
+  }catch(e){}
+}
+
 let state=JSON.parse(localStorage.getItem(KEY)||'null')||{teachers:[],subjects:[],assignments:[],timetable:{}};
 state.teachers ||= [];
 state.subjects ||= [];
@@ -2706,6 +2708,9 @@ ensureClassVBInState(state);
 if(repairTeacherAssignments(state)){
   try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
 }
+
+removeTestTeachersFromState();
+try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
 
 
 
