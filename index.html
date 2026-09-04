@@ -2447,6 +2447,41 @@ function repairTeacherAssignments(target){
   return changed;
 }
 
+
+// Curățare unică a profesorilor fictivi folosiți la test.
+(function removeTestTeachers(){
+  const TEST_TEACHER_NAMES=["Andrei Popescu", "Maria Ionescu", "Cristina Dumitrescu", "Elena Marinescu", "Mihai Stan", "Ioana Georgescu", "Radu Enache", "Adriana Pavel", "Sorin Matei", "Laura Petrescu", "Daniel Rusu", "Simona Tudor"];
+  const testSet=new Set(TEST_TEACHER_NAMES.map(x=>String(x).trim().toLocaleLowerCase("ro")));
+
+  state.teachers ||= [];
+  state.assignments ||= [];
+  state.timetable ||= {};
+
+  const removedIds=new Set(
+    state.teachers
+      .filter(t=>testSet.has(String(t.name||"").trim().toLocaleLowerCase("ro")))
+      .map(t=>t.id)
+  );
+
+  if(!removedIds.size) return;
+
+  state.teachers=state.teachers.filter(t=>!removedIds.has(t.id));
+  state.assignments=state.assignments.filter(a=>!removedIds.has(a.teacherId));
+
+  Object.values(state.timetable||{}).forEach(classSchedule=>{
+    Object.keys(classSchedule||{}).forEach(key=>{
+      const slot=classSchedule[key];
+      if(slot && removedIds.has(slot.teacherId)){
+        classSchedule[key]=null;
+      }
+    });
+  });
+
+  try{
+    localStorage.setItem(KEY,JSON.stringify(state));
+  }catch(e){}
+})();
+
 function cloudStableStringify(value){
   if(Array.isArray(value)){
     return "["+value.map(cloudStableStringify).join(",")+"]";
@@ -2456,6 +2491,39 @@ function cloudStableStringify(value){
     return "{"+keys.map(k=>JSON.stringify(k)+":"+cloudStableStringify(value[k])).join(",")+"}";
   }
   return JSON.stringify(value);
+}
+
+
+function removeTestTeachersFromObject(target){
+  if(!target || typeof target!=="object") return false;
+  const TEST_TEACHER_NAMES=["Andrei Popescu", "Maria Ionescu", "Cristina Dumitrescu", "Elena Marinescu", "Mihai Stan", "Ioana Georgescu", "Radu Enache", "Adriana Pavel", "Sorin Matei", "Laura Petrescu", "Daniel Rusu", "Simona Tudor"];
+  const testSet=new Set(TEST_TEACHER_NAMES.map(x=>String(x).trim().toLocaleLowerCase("ro")));
+
+  target.teachers ||= [];
+  target.assignments ||= [];
+  target.timetable ||= {};
+
+  const removedIds=new Set(
+    target.teachers
+      .filter(t=>testSet.has(String(t.name||"").trim().toLocaleLowerCase("ro")))
+      .map(t=>t.id)
+  );
+
+  if(!removedIds.size) return false;
+
+  target.teachers=target.teachers.filter(t=>!removedIds.has(t.id));
+  target.assignments=target.assignments.filter(a=>!removedIds.has(a.teacherId));
+
+  Object.values(target.timetable||{}).forEach(classSchedule=>{
+    Object.keys(classSchedule||{}).forEach(key=>{
+      const slot=classSchedule[key];
+      if(slot && removedIds.has(slot.teacherId)){
+        classSchedule[key]=null;
+      }
+    });
+  });
+
+  return true;
 }
 
 function applyRemoteStateWithoutReload(remote){
@@ -2532,6 +2600,7 @@ async function cloudBootstrap(afterLogin=false){
   try{
     const remote=await cloudFetchState(session);
     if(remote && typeof remote==="object"){
+      const removedRemoteTests=removeTestTeachersFromObject(remote);
       const remoteMigrated=ensureClassVBInState(remote);
       const remoteText=cloudStableStringify(remote);
       const localText=cloudStableStringify(state);
@@ -2547,7 +2616,7 @@ async function cloudBootstrap(afterLogin=false){
         // Supabase este sursa de adevăr la pornire, dar aplicăm datele FĂRĂ reload.
         // Astfel nu mai poate exista bucla de refresh.
         applyRemoteStateWithoutReload(remote);
-      }else if(remoteMigrated){
+      }else if(remoteMigrated || removedRemoteTests){
         localStorage.setItem(KEY,JSON.stringify(state));
         await cloudWriteState(session);
       }
@@ -2639,228 +2708,6 @@ if(repairTeacherAssignments(state)){
 }
 
 
-// Profesori fictivi de test.
-// Se inserează o singură dată, doar dacă nu există deja profesori.
-(function seedTestTeachers(){
-  state.assignments ||= [];
-
-  // Repară versiunile de test anterioare în care încadrările au fost puse
-  // în teacher.assignments în loc de lista globală state.assignments.
-  let repairedLegacyAssignments=false;
-  (state.teachers||[]).forEach(t=>{
-    const legacy=Array.isArray(t.assignments) ? t.assignments : [];
-    legacy.forEach(a=>{
-      const exists=state.assignments.some(x=>
-        x.teacherId===t.id &&
-        x.className===a.className &&
-        String(x.subjectName||"")===String(a.subjectName||a.subject||"")
-      );
-      if(!exists){
-        state.assignments.push({
-          id:a.id||crypto.randomUUID(),
-          teacherId:t.id,
-          subjectId:a.subjectId||null,
-          subjectName:a.subjectName||a.subject||"",
-          className:a.className,
-          hours:Math.max(1,Number(a.hours||1))
-        });
-        repairedLegacyAssignments=true;
-      }
-    });
-
-    // Țintele suplinitorilor trebuie să fie vizibile și în profil/jetoane.
-    if(t.name==="Daniel Rusu"){
-      t.contractHours=16;
-      t.status="Suplinitor";
-    }else if(t.name==="Simona Tudor"){
-      t.contractHours=13;
-      t.status="Suplinitor";
-    }else if(!t.contractHours && legacy.length){
-      t.contractHours=Math.max(
-        1,
-        legacy.reduce((sum,a)=>sum+Number(a.hours||0),0)
-      );
-    }
-  });
-
-  if(repairedLegacyAssignments){
-    try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
-  }
-
-  if((state.teachers||[]).length) return;
-
-  const byClassSubject = {};
-  (state.subjects||[]).forEach(s=>{
-    byClassSubject[`${s.className}||${s.name}`]=s;
-  });
-
-  const findSubject=(className,name)=>{
-    const exact=byClassSubject[`${className}||${name}`];
-    if(exact) return exact;
-    return (state.subjects||[]).find(s=>s.className===className && String(s.name||"").toLowerCase()===String(name).toLowerCase());
-  };
-
-  const makeTeacher=(name,color,primarySubject,status="Titular")=>{
-    const t={
-      id:crypto.randomUUID(),
-      name,
-      color,
-      status,
-      primarySubject,
-      mainSubject:primarySubject,
-      contractHours:18,
-      weeklyHours:0,
-      assignments:[]
-    };
-    state.teachers.push(t);
-    return t;
-  };
-
-  const assign=(teacher,className,subjectName)=>{
-    const s=findSubject(className,subjectName);
-    if(!s) return 0;
-    const hours=Number(s.hours||0);
-    const a={
-      id:crypto.randomUUID(),
-      teacherId:teacher.id,
-      className,
-      subjectId:s.id,
-      subject:subjectName,
-      subjectName:subjectName,
-      hours
-    };
-    teacher.assignments ||= [];
-    teacher.assignments.push({...a});
-    state.assignments.push({...a});
-    return hours;
-  };
-
-  const calcHours=(teacher)=>{
-    teacher.weeklyHours=(teacher.assignments||[]).reduce((sum,a)=>sum+Number(a.hours||0),0);
-  };
-
-  // 1. Limba română + completare ușoară
-  const t1=makeTeacher("Andrei Popescu","#f4a261","Limba și literatura română");
-  ["V","V B","VI","VII"].forEach(c=>assign(t1,c,"Limba și literatura română"));
-  assign(t1,"VIII","Consiliere și dezvoltare personală");
-  calcHours(t1);
-
-  // 2. Matematică - inclusiv V + V B
-  const t2=makeTeacher("Maria Ionescu","#2a9d8f","Matematică");
-  ["V","V B","VI","VII"].forEach(c=>assign(t2,c,"Matematică"));
-  assign(t2,"VIII","Educație tehnologică și aplicații practice");
-  calcHours(t2);
-
-  // 3. Engleză + muzică
-  const t3=makeTeacher("Cristina Dumitrescu","#457b9d","Limba modernă 1");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t3,c,"Limba modernă 1"));
-  ["V","VI","VII","VIII"].forEach(c=>assign(t3,c,"Educație muzicală"));
-  calcHours(t3);
-
-  // 4. Franceză + desen
-  const t4=makeTeacher("Elena Marinescu","#9b5de5","Limba modernă 2");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t4,c,"Limba modernă 2"));
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t4,c,"Educație plastică"));
-  calcHours(t4);
-
-  // 5. Istorie + educație socială + consiliere
-  const t5=makeTeacher("Mihai Stan","#e76f51","Istorie");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t5,c,"Istorie"));
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t5,c,"Educație socială"));
-  ["V","V B"].forEach(c=>assign(t5,c,"Consiliere și dezvoltare personală"));
-  calcHours(t5);
-
-  // 6. Geografie + religie
-  const t6=makeTeacher("Ioana Georgescu","#e9c46a","Geografie");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t6,c,"Geografie"));
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t6,c,"Religie"));
-  calcHours(t6);
-
-  // 7. Științe: biologie + completare chimie/fizică
-  const t7=makeTeacher("Radu Enache","#264653","Biologie");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t7,c,"Biologie"));
-  ["VII","VIII"].forEach(c=>assign(t7,c,"Chimie"));
-  ["VI","VII","VIII"].forEach(c=>assign(t7,c,"Fizică"));
-  calcHours(t7);
-
-  // 8. TIC + tehnologică + opțional/consiliere
-  const t8=makeTeacher("Adriana Pavel","#8ab17d","Informatică și TIC");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t8,c,"Informatică și TIC"));
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t8,c,"Educație tehnologică și aplicații practice"));
-  ["VI","VII","VIII"].forEach(c=>assign(t8,c,"Consiliere și dezvoltare personală"));
-  calcHours(t8);
-
-  // 9. Educație fizică - mai multe clase
-  const t9=makeTeacher("Sorin Matei","#577590","Educație fizică și sport");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t9,c,"Educație fizică și sport"));
-  calcHours(t9);
-
-  // 10. Latină + muzică + plastică
-  const t10=makeTeacher("Laura Petrescu","#bc6c25","Limba latină");
-  assign(t10,"VII","Limba latină");
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t10,c,"Educație muzicală"));
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t10,c,"Educație plastică"));
-  calcHours(t10);
-
-  // 11. Suplinitor - exact 16 ore
-  const t11=makeTeacher("Daniel Rusu","#6d597a","Limba engleză","Suplinitor");
-  t11.targetHours=16;
-  t11.contractHours=16;
-  ["V","V B","VI","VII","VIII"].forEach(c=>assign(t11,c,"Limba engleză")); // 10h
-  assign(t11,"VIII","Limba și literatura română"); // 4h
-  assign(t11,"V","Limba franceză"); // 2h
-  calcHours(t11);
-
-  // 12. Suplinitor - exact 13 ore
-  const t12=makeTeacher("Simona Tudor","#355070","Limba franceză","Suplinitor");
-  t12.targetHours=13;
-  t12.contractHours=13;
-  ["V B","VI","VII","VIII"].forEach(c=>assign(t12,c,"Limba franceză")); // 8h
-  assign(t12,"VIII","Matematică"); // 4h
-  assign(t12,"VII","Elemente de limbă latină și de cultură romanică"); // 1h
-  calcHours(t12);
-
-  // Dacă un profesor este sub 18 ore, completăm cu discipline "ușoare"
-  // numai unde există ore disponibile și fără a dubla aceeași disciplină/clasă la același profesor.
-  const lightSubjects=[
-    "Educație muzicală",
-    "Educație plastică",
-    "Consiliere și dezvoltare personală",
-    "Educație tehnologică și aplicații practice",
-    "Religie"
-  ];
-
-  const teacherHas=(t,c,sn)=>(t.assignments||[]).some(a=>a.className===c && a.subjectName===sn);
-
-  state.teachers.forEach(t=>{
-    const targetHours=Number(t.targetHours||18);
-    let guard=0;
-    while((t.weeklyHours||0)<targetHours && guard<50){
-      guard++;
-      let added=false;
-      for(const sn of lightSubjects){
-        for(const c of CLASSES){
-          if(teacherHas(t,c,sn)) continue;
-          const s=findSubject(c,sn);
-          const h=Number(s?.hours||0);
-          if(!s || h<=0) continue;
-          if((t.weeklyHours||0)+h>targetHours) continue;
-          assign(t,c,sn);
-          calcHours(t);
-          added=true;
-          if((t.weeklyHours||0)>=targetHours) break;
-        }
-        if((t.weeklyHours||0)>=targetHours) break;
-      }
-      if(!added) break;
-    }
-  });
-
-  // Salvăm local datele de test; sincronizarea online se va face doar dacă rulezi varianta conectată.
-  try{
-    localStorage.setItem(KEY,JSON.stringify(state));
-  }catch(e){}
-})();
 
 
 // PRESET ORIENTATIV după planul-cadru național pentru gimnaziu.
