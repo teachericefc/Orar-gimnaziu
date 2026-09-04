@@ -1489,6 +1489,124 @@
   font-weight:900;
 }
 
+
+.app-confirm-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:100000;
+  display:none;
+  align-items:center;
+  justify-content:center;
+  padding:18px;
+  background:rgba(15,23,42,.52);
+  backdrop-filter:blur(3px);
+  -webkit-backdrop-filter:blur(3px);
+}
+.app-confirm-backdrop.open{display:flex}
+.app-confirm-card{
+  width:min(430px,100%);
+  background:#fff;
+  border:1px solid rgba(148,163,184,.35);
+  border-radius:22px;
+  box-shadow:0 24px 70px rgba(15,23,42,.28);
+  overflow:hidden;
+  animation:appConfirmIn .16s ease-out;
+}
+@keyframes appConfirmIn{
+  from{transform:translateY(8px) scale(.985);opacity:.25}
+  to{transform:translateY(0) scale(1);opacity:1}
+}
+.app-confirm-head{
+  display:flex;
+  gap:13px;
+  align-items:flex-start;
+  padding:20px 20px 12px;
+}
+.app-confirm-icon{
+  width:44px;
+  height:44px;
+  flex:0 0 44px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  border-radius:14px;
+  background:#eef4ff;
+  font-size:22px;
+}
+.app-confirm-card.danger .app-confirm-icon{
+  background:#fff1f2;
+}
+.app-confirm-title{
+  margin:1px 0 4px;
+  font-size:20px;
+  line-height:1.2;
+  font-weight:900;
+  color:#0f172a;
+}
+.app-confirm-message{
+  margin:0;
+  color:#64748b;
+  font-size:14px;
+  line-height:1.45;
+}
+.app-confirm-details{
+  margin:2px 20px 16px;
+  padding:12px 14px;
+  border-radius:14px;
+  background:#f8fafc;
+  border:1px solid #e2e8f0;
+}
+.app-confirm-detail{
+  display:flex;
+  gap:8px;
+  align-items:flex-start;
+  padding:4px 0;
+  color:#334155;
+  font-size:14px;
+  line-height:1.35;
+}
+.app-confirm-detail-label{
+  min-width:72px;
+  color:#94a3b8;
+  font-weight:700;
+}
+.app-confirm-detail-value{
+  font-weight:800;
+  color:#1e293b;
+}
+.app-confirm-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:9px;
+  padding:14px 20px 20px;
+}
+.app-confirm-btn{
+  min-width:104px;
+  border:1px solid #cbd5e1;
+  border-radius:12px;
+  padding:10px 15px;
+  background:#fff;
+  color:#334155;
+  font-weight:800;
+  cursor:pointer;
+}
+.app-confirm-btn:hover{background:#f8fafc}
+.app-confirm-btn.confirm{
+  border-color:#86a8e8;
+  background:#e8f0ff;
+  color:#1d4ed8;
+}
+.app-confirm-card.danger .app-confirm-btn.confirm{
+  border-color:#f4a3aa;
+  background:#fff1f2;
+  color:#be123c;
+}
+@media(max-width:560px){
+  .app-confirm-card{border-radius:20px}
+  .app-confirm-actions{display:grid;grid-template-columns:1fr 1fr}
+  .app-confirm-btn{width:100%;min-width:0}
+}
+
 </style>
 </head>
 <body>
@@ -3839,10 +3957,22 @@ function addTeacherProfileAssignment(){
   renderClasses();
   renderTeacherProfileAssignments();
 }
-function deleteProfileAssignment(assignmentId){
+async function deleteProfileAssignment(assignmentId){
   const a=state.assignments.find(x=>x.id===assignmentId && x.teacherId===currentTeacherProfileId);
   if(!a)return;
-  if(!confirm(`Ștergi încadrarea ${a.subjectName||""} — clasa ${a.className}?`))return;
+
+  const ok=await appConfirm({
+    title:"Ștergi încadrarea?",
+    message:"Încadrarea va fi eliminată din profilul profesorului.",
+    icon:"🗂️",
+    danger:true,
+    confirmText:"Da, șterge",
+    details:[
+      {label:"Disciplina",value:a.subjectName||"—"},
+      {label:"Clasa",value:classLabelRomanian(a.className)}
+    ]
+  });
+  if(!ok)return;
 
   state.assignments=state.assignments.filter(x=>x.id!==assignmentId);
 
@@ -4668,16 +4798,23 @@ function toggleSlotLock(className,day,hour,buttonEl){
   );
 }
 
-function unlockAllSlots(){
+async function unlockAllSlots(){
   const count=Object.keys(state.lockedSlots||{}).length;
   if(!count) return;
 
-  if(confirm(`Deblochezi toate cele ${count} ore fixate?`)){
-    state.lockedSlots={};
-    save();
-    renderTimetable();
-    renderLockedHoursList();
-  }
+  const ok=await appConfirm({
+    title:"Deblochezi orele?",
+    message:"Toate orele fixate vor putea fi mutate din nou.",
+    icon:"🔓",
+    confirmText:"Deblochează",
+    details:[{label:"Ore fixate",value:String(count)}]
+  });
+  if(!ok)return;
+
+  state.lockedSlots={};
+  save();
+  renderTimetable();
+  renderLockedHoursList();
 }
 
 function restoreLockedSlots(targetTimetable){
@@ -5420,7 +5557,7 @@ function markMoveSwapSelection(){
   });
 }
 
-function removeScheduledLesson(className,day,hour){
+async function removeScheduledLesson(className,day,hour){
   if(isSlotLocked(className,day,hour)){
     return appMessage("Ora este blocată 🔒 și nu poate fi eliminată.","error");
   }
@@ -5429,9 +5566,20 @@ function removeScheduledLesson(className,day,hour){
 
   const subject=slot.subject || slot.subjectName ||
     (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name || "această oră";
-  if(!confirm(`Ștergi ora?\n\n${subject} — clasa ${classLabelRomanian(className)}, ${day}, ora ${hour}`)){
-    return;
-  }
+
+  const ok=await appConfirm({
+    title:"Ștergi ora?",
+    message:"Ora va deveni liberă în orar.",
+    icon:"🗑️",
+    danger:true,
+    confirmText:"Da, șterge",
+    details:[
+      {label:"Disciplina",value:subject},
+      {label:"Clasa",value:classLabelRomanian(className)},
+      {label:"Când",value:`${day}, ora ${hour}`}
+    ]
+  });
+  if(!ok)return;
 
   setNestedSlot(className,day,hour,null);
   selectedTimetableActionSlot=null;
@@ -5445,7 +5593,7 @@ function removeScheduledLesson(className,day,hour){
   appMessage("Ora a fost eliminată din orar.","success",1700);
 }
 
-function moveOrSwapSelectedLesson(to){
+async function moveOrSwapSelectedLesson(to){
   if(!selectedTimetableActionSlot) return false;
 
   const from={...selectedTimetableActionSlot};
@@ -5468,12 +5616,17 @@ function moveOrSwapSelectedLesson(to){
     const targetSubject=target?.subject || target?.subjectName ||
       (state.subjects||[]).find(s=>s.id===target?.subjectId)?.name || "a doua disciplină";
 
-    if(!confirm(
-      `Schimbi locul disciplinelor între ele?\n\n`+
-      `${sourceSubject} — clasa ${classLabelRomanian(from.className)}\n`+
-      `↔\n`+
-      `${targetSubject} — clasa ${classLabelRomanian(to.className)}`
-    )){
+    const ok=await appConfirm({
+      title:"Schimbi locul disciplinelor?",
+      message:"Cele două ore își vor inversa pozițiile în orar.",
+      icon:"↔️",
+      confirmText:"Da, schimbă",
+      details:[
+        {label:"Din",value:`${sourceSubject} — ${classLabelRomanian(from.className)}`},
+        {label:"În",value:`${targetSubject} — ${classLabelRomanian(to.className)}`}
+      ]
+    });
+    if(!ok){
       return true;
     }
   }
@@ -6195,6 +6348,89 @@ function markTimetableCellsForTokenSelection(){
     hint.remove();
   }
 }
+
+function appConfirm({
+  title="Confirmare",
+  message="",
+  icon="?",
+  details=[],
+  confirmText="Confirmă",
+  cancelText="Renunță",
+  danger=false
+}={}){
+  return new Promise(resolve=>{
+    const backdrop=document.getElementById("appConfirmBackdrop");
+    const card=document.getElementById("appConfirmCard");
+    const iconEl=document.getElementById("appConfirmIcon");
+    const titleEl=document.getElementById("appConfirmTitle");
+    const messageEl=document.getElementById("appConfirmMessage");
+    const detailsEl=document.getElementById("appConfirmDetails");
+    const cancelBtn=document.getElementById("appConfirmCancel");
+    const okBtn=document.getElementById("appConfirmOk");
+
+    if(!backdrop || !card || !okBtn || !cancelBtn){
+      resolve(false);
+      return;
+    }
+
+    card.classList.toggle("danger",!!danger);
+    iconEl.textContent=icon;
+    titleEl.textContent=title;
+    messageEl.textContent=message||"";
+    messageEl.style.display=message ? "" : "none";
+    cancelBtn.textContent=cancelText;
+    okBtn.textContent=confirmText;
+
+    detailsEl.innerHTML="";
+    const rows=Array.isArray(details) ? details : [];
+    if(rows.length){
+      rows.forEach(row=>{
+        const line=document.createElement("div");
+        line.className="app-confirm-detail";
+
+        const label=document.createElement("span");
+        label.className="app-confirm-detail-label";
+        label.textContent=String(row?.label||"");
+
+        const value=document.createElement("span");
+        value.className="app-confirm-detail-value";
+        value.textContent=String(row?.value||"");
+
+        line.append(label,value);
+        detailsEl.appendChild(line);
+      });
+      detailsEl.style.display="";
+    }else{
+      detailsEl.style.display="none";
+    }
+
+    let settled=false;
+    const close=value=>{
+      if(settled) return;
+      settled=true;
+      backdrop.classList.remove("open");
+      backdrop.setAttribute("aria-hidden","true");
+      document.removeEventListener("keydown",onKey);
+      resolve(value);
+    };
+    const onKey=e=>{
+      if(e.key==="Escape") close(false);
+      if(e.key==="Enter") close(true);
+    };
+
+    cancelBtn.onclick=()=>close(false);
+    okBtn.onclick=()=>close(true);
+    backdrop.onclick=e=>{
+      if(e.target===backdrop) close(false);
+    };
+
+    backdrop.classList.add("open");
+    backdrop.setAttribute("aria-hidden","false");
+    document.addEventListener("keydown",onKey);
+    setTimeout(()=>okBtn.focus(),30);
+  });
+}
+
 function appMessage(message,type="error",duration=2600){
   document.querySelectorAll(".app-message-overlay").forEach(x=>x.remove());
 
@@ -6981,7 +7217,7 @@ function finalizationSummary(){
   return {hard,classUnassigned,teacherRemaining};
 }
 
-function finalizeSchedule(){
+async function finalizeSchedule(){
   if(!scheduleHasAnyHours()){
     appMessage("Nu există încă un orar de finalizat.","error");
     return;
@@ -7006,7 +7242,15 @@ function finalizeSchedule(){
     warning=`\n\nAtenție: ${parts.join(" și ")}. Orarul poate fi totuși marcat final, deoarece am stabilit că aceste situații nu blochează generarea.`;
   }
 
-  if(!confirm("Marchezi orarul curent ca final?"+warning)) return;
+  const ok=await appConfirm({
+    title:"Marchezi orarul ca final?",
+    message:warning
+      ? warning.replace(/^\n+|\n+$/g,"").replace("Atenție: ","")
+      : "Orarul va fi marcat ca versiune finală.",
+    icon:"✅",
+    confirmText:"Da, finalizează"
+  });
+  if(!ok)return;
 
   state.finalSchedule={
     finalized:true,
@@ -7016,8 +7260,15 @@ function finalizeSchedule(){
   renderFinalScheduleStatus();
 }
 
-function reopenFinalSchedule(){
-  if(!confirm("Redeschizi orarul pentru modificări?")) return;
+async function reopenFinalSchedule(){
+  const ok=await appConfirm({
+    title:"Redeschizi orarul?",
+    message:"Vei putea modifica din nou orele din orar.",
+    icon:"✏️",
+    confirmText:"Redeschide"
+  });
+  if(!ok)return;
+
   state.finalSchedule={finalized:false,finalizedAt:null};
   save();
   renderFinalScheduleStatus();
@@ -8390,6 +8641,24 @@ document.addEventListener("DOMContentLoaded",()=>{
 <script>
 window.addEventListener("load",()=>{ cloudBootstrap(false); });
 </script>
+
+
+<div id="appConfirmBackdrop" class="app-confirm-backdrop" aria-hidden="true">
+  <div id="appConfirmCard" class="app-confirm-card" role="dialog" aria-modal="true" aria-labelledby="appConfirmTitle">
+    <div class="app-confirm-head">
+      <div id="appConfirmIcon" class="app-confirm-icon">?</div>
+      <div>
+        <h3 id="appConfirmTitle" class="app-confirm-title">Confirmare</h3>
+        <p id="appConfirmMessage" class="app-confirm-message"></p>
+      </div>
+    </div>
+    <div id="appConfirmDetails" class="app-confirm-details" style="display:none"></div>
+    <div class="app-confirm-actions">
+      <button type="button" id="appConfirmCancel" class="app-confirm-btn">Renunță</button>
+      <button type="button" id="appConfirmOk" class="app-confirm-btn confirm">Confirmă</button>
+    </div>
+  </div>
+</div>
 
 </body>
 </html>
