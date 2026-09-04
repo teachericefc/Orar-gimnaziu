@@ -1391,6 +1391,7 @@
                 </select>
                 <div class="class-checkbox-group" id="teacherInitialClasses">
                   <label><input type="checkbox" value="V" checked> V</label>
+                  <label><input type="checkbox" value="V B"> V B</label>
                   <label><input type="checkbox" value="VI" checked> VI</label>
                   <label><input type="checkbox" value="VII" checked> VII</label>
                   <label><input type="checkbox" value="VIII" checked> VIII</label>
@@ -1446,7 +1447,7 @@
             <select id="assignmentTeacher"></select>
             <select id="assignmentSubject"></select>
             <select id="assignmentClass">
-              <option>V</option><option>VI</option><option>VII</option><option>VIII</option>
+              <option>V</option><option>V B</option><option>VI</option><option>VII</option><option>VIII</option>
             </select>
             <input id="assignmentHours" type="number" min="1" max="10" value="1" placeholder="Ore/săptămână">
             <button class="btn btn-primary" onclick="addAssignment()">Adaugă</button>
@@ -1673,7 +1674,7 @@
 </div>
 
 <script>
-const CLASSES=["V","VI","VII","VIII"];
+const CLASSES=["V","V B","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
 const HOURS=["08:00–08:50","09:00–09:50","10:00–10:50","11:00–11:50","12:00–12:50","13:00–13:50","14:00–14:50"];
 const KEY="orar_gimnaziu_v1";
@@ -1843,6 +1844,7 @@ async function cloudBootstrap(afterLogin=false){
   try{
     const remote=await cloudFetchState(session);
     if(remote && typeof remote==="object"){
+      const remoteMigrated=ensureClassVBInState(remote);
       const remoteText=JSON.stringify(remote);
       const localText=JSON.stringify(state);
       if(remoteText!==localText){
@@ -1852,7 +1854,12 @@ async function cloudBootstrap(afterLogin=false){
         location.reload();
         return;
       }
+      if(remoteMigrated){
+        localStorage.setItem(KEY,localText);
+        await cloudWriteState(session);
+      }
     }else{
+      localStorage.setItem(KEY,JSON.stringify(state));
       await cloudWriteState(session);
     }
     cloudSetStatus("☁ Salvat online","online");
@@ -1904,6 +1911,37 @@ state.teachers.forEach(t=>{
   if(!("primarySubject" in t)) t.primarySubject="";
 });
 
+// Clasa V B pornește cu aceleași discipline și ore ca V.
+// Profesorii NU sunt copiați automat: V B apare la profesor doar dacă îi este repartizată explicit.
+function ensureClassVBInState(target){
+  if(!target || typeof target!=="object") return false;
+  target.subjects ||= [];
+  target.timetable ||= {};
+  let changed=false;
+
+  const hasVB=target.subjects.some(s=>s.className==="V B");
+  if(!hasVB){
+    target.subjects
+      .filter(s=>s.className==="V")
+      .forEach(s=>{
+        target.subjects.push({
+          ...s,
+          id:`vb-${s.id}`,
+          className:"V B"
+        });
+      });
+    changed=true;
+  }
+
+  if(!target.timetable["V B"]){
+    target.timetable["V B"]={};
+    changed=true;
+  }
+  return changed;
+}
+
+ensureClassVBInState(state);
+
 
 // PRESET ORIENTATIV după planul-cadru național pentru gimnaziu.
 // NU este regulă de generare. Generatorul folosește exclusiv valorile curente din state.subjects.
@@ -1940,7 +1978,9 @@ function applyNationalCurriculumDefaultsOnce(){
   const next=[];
   Object.entries(NATIONAL_CURRICULUM_DEFAULT_HOURS).forEach(([name,byClass])=>{
     CLASSES.forEach(className=>{
-      const hours=Number(byClass?.[className]||0);
+      const hours=Number(
+        byClass?.[className] ?? (className==="V B" ? byClass?.V : 0) ?? 0
+      );
       if(hours<=0) return;
       next.push({
         id:crypto.randomUUID(),
@@ -3507,7 +3547,7 @@ const GENERATOR_PREFERENCE_WEIGHTS = {
 function classBalancePenalty(timetableData=state.timetable){
   let penalty=0;
 
-  ["V","VI","VII","VIII"].forEach(className=>{
+  CLASSES.forEach(className=>{
     const counts=AVAIL_DAYS.map(day=>{
       let c=0;
       Object.entries(timetableData).forEach(([key,slot])=>{
@@ -6814,24 +6854,12 @@ function applyGeneratedVariant(index){
 let printPdfMode="class";
 
 function classPrintLabel(className){
-  const labels={
-    V:"Clasa a V-a",
-    VI:"Clasa a VI-a",
-    VII:"Clasa a VII-a",
-    VIII:"Clasa a VIII-a"
-  };
-  return labels[className] || `Clasa ${className}`;
+  return "Clasa "+String(className||"");
 }
 
 
 function classPrintLabel(className){
-  const labels={
-    V:"Clasa a V-a",
-    VI:"Clasa a VI-a",
-    VII:"Clasa a VII-a",
-    VIII:"Clasa a VIII-a"
-  };
-  return labels[className] || `Clasa ${className}`;
+  return "Clasa "+String(className||"");
 }
 
 function printHourLabel(hour){
@@ -6950,47 +6978,49 @@ function buildClassPageStream(className){
 function makeAllClassesPdfBlob(){
   const enc=new TextEncoder();
   const streams=CLASSES.map(buildClassPageStream);
+  const pageCount=streams.length;
 
-  // Object layout:
-  // 1 Catalog
-  // 2 Pages
-  // 3-6 Page objects
-  // 7-10 Content streams
-  // 11 Font
+  const firstPageObj=3;
+  const firstContentObj=firstPageObj+pageCount;
+  const fontObj=firstContentObj+pageCount;
+  const lastObj=fontObj;
+
   const objs=[];
   objs[1]="<< /Type /Catalog /Pages 2 0 R >>";
-  objs[2]="<< /Type /Pages /Kids [3 0 R 4 0 R 5 0 R 6 0 R] /Count 4 >>";
 
-  for(let i=0;i<4;i++){
-    const pageObj=3+i;
-    const contentObj=7+i;
-    objs[pageObj]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /F1 11 0 R >> >> /Contents ${contentObj} 0 R >>`;
+  const kids=Array.from({length:pageCount},(_,i)=>`${firstPageObj+i} 0 R`).join(" ");
+  objs[2]=`<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>`;
+
+  for(let i=0;i<pageCount;i++){
+    const pageObj=firstPageObj+i;
+    const contentObj=firstContentObj+i;
+    objs[pageObj]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /F1 ${fontObj} 0 R >> >> /Contents ${contentObj} 0 R >>`;
   }
 
-  for(let i=0;i<4;i++){
-    const contentObj=7+i;
+  for(let i=0;i<pageCount;i++){
+    const contentObj=firstContentObj+i;
     const stream=streams[i];
     objs[contentObj]=`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
   }
 
-  objs[11]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+  objs[fontObj]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
 
   let pdf="%PDF-1.4\n";
   const offsets=[0];
 
-  for(let i=1;i<=11;i++){
+  for(let i=1;i<=lastObj;i++){
     offsets[i]=enc.encode(pdf).length;
     pdf+=`${i} 0 obj\n${objs[i]}\nendobj\n`;
   }
 
   const xref=enc.encode(pdf).length;
-  pdf+="xref\n0 12\n";
+  pdf+=`xref\n0 ${lastObj+1}\n`;
   pdf+="0000000000 65535 f \n";
-  for(let i=1;i<=11;i++){
+  for(let i=1;i<=lastObj;i++){
     pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
   }
-  pdf+=`trailer\n<< /Size 12 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
 
+  pdf+=`trailer\n<< /Size ${lastObj+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
   return new Blob([enc.encode(pdf)],{type:"application/pdf"});
 }
 
@@ -7388,6 +7418,7 @@ document.addEventListener("DOMContentLoaded",()=>{
         </select>
         <div class="class-checkbox-group" id="profileNewClasses">
           <label><input type="checkbox" value="V" checked> V</label>
+          <label><input type="checkbox" value="V B"> V B</label>
           <label><input type="checkbox" value="VI" checked> VI</label>
           <label><input type="checkbox" value="VII" checked> VII</label>
           <label><input type="checkbox" value="VIII" checked> VIII</label>
