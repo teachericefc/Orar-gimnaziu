@@ -6231,24 +6231,24 @@ function renderTeacherTimetableTokens(){
     updateTeacherTokenSelectionUI();
   };
 
-  // Evităm dublul eveniment touchend + click pe telefon.
-  let lastTouchSelectionAt=0;
+  // O singură interacțiune pentru telefon și mouse.
+  // Pointer Events evită perechea touchend + click care putea selecta vizual
+  // noul jeton, dar să lase în memorie selecția veche.
+  box.onclick=null;
+  box.ontouchend=null;
 
-  box.onclick=e=>{
-    if(Date.now()-lastTouchSelectionAt<700) return;
+  box.onpointerup=e=>{
+    // Pe mouse selectăm doar cu butonul principal.
+    if(e.pointerType==="mouse" && e.button!==0) return;
+
     const token=e.target.closest(".teacher-assignment-token:not(.empty)");
     if(!token || !box.contains(token)) return;
-    e.preventDefault();
-    e.stopPropagation();
-    selectToken(token);
-  };
 
-  box.ontouchend=e=>{
-    const token=e.target.closest(".teacher-assignment-token:not(.empty)");
-    if(!token || !box.contains(token)) return;
     e.preventDefault();
     e.stopPropagation();
-    lastTouchSelectionAt=Date.now();
+
+    // IMPORTANT: noul jeton este scris imediat în selectedTeacherToken,
+    // nu doar marcat vizual.
     selectToken(token);
   };
 
@@ -6257,12 +6257,15 @@ function renderTeacherTimetableTokens(){
     const token=e.target.closest(".teacher-assignment-token:not(.empty)");
     if(!token || !box.contains(token)) return;
     e.preventDefault();
-    token.click();
+    e.stopPropagation();
+    selectToken(token);
   };
 
   box.querySelectorAll(".teacher-assignment-token:not(.empty)").forEach(token=>{
     const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
     token.setAttribute("draggable","true");
+    token.onclick=e=>{ e.preventDefault(); e.stopPropagation(); };
+    token.ontouchend=null;
     token.ondragstart=e=>{
       selectedDisciplineToken=null;
       draggedTimetableSlot=null;
