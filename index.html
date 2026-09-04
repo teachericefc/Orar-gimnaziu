@@ -1424,6 +1424,15 @@
   margin-right:auto;
 }
 
+
+.teacher-assignment-token:not(.empty){
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+#allClassTimetables td[data-class][data-day][data-hour].token-click-target{
+  touch-action:manipulation;
+  cursor:pointer;
+}
 </style>
 </head>
 <body>
@@ -1948,6 +1957,58 @@ async function cloudSaveNow(){
 }
 
 
+
+function repairTeacherAssignments(target){
+  if(!target || typeof target!=="object") return false;
+  target.teachers ||= [];
+  target.subjects ||= [];
+  target.assignments ||= [];
+  let changed=false;
+
+  const byId=new Map((target.subjects||[]).map(s=>[s.id,s]));
+  const byKey=new Map((target.subjects||[]).map(s=>[
+    `${s.className}||${String(s.name||"").trim().toLocaleLowerCase("ro")}`, s
+  ]));
+
+  target.teachers.forEach(t=>{
+    const nested=Array.isArray(t.assignments) ? t.assignments : [];
+    nested.forEach(a=>{
+      const cls=a.className;
+      const name=String(
+        a.subjectName || a.subject || byId.get(a.subjectId)?.name || ""
+      ).trim();
+      if(!cls || !name) return;
+
+      let subj=byId.get(a.subjectId);
+      if(!subj){
+        subj=byKey.get(`${cls}||${name.toLocaleLowerCase("ro")}`);
+      }
+
+      const exists=target.assignments.some(x=>
+        x.teacherId===t.id &&
+        x.className===cls &&
+        String(
+          x.subjectName || byId.get(x.subjectId)?.name || ""
+        ).trim().toLocaleLowerCase("ro")===name.toLocaleLowerCase("ro")
+      );
+
+      if(!exists){
+        target.assignments.push({
+          id:a.id || crypto.randomUUID(),
+          teacherId:t.id,
+          subjectId:subj?.id || a.subjectId || null,
+          subjectName:subj?.name || name,
+          className:cls,
+          hours:Math.max(1,Number(a.hours ?? subj?.hours ?? 1))
+        });
+        changed=true;
+      }
+    });
+  });
+
+  return changed;
+}
+
 function cloudStableStringify(value){
   if(Array.isArray(value)){
     return "["+value.map(cloudStableStringify).join(",")+"]";
@@ -1989,9 +2050,12 @@ function applyRemoteStateWithoutReload(remote){
     };
 
     ensureClassVBInState(state);
+    repairTeacherAssignments(state);
     localStorage.setItem(KEY,JSON.stringify(state));
 
     try{synchronizeAssignmentsWithSubjects();}catch(e){console.error(e);}
+    repairTeacherAssignments(state);
+    localStorage.setItem(KEY,JSON.stringify(state));
     try{ensureTeacherContractHours();}catch(e){console.error(e);}
     try{ensureTeacherColors();}catch(e){console.error(e);}
     try{refreshTeacherSubjectSuggestions();}catch(e){console.error(e);}
@@ -2132,6 +2196,10 @@ function ensureClassVBInState(target){
 }
 
 ensureClassVBInState(state);
+if(repairTeacherAssignments(state)){
+  try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+}
+
 
 // Profesori fictivi de test.
 // Se inserează o singură dată, doar dacă nu există deja profesori.
@@ -5632,6 +5700,10 @@ function directScheduledHoursForAssignment(a){
 }
 
 function renderTeacherTimetableTokens(){
+  if(repairTeacherAssignments(state)){
+    try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+  }
+
   const box=document.getElementById("teacherTimetableTokens");
   if(!box) return;
 
@@ -5739,32 +5811,45 @@ function renderTeacherTimetableTokens(){
     </div>`;
   }).join("");
 
-  // Selecție robustă prin click/tap, inclusiv după orice rerandare.
+  // Selecție robustă prin tap/click, inclusiv pe Android.
+  const selectToken=(token)=>{
+    const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
+    const validIds=ids.filter(id=>(state.assignments||[]).some(a=>a.id===id));
+
+    if(!validIds.length){
+      appMessage("Jetonul nu are o repartizare validă.","error",2200);
+      return;
+    }
+
+    selectedTeacherToken={assignmentIds:validIds};
+    selectedDisciplineToken=null;
+
+    box.querySelectorAll(".teacher-assignment-token").forEach(x=>{
+      const xids=(x.dataset.assignmentIds||"").split(",").filter(Boolean);
+      x.classList.toggle(
+        "token-selected",
+        JSON.stringify(xids)===JSON.stringify(validIds)
+      );
+    });
+
+    markTimetableCellsForTokenSelection();
+    updateTeacherTokenSelectionUI();
+  };
+
   box.onclick=e=>{
     const token=e.target.closest(".teacher-assignment-token:not(.empty)");
     if(!token || !box.contains(token)) return;
-
     e.preventDefault();
     e.stopPropagation();
+    selectToken(token);
+  };
 
-    const ids=(token.dataset.assignmentIds||"").split(",").filter(Boolean);
-    if(!ids.length) return;
-
-    selectedTeacherToken={assignmentIds:ids};
-    selectedDisciplineToken=null;
-
-    // Actualizăm doar starea vizuală; nu reconstruim imediat panoul,
-    // astfel încât selecția să nu se piardă pe telefon.
-    box.querySelectorAll(".teacher-assignment-token").forEach(x=>
-      x.classList.toggle(
-        "token-selected",
-        JSON.stringify((x.dataset.assignmentIds||"").split(",").filter(Boolean))===JSON.stringify(ids)
-      )
-    );
-
-    renderDisciplineTimetableTokens();
-    markTimetableCellsForTokenSelection();
-    updateTeacherTokenSelectionUI();
+  box.ontouchend=e=>{
+    const token=e.target.closest(".teacher-assignment-token:not(.empty)");
+    if(!token || !box.contains(token)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    selectToken(token);
   };
 
   box.onkeydown=e=>{
