@@ -1947,6 +1947,65 @@ async function cloudSaveNow(){
   }
 }
 
+
+function cloudStableStringify(value){
+  if(Array.isArray(value)){
+    return "["+value.map(cloudStableStringify).join(",")+"]";
+  }
+  if(value && typeof value==="object"){
+    const keys=Object.keys(value).sort();
+    return "{"+keys.map(k=>JSON.stringify(k)+":"+cloudStableStringify(value[k])).join(",")+"}";
+  }
+  return JSON.stringify(value);
+}
+
+function applyRemoteStateWithoutReload(remote){
+  cloudApplyingRemote=true;
+  try{
+    state=remote && typeof remote==="object" ? remote : {teachers:[],subjects:[],assignments:[],timetable:{}};
+    state.teachers ||= [];
+    state.subjects ||= [];
+    state.assignments ||= [];
+    state.availability ||= {};
+    state.timetable ||= {};
+    state.generatorRules ||= {
+      noStudentGaps:true,
+      preferOneSubjectHourPerDay:true,
+      minimizeTeacherGaps:true,
+      prioritizeTenured:true,
+      classesStartAtFirstHour:true,
+      maxClassHoursPerDay:7,
+      balanceClassDays:true,
+      spreadTeachersAcrossAvailableWeek:true,
+      progressiveTeacherGapPenalty:true,
+      preferencePriority:{
+        balanceClassDays:1,
+        spreadTeachersAcrossAvailableWeek:2,
+        minimizeTeacherGaps:3,
+        prioritizeTenured:4,
+        preferOneSubjectHourPerDay:5,
+        prioritizeSubjectsEarly:6
+      }
+    };
+
+    ensureClassVBInState(state);
+    localStorage.setItem(KEY,JSON.stringify(state));
+
+    try{synchronizeAssignmentsWithSubjects();}catch(e){console.error(e);}
+    try{ensureTeacherContractHours();}catch(e){console.error(e);}
+    try{ensureTeacherColors();}catch(e){console.error(e);}
+    try{refreshTeacherSubjectSuggestions();}catch(e){console.error(e);}
+    try{updateStats();}catch(e){console.error(e);}
+    try{renderTeachers();}catch(e){console.error(e);}
+    try{renderSubjects();}catch(e){console.error(e);}
+    try{renderAssignmentSelectors();renderAssignments();}catch(e){console.error(e);}
+    try{renderTimetable();}catch(e){console.error(e);}
+    try{if(activeMainTimetableView==="teachers") renderAllTeacherSchedules();}catch(e){console.error(e);}
+  }finally{
+    cloudApplyingRemote=false;
+  }
+}
+
 async function cloudBootstrap(afterLogin=false){
   const ov=document.getElementById("authOverlay");
 
@@ -1972,24 +2031,22 @@ async function cloudBootstrap(afterLogin=false){
     const remote=await cloudFetchState(session);
     if(remote && typeof remote==="object"){
       const remoteMigrated=ensureClassVBInState(remote);
-      const remoteText=JSON.stringify(remote);
-      const localText=JSON.stringify(state);
+      const remoteText=cloudStableStringify(remote);
+      const localText=cloudStableStringify(state);
 
       const remoteHasTeachers=Array.isArray(remote.teachers) && remote.teachers.length>0;
       const localHasTeachers=Array.isArray(state.teachers) && state.teachers.length>0;
 
       if(!remoteHasTeachers && localHasTeachers){
         // Prima publicare a variantei de test: păstrăm profesorii locali și îi urcăm în Supabase.
-        localStorage.setItem(KEY,localText);
+        localStorage.setItem(KEY,JSON.stringify(state));
         await cloudWriteState(session);
       }else if(remoteText!==localText){
-        cloudApplyingRemote=true;
-        localStorage.setItem(KEY,remoteText);
-        cloudApplyingRemote=false;
-        location.reload();
-        return;
+        // Supabase este sursa de adevăr la pornire, dar aplicăm datele FĂRĂ reload.
+        // Astfel nu mai poate exista bucla de refresh.
+        applyRemoteStateWithoutReload(remote);
       }else if(remoteMigrated){
-        localStorage.setItem(KEY,localText);
+        localStorage.setItem(KEY,JSON.stringify(state));
         await cloudWriteState(session);
       }
     }else{
