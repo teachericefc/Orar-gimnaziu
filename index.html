@@ -1622,8 +1622,6 @@
   </div>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
 <script>
 const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
@@ -6620,7 +6618,7 @@ function openPrintPdfDialog(){
       <div id="pdfResultArea" style="display:none;margin-top:12px;padding:10px;border:1px solid #bbd7c3;border-radius:10px;background:#f1faf3">
         <div style="font-weight:900;color:#285c35;margin-bottom:7px">✓ PDF creat</div>
         <a id="pdfOpenLink" class="btn print-pdf-btn" href="#" target="_blank" rel="noopener" style="display:inline-block;text-decoration:none">Deschide PDF</a>
-        <div style="font-size:11px;color:#64748b;margin-top:7px">Pe Android, deschide PDF-ul și folosește apoi butonul de descărcare din vizualizator.</div>
+        <div style="font-size:11px;color:#64748b;margin-top:7px">Dacă telefonul nu îl descarcă automat, apasă „Deschide PDF”, apoi folosește butonul de descărcare din Chrome.</div>
       </div>
       <div class="print-dialog-actions">
         <button type="button" class="btn btn-light print-cancel">Închide</button>
@@ -6677,83 +6675,146 @@ function printHourLabel(hour){
 
 
 
-function pdfSafeText(value){
+
+function pdfAscii(value){
   return String(value ?? "")
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g,"")
     .replace(/[șş]/gi,m=>m===m.toUpperCase()?"S":"s")
     .replace(/[țţ]/gi,m=>m===m.toUpperCase()?"T":"t")
     .replace(/[ăâ]/gi,m=>m===m.toUpperCase()?"A":"a")
-    .replace(/[î]/gi,m=>m===m.toUpperCase()?"I":"i");
+    .replace(/[î]/gi,m=>m===m.toUpperCase()?"I":"i")
+    .replace(/[^\x20-\x7E]/g," ");
 }
 
-function buildPdfDocument(title,subtitle,head,body){
-  if(!(window.jspdf && window.jspdf.jsPDF)){
-    appMessage("Modulul PDF nu s-a încărcat. Verifică internetul și reîncarcă pagina.","error",3500);
-    return null;
+function pdfEscape(value){
+  return pdfAscii(value)
+    .replace(/\\/g,"\\\\")
+    .replace(/\(/g,"\\(")
+    .replace(/\)/g,"\\)");
+}
+
+function pdfTrim(value,maxChars){
+  const s=pdfAscii(value).trim();
+  if(s.length<=maxChars) return s;
+  return s.slice(0,Math.max(1,maxChars-3))+"...";
+}
+
+function makeSimpleSchedulePdf(title,subtitle,headers,rows){
+  const W=841.89, H=595.28;
+  const margin=28;
+  const titleY=H-34;
+  const tableTop=H-90;
+  const cols=headers.length;
+  const firstW=88;
+  const tableW=W-margin*2;
+  const otherW=(tableW-firstW)/(cols-1);
+  const totalRows=rows.length+1;
+  const rowH=Math.min(54,Math.max(34,(tableTop-38)/Math.max(1,totalRows)));
+  const tableBottom=tableTop-rowH*totalRows;
+
+  const x=[margin];
+  for(let c=1;c<cols;c++) x[c]=margin+firstW+(c-1)*otherW;
+  x[cols]=margin+tableW;
+
+  const cmd=[];
+  cmd.push("0 G 0 g");
+  cmd.push("1 w");
+
+  // title/subtitle
+  const t=pdfEscape(title);
+  const st=pdfEscape(subtitle);
+  cmd.push(`BT /F1 17 Tf ${Math.max(margin,(W-pdfAscii(title).length*8)/2).toFixed(2)} ${titleY.toFixed(2)} Td (${t}) Tj ET`);
+  cmd.push(`BT /F1 9 Tf ${Math.max(margin,(W-pdfAscii(subtitle).length*4.5)/2).toFixed(2)} ${(titleY-22).toFixed(2)} Td (${st}) Tj ET`);
+
+  // grid
+  for(let r=0;r<=totalRows;r++){
+    const y=tableTop-r*rowH;
+    cmd.push(`${margin.toFixed(2)} ${y.toFixed(2)} m ${(margin+tableW).toFixed(2)} ${y.toFixed(2)} l S`);
+  }
+  for(let c=0;c<=cols;c++){
+    cmd.push(`${x[c].toFixed(2)} ${tableTop.toFixed(2)} m ${x[c].toFixed(2)} ${tableBottom.toFixed(2)} l S`);
   }
 
-  const {jsPDF}=window.jspdf;
-  const doc=new jsPDF({orientation:"landscape",unit:"mm",format:"a4"});
+  function cellText(main,sub,c,r,bold=false){
+    const x1=x[c], x2=x[c+1], w=x2-x1;
+    const fs=bold?9.5:8.5;
+    const maxChars=Math.max(5,Math.floor(w/(fs*0.52)));
+    const line1=pdfTrim(main,maxChars);
+    const hasSub=!!String(sub||"").trim();
+    const yTop=tableTop-r*rowH;
+    const y1=yTop-rowH/2+(hasSub?6:-3);
+    const est1=line1.length*fs*.47;
+    const tx1=x1+Math.max(3,(w-est1)/2);
+    cmd.push(`BT /F1 ${fs} Tf ${tx1.toFixed(2)} ${y1.toFixed(2)} Td (${pdfEscape(line1||"-")}) Tj ET`);
 
-  doc.setFont("helvetica","bold");
-  doc.setFontSize(17);
-  doc.text(pdfSafeText(title),148.5,14,{align:"center"});
+    if(hasSub){
+      const fs2=7.2;
+      const line2=pdfTrim(sub,Math.max(5,Math.floor(w/(fs2*.52))));
+      const est2=line2.length*fs2*.47;
+      const tx2=x1+Math.max(3,(w-est2)/2);
+      cmd.push(`BT /F1 ${fs2} Tf ${tx2.toFixed(2)} ${(y1-13).toFixed(2)} Td (${pdfEscape(line2)}) Tj ET`);
+    }
+  }
 
-  doc.setFont("helvetica","normal");
-  doc.setFontSize(9);
-  doc.text(pdfSafeText(subtitle),148.5,20,{align:"center"});
-
-  doc.autoTable({
-    head:[head.map(pdfSafeText)],
-    body:body.map(row=>row.map(pdfSafeText)),
-    startY:25,
-    theme:"grid",
-    styles:{
-      font:"helvetica",
-      fontSize:8.5,
-      halign:"center",
-      valign:"middle",
-      cellPadding:2.2,
-      lineWidth:0.2,
-      lineColor:[50,50,50],
-      textColor:[20,20,20]
-    },
-    headStyles:{
-      fontStyle:"bold",
-      fillColor:[245,245,245],
-      textColor:[0,0,0]
-    },
-    columnStyles:{0:{cellWidth:24,fontStyle:"bold"}},
-    margin:{left:8,right:8,bottom:8}
+  headers.forEach((h,c)=>cellText(h,"",c,0,true));
+  rows.forEach((row,ri)=>{
+    row.forEach((cell,c)=>{
+      if(cell && typeof cell==="object") cellText(cell.main||"-",cell.sub||"",c,ri+1,c===0);
+      else cellText(cell||"-","",c,ri+1,c===0);
+    });
   });
 
-  return doc;
-}
+  const stream=cmd.join("\n");
+  const enc=new TextEncoder();
 
+  const objs=[];
+  objs[1]="<< /Type /Catalog /Pages 2 0 R >>";
+  objs[2]="<< /Type /Pages /Kids [3 0 R] /Count 1 >>";
+  objs[3]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${W} ${H}] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>`;
+  objs[4]=`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
+  objs[5]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+  let pdf="%PDF-1.4\n";
+  const offsets=[0];
+
+  for(let i=1;i<=5;i++){
+    offsets[i]=enc.encode(pdf).length;
+    pdf+=`${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+
+  const xref=enc.encode(pdf).length;
+  pdf+="xref\n0 6\n";
+  pdf+="0000000000 65535 f \n";
+  for(let i=1;i<=5;i++) pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  pdf+=`trailer\n<< /Size 6 /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+
+  return new Blob([enc.encode(pdf)],{type:"application/pdf"});
+}
 
 let lastGeneratedPdfUrl=null;
 
-function offerPdfBlob(blob,filename){
+function showGeneratedPdf(blob,filename){
+  if(lastGeneratedPdfUrl){
+    URL.revokeObjectURL(lastGeneratedPdfUrl);
+    lastGeneratedPdfUrl=null;
+  }
+
+  const url=URL.createObjectURL(blob);
+  lastGeneratedPdfUrl=url;
+
+  const area=document.getElementById("pdfResultArea");
+  const link=document.getElementById("pdfOpenLink");
+
+  if(area && link){
+    area.style.display="block";
+    link.href=url;
+    link.download=filename;
+    link.textContent="Deschide PDF";
+  }
+
+  // Încercare directă de descărcare.
   try{
-    if(lastGeneratedPdfUrl){
-      URL.revokeObjectURL(lastGeneratedPdfUrl);
-      lastGeneratedPdfUrl=null;
-    }
-
-    const url=URL.createObjectURL(blob);
-    lastGeneratedPdfUrl=url;
-
-    const area=document.getElementById("pdfResultArea");
-    const link=document.getElementById("pdfOpenLink");
-    if(area && link){
-      link.href=url;
-      link.download=filename;
-      area.style.display="block";
-    }
-
-    // Încercare de descărcare directă. Pe unele versiuni Chrome Android
-    // atributul download pentru blob este ignorat; linkul vizibil rămâne fallback.
     const a=document.createElement("a");
     a.href=url;
     a.download=filename;
@@ -6761,25 +6822,27 @@ function offerPdfBlob(blob,filename){
     document.body.appendChild(a);
     a.click();
     a.remove();
-
-    return url;
   }catch(err){
-    console.error("offerPdfBlob",err);
-    return null;
+    console.warn("Descărcarea automată a fost blocată:",err);
   }
+
+  return url;
 }
 
 function downloadClassSchedulePdf(className){
   try{
-    const head=["Ora",...DAYS];
-    const body=[];
     const hours=classDisplayHours(className);
+    const headers=["Ora",...DAYS];
+    const rows=[];
 
     for(let h=1;h<=hours;h++){
-      const row=[printHourLabel(h)];
+      const row=[{main:printHourLabel(h)}];
       for(let d=0;d<DAYS.length;d++){
         const slot=state.timetable?.[className]?.[`${d}-${h-1}`];
-        if(!slot){ row.push("-"); continue; }
+        if(!slot){
+          row.push({main:"-"});
+          continue;
+        }
 
         const subject=slot.subject ||
           (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
@@ -6788,28 +6851,22 @@ function downloadClassSchedulePdf(className){
           ? "Profesor neatribuit"
           : (slot.teacher || solverTeacherName(slot.teacherId));
 
-        row.push(`${subject}\n${teacher}`);
+        row.push({main:subject,sub:teacher});
       }
-      body.push(row);
+      rows.push(row);
     }
 
-    const doc=buildPdfDocument(
+    const blob=makeSimpleSchedulePdf(
       classPrintLabel(className),
       "Scoala Gimnaziala Daneasa - Orar 2026-2027",
-      head, body
+      headers,
+      rows
     );
-    if(!doc) return;
 
-    const filename=`orar-clasa-${String(className).toLowerCase()}.pdf`;
-    const blob=doc.output("blob");
-    const url=offerPdfBlob(blob,filename);
-    if(url){
-      appMessage(`PDF creat pentru ${classPrintLabel(className)}.`,"success",1800);
-    }else{
-      appMessage("PDF-ul a fost creat, dar browserul nu a putut pregăti descărcarea.","error",3000);
-    }
+    showGeneratedPdf(blob,`orar-clasa-${String(className).toLowerCase()}.pdf`);
+    appMessage(`PDF creat pentru ${classPrintLabel(className)}.`,"success",1800);
   }catch(err){
-    console.error(err);
+    console.error("PDF clasa:",err);
     appMessage("Nu am putut crea PDF-ul clasei.","error",3000);
   }
 }
@@ -6829,45 +6886,48 @@ function downloadTeacherSchedulePdf(teacherId){
       }
     }
 
-    const head=["Ora",...DAYS];
-    const body=[];
+    const headers=["Ora",...DAYS];
+    const rows=[];
 
     for(let h=1;h<=maxHour;h++){
-      const row=[printHourLabel(h)];
+      const row=[{main:printHourLabel(h)}];
+
       for(let d=0;d<DAYS.length;d++){
         const found=teacherSlotAt(teacherId,d,h-1);
-        if(!found){ row.push("-"); continue; }
+        if(!found){
+          row.push({main:"-"});
+          continue;
+        }
 
         const subject=found.slot.subject ||
           (state.subjects||[]).find(s=>s.id===found.slot.subjectId)?.name ||
           "";
-        row.push(`${classPrintLabel(found.className)}${subject?`\n${subject}`:""}`);
+
+        row.push({
+          main:classPrintLabel(found.className),
+          sub:subject
+        });
       }
-      body.push(row);
+
+      rows.push(row);
     }
 
-    const doc=buildPdfDocument(
-      teacher.name||"Profesor",
-      "Orar profesor - Scoala Gimnaziala Daneasa - 2026-2027",
-      head, body
-    );
-    if(!doc) return;
-
-    const safeName=pdfSafeText(teacher.name||"profesor")
+    const safeName=pdfAscii(teacher.name||"profesor")
       .trim().toLowerCase()
       .replace(/[^a-z0-9]+/g,"-")
       .replace(/^-|-$/g,"") || "profesor";
 
-    const filename=`orar-profesor-${safeName}.pdf`;
-    const blob=doc.output("blob");
-    const url=offerPdfBlob(blob,filename);
-    if(url){
-      appMessage(`PDF creat pentru ${teacher.name||"profesor"}.`,"success",1800);
-    }else{
-      appMessage("PDF-ul a fost creat, dar browserul nu a putut pregăti descărcarea.","error",3000);
-    }
+    const blob=makeSimpleSchedulePdf(
+      teacher.name||"Profesor",
+      "Orar profesor - Scoala Gimnaziala Daneasa - 2026-2027",
+      headers,
+      rows
+    );
+
+    showGeneratedPdf(blob,`orar-profesor-${safeName}.pdf`);
+    appMessage(`PDF creat pentru ${teacher.name||"profesor"}.`,"success",1800);
   }catch(err){
-    console.error(err);
+    console.error("PDF profesor:",err);
     appMessage("Nu am putut crea PDF-ul profesorului.","error",3000);
   }
 }
