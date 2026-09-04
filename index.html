@@ -1949,14 +1949,14 @@
                 </div>
 
                 <label class="teacher-hours-compact">
-                  <span>Total ore în încadrare</span>
+                  <span>Ore în încadrare (informativ)</span>
                   <input id="teacherContractHours" type="number" min="1" value="18">
                 </label>
               </div>
             </div>
 
             <div class="note teacher-add-note">
-              Profesorul se adaugă direct alegând disciplina din lista disciplinelor active și clasele la care o predă. Clasele sunt debifate implicit. O disciplină din aceeași clasă aparține integral unui singur profesor.
+              Profesorul se adaugă direct alegând disciplina din lista disciplinelor active și clasele la care o predă. Clasele sunt debifate implicit. O disciplină din aceeași clasă aparține integral unui singur profesor. Numărul de ore din încadrare este informativ și nu limitează orele suplimentare sau plata cu ora.
             </div>
           </div>
         </div>
@@ -6428,13 +6428,26 @@ function renderDisciplineTimetableTokens(){
   updateTimetableTokenTabs();
 }
 
-function placeDisciplineTokenInTimetable(subjectName,to){
+async function placeDisciplineTokenInTimetable(subjectName,to){
   const subject=(state.subjects||[]).find(s=>s.className===to.className && s.name===subjectName);
   if(!subject){
     return appMessage(`${subjectName} nu este configurată la clasa ${classLabelRomanian(to.className)}.`,"error");
   }
   if(remainingSubjectHoursForClass(to.className,subjectName)<=0){
-    return appMessage(`S-a atins limita maximă de ore de ${subjectName} la clasa ${classLabelRomanian(to.className)}.`,"error");
+    const configured=subjectRequiredHours(to.className,subjectName);
+    await appConfirm({
+      title:"S-a atins numărul maxim pentru disciplină",
+      message:"Nu mai poți adăuga încă o oră pentru această disciplină la clasa selectată.",
+      icon:"⚠️",
+      confirmText:"Am înțeles",
+      singleButton:true,
+      details:[
+        {label:"Disciplina",value:subjectName},
+        {label:"Clasa",value:classLabelRomanian(to.className)},
+        {label:"Maxim aici",value:`${configured} ore / săptămână`}
+      ]
+    });
+    return false;
   }
   if(getNestedSlot(to.className,to.day,to.hour)){
     return appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
@@ -6630,11 +6643,23 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
 
   if(remainingUnassignedHoursForAssignment(a)<=0){
     const subjectName=a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
-    appMessage(
-      `S-a atins limita maximă de ore de ${subjectName} la clasa ${classLabelRomanian(a.className)}.`,
-      "error"
-    );
-    return;
+    const configured=Math.max(0,Number(a.hours||0));
+    const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
+
+    await appConfirm({
+      title:"S-a atins numărul maxim pentru disciplină",
+      message:"Limita se aplică doar acestei discipline la această clasă. Profesorul poate avea în continuare alte ore, inclusiv ore cu plata sau alte discipline.",
+      icon:"⚠️",
+      confirmText:"Am înțeles",
+      singleButton:true,
+      details:[
+        {label:"Profesor",value:teacher?.name||"Profesor"},
+        {label:"Disciplina",value:subjectName},
+        {label:"Clasa",value:classLabelRomanian(a.className)},
+        {label:"Maxim",value:`${configured} ore / săptămână`}
+      ]
+    });
+    return false;
   }
 
   if(getNestedSlot(to.className,to.day,to.hour)){
