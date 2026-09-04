@@ -1919,6 +1919,7 @@ async function cloudWriteState(session){
 }
 
 function scheduleCloudSave(){
+  if(location.protocol==="file:") return;
   if(cloudApplyingRemote) return;
   clearTimeout(cloudSaveTimer);
   cloudSetStatus("☁ Se salvează…","saving");
@@ -1926,6 +1927,7 @@ function scheduleCloudSave(){
 }
 
 async function cloudSaveNow(){
+  if(location.protocol==="file:") return;
   if(cloudSaveInProgress) return;
   const session=await cloudRefreshSessionIfNeeded();
   if(!session){
@@ -1947,6 +1949,14 @@ async function cloudSaveNow(){
 
 async function cloudBootstrap(afterLogin=false){
   const ov=document.getElementById("authOverlay");
+
+  // Când fișierul este deschis local pentru test, lucrăm doar din browser.
+  // Astfel nu există buclă de refresh și nu atingem datele online.
+  if(location.protocol==="file:"){
+    if(ov) ov.style.display="none";
+    cloudSetStatus("☁ Test local","");
+    return;
+  }
   let session=await cloudRefreshSessionIfNeeded();
 
   if(!session){
@@ -1964,14 +1974,21 @@ async function cloudBootstrap(afterLogin=false){
       const remoteMigrated=ensureClassVBInState(remote);
       const remoteText=JSON.stringify(remote);
       const localText=JSON.stringify(state);
-      if(remoteText!==localText){
+
+      const remoteHasTeachers=Array.isArray(remote.teachers) && remote.teachers.length>0;
+      const localHasTeachers=Array.isArray(state.teachers) && state.teachers.length>0;
+
+      if(!remoteHasTeachers && localHasTeachers){
+        // Prima publicare a variantei de test: păstrăm profesorii locali și îi urcăm în Supabase.
+        localStorage.setItem(KEY,localText);
+        await cloudWriteState(session);
+      }else if(remoteText!==localText){
         cloudApplyingRemote=true;
         localStorage.setItem(KEY,remoteText);
         cloudApplyingRemote=false;
         location.reload();
         return;
-      }
-      if(remoteMigrated){
+      }else if(remoteMigrated){
         localStorage.setItem(KEY,localText);
         await cloudWriteState(session);
       }
