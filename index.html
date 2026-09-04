@@ -1219,6 +1219,147 @@
 .verify-issues{padding-left:20px}.verify-issues li{margin:7px 0}
 @media(max-width:760px){.verify-grid{grid-template-columns:repeat(2,1fr)}.history-controls{flex-wrap:wrap!important}}
 
+
+.print-pdf-btn{
+  border:1px solid #c7b58a!important;
+  border-radius:12px!important;
+  background:linear-gradient(180deg,#fffdf7 0%,#f4ecd9 100%)!important;
+  color:#66532d!important;
+  font-weight:900!important;
+  padding:9px 14px!important;
+  box-shadow:0 3px 9px rgba(102,83,45,.08)!important;
+}
+.print-pdf-btn:hover{
+  background:linear-gradient(180deg,#fffaf0 0%,#eee1c6 100%)!important;
+  transform:translateY(-1px)!important;
+}
+.print-dialog-overlay{
+  position:fixed;
+  inset:0;
+  z-index:10020;
+  background:rgba(15,23,42,.38);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:16px;
+}
+.print-dialog{
+  width:min(520px,95vw);
+  background:#fff;
+  border:1px solid #dbe2ea;
+  border-radius:16px;
+  box-shadow:0 22px 55px rgba(15,23,42,.22);
+  padding:18px;
+}
+.print-dialog-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  margin-bottom:14px;
+}
+.print-dialog-head h3{margin:0}
+.print-dialog-close{
+  border:0;
+  width:34px;
+  height:34px;
+  border-radius:9px;
+  background:#f1f5f9;
+  font-size:20px;
+}
+.print-kind-tabs{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:8px;
+  margin-bottom:12px;
+}
+.print-kind-tabs button{
+  border:1px solid #d8dee7;
+  border-radius:11px;
+  padding:10px;
+  background:#f8fafc;
+  font-weight:900;
+}
+.print-kind-tabs button.active{
+  background:#eef7f1;
+  border-color:#9bc5a6;
+  color:#315c3c;
+}
+.print-dialog select{
+  width:100%;
+  padding:10px;
+  border:1px solid #cbd5e1;
+  border-radius:10px;
+  background:#fff;
+  font-weight:700;
+}
+.print-dialog-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:8px;
+  margin-top:14px;
+}
+.print-paper{
+  display:none;
+}
+@media print{
+  body *{visibility:hidden!important}
+  #printPaper,#printPaper *{visibility:visible!important}
+  #printPaper{
+    display:block!important;
+    position:absolute!important;
+    left:0!important;
+    top:0!important;
+    width:100%!important;
+    color:#000!important;
+    background:#fff!important;
+    padding:0!important;
+    margin:0!important;
+  }
+  @page{
+    size:A4 landscape;
+    margin:12mm;
+  }
+  .print-title{
+    text-align:center;
+    margin:0 0 4mm;
+    font-size:20pt;
+  }
+  .print-subtitle{
+    text-align:center;
+    margin:0 0 6mm;
+    font-size:11pt;
+    font-weight:700;
+  }
+  .print-schedule-table{
+    width:100%;
+    border-collapse:collapse;
+    table-layout:fixed;
+    font-size:11pt;
+  }
+  .print-schedule-table th,
+  .print-schedule-table td{
+    border:1px solid #000;
+    padding:7px 5px;
+    text-align:center;
+    vertical-align:middle;
+  }
+  .print-schedule-table th{
+    font-weight:900;
+  }
+  .print-hour-col{width:12%}
+  .print-cell-subject{
+    display:block;
+    font-weight:800;
+    margin-bottom:2px;
+  }
+  .print-cell-teacher,
+  .print-cell-subject-small{
+    display:block;
+    font-size:9pt;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1536,6 +1677,7 @@
               <button id="variantBtn1" class="btn btn-light" onclick="applyGeneratedVariant(0)">Varianta 1</button>
               <button id="variantBtn2" class="btn btn-light" onclick="applyGeneratedVariant(1)">Varianta 2</button>
             </div>
+            <button class="btn print-pdf-btn" onclick="openPrintPdfDialog()">🖨 Print / PDF</button>
             <button class="btn btn-light" onclick="clearTimetable()">Golește</button>
           </div>
         </div>
@@ -1556,6 +1698,7 @@
   </div>
 </div>
 
+<div id="printPaper" class="print-paper"></div>
 <script>
 const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
@@ -6534,6 +6677,182 @@ function applyGeneratedVariant(index){
   }
 }
 
+
+
+let printPdfMode="class";
+
+function classPrintLabel(className){
+  const labels={
+    V:"Clasa a V-a",
+    VI:"Clasa a VI-a",
+    VII:"Clasa a VII-a",
+    VIII:"Clasa a VIII-a"
+  };
+  return labels[className] || `Clasa ${className}`;
+}
+
+function openPrintPdfDialog(){
+  const old=document.getElementById("printDialogOverlay");
+  if(old) old.remove();
+
+  const overlay=document.createElement("div");
+  overlay.id="printDialogOverlay";
+  overlay.className="print-dialog-overlay";
+  overlay.innerHTML=`
+    <div class="print-dialog">
+      <div class="print-dialog-head">
+        <h3>Print / PDF</h3>
+        <button type="button" class="print-dialog-close" aria-label="Închide">×</button>
+      </div>
+      <div class="print-kind-tabs">
+        <button id="printClassTab" type="button" class="active">Orar clasă</button>
+        <button id="printTeacherTab" type="button">Orar profesor</button>
+      </div>
+      <div id="printClassChoice">
+        <select id="printClassSelect">
+          ${CLASSES.map(c=>`<option value="${c}">${classPrintLabel(c)}</option>`).join("")}
+        </select>
+      </div>
+      <div id="printTeacherChoice" hidden>
+        <select id="printTeacherSelect">
+          ${(state.teachers||[]).slice().sort((a,b)=>String(a.name||"").localeCompare(String(b.name||""),"ro"))
+            .map(t=>`<option value="${esc(t.id)}">${esc(t.name||"Profesor")}</option>`).join("")}
+        </select>
+      </div>
+      <div class="print-dialog-actions">
+        <button type="button" class="btn btn-light print-cancel">Anulează</button>
+        <button type="button" class="btn print-pdf-btn print-go">🖨 Print / Salvează PDF</button>
+      </div>
+    </div>`;
+
+  const setMode=mode=>{
+    printPdfMode=mode;
+    overlay.querySelector("#printClassTab").classList.toggle("active",mode==="class");
+    overlay.querySelector("#printTeacherTab").classList.toggle("active",mode==="teacher");
+    overlay.querySelector("#printClassChoice").hidden=mode!=="class";
+    overlay.querySelector("#printTeacherChoice").hidden=mode!=="teacher";
+  };
+
+  overlay.querySelector("#printClassTab").onclick=()=>setMode("class");
+  overlay.querySelector("#printTeacherTab").onclick=()=>setMode("teacher");
+  overlay.querySelector(".print-dialog-close").onclick=()=>overlay.remove();
+  overlay.querySelector(".print-cancel").onclick=()=>overlay.remove();
+  overlay.onclick=e=>{if(e.target===overlay) overlay.remove();};
+  overlay.querySelector(".print-go").onclick=()=>{
+    if(printPdfMode==="class"){
+      const className=overlay.querySelector("#printClassSelect")?.value;
+      if(className) printClassSchedule(className);
+    }else{
+      const teacherId=overlay.querySelector("#printTeacherSelect")?.value;
+      if(!teacherId){
+        appMessage("Nu există niciun profesor selectat.","error",2000);
+        return;
+      }
+      printTeacherSchedule(teacherId);
+    }
+  };
+
+  document.body.appendChild(overlay);
+}
+
+function printHourLabel(hour){
+  const info=informationalHourRange(hour);
+  return `${hour}. ${info.start}–${info.end}`;
+}
+
+function printClassSchedule(className){
+  const hours=classDisplayHours(className);
+  const paper=document.getElementById("printPaper");
+  if(!paper) return;
+
+  let rows="";
+  for(let h=1;h<=hours;h++){
+    rows+=`<tr>
+      <th class="print-hour-col">${printHourLabel(h)}</th>
+      ${DAYS.map((day,d)=>{
+        const slot=state.timetable?.[className]?.[`${d}-${h-1}`];
+        if(!slot) return "<td>–</td>";
+        const subject=slot.subject ||
+          (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+          "Disciplină";
+        const teacher=slot.unassigned
+          ? "Profesor neatribuit"
+          : (slot.teacher || solverTeacherName(slot.teacherId));
+        return `<td>
+          <span class="print-cell-subject">${esc(subject)}</span>
+          <span class="print-cell-teacher">${esc(teacher)}</span>
+        </td>`;
+      }).join("")}
+    </tr>`;
+  }
+
+  paper.innerHTML=`
+    <h1 class="print-title">${classPrintLabel(className)}</h1>
+    <div class="print-subtitle">Școala Gimnazială Dăneasa • Orar 2026–2027</div>
+    <table class="print-schedule-table">
+      <thead><tr><th>Ora</th>${DAYS.map(d=>`<th>${d}</th>`).join("")}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  document.getElementById("printDialogOverlay")?.remove();
+  setTimeout(()=>window.print(),60);
+}
+
+function teacherSlotAt(teacherId,dayIndex,hourIndex){
+  for(const className of CLASSES){
+    const slot=state.timetable?.[className]?.[`${dayIndex}-${hourIndex}`];
+    if(slot && !slot.unassigned && slot.teacherId===teacherId){
+      return {className,slot};
+    }
+  }
+  return null;
+}
+
+function printTeacherSchedule(teacherId){
+  const teacher=(state.teachers||[]).find(t=>t.id===teacherId);
+  if(!teacher){
+    appMessage("Profesorul nu mai există.","error",2000);
+    return;
+  }
+
+  let maxHour=6;
+  for(let d=0;d<DAYS.length;d++){
+    for(let h=0;h<10;h++){
+      if(teacherSlotAt(teacherId,d,h)) maxHour=Math.max(maxHour,h+1);
+    }
+  }
+
+  let rows="";
+  for(let h=1;h<=maxHour;h++){
+    rows+=`<tr>
+      <th class="print-hour-col">${printHourLabel(h)}</th>
+      ${DAYS.map((day,d)=>{
+        const found=teacherSlotAt(teacherId,d,h-1);
+        if(!found) return "<td>–</td>";
+        const subject=found.slot.subject ||
+          (state.subjects||[]).find(s=>s.id===found.slot.subjectId)?.name ||
+          "";
+        return `<td>
+          <span class="print-cell-subject">${esc(classPrintLabel(found.className))}</span>
+          ${subject?`<span class="print-cell-subject-small">${esc(subject)}</span>`:""}
+        </td>`;
+      }).join("")}
+    </tr>`;
+  }
+
+  const paper=document.getElementById("printPaper");
+  if(!paper) return;
+  paper.innerHTML=`
+    <h1 class="print-title">${esc(teacher.name||"Profesor")}</h1>
+    <div class="print-subtitle">Orar profesor • Școala Gimnazială Dăneasa • 2026–2027</div>
+    <table class="print-schedule-table">
+      <thead><tr><th>Ora</th>${DAYS.map(d=>`<th>${d}</th>`).join("")}</tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+
+  document.getElementById("printDialogOverlay")?.remove();
+  setTimeout(()=>window.print(),60);
+}
 
 function verifyTimetable(){
   const issues=[], stats={};
