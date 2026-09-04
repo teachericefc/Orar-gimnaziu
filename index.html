@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Orar gimnaziu</title>
+  <title>Orar gimnaziu Dăneasa</title>
   <style>
     :root{
       --bg:#f4f7fb; --card:#ffffff; --text:#172033; --muted:#6b7280;
@@ -1284,10 +1284,59 @@
 }
 
 
+
+/* ===== Salvare online Supabase ===== */
+.cloud-status{
+  display:inline-flex;align-items:center;gap:5px;
+  padding:6px 9px;border:1px solid #cbd5e1;border-radius:10px;
+  background:#fff;color:#475569;font-size:11px;font-weight:900;
+  white-space:nowrap;
+}
+.cloud-status.online{background:#effaf2;border-color:#b9dfc2;color:#285c36}
+.cloud-status.saving{background:#fff8e8;border-color:#fde3a7;color:#7c5300}
+.cloud-status.error{background:#fef2f2;border-color:#fecaca;color:#991b1b}
+.auth-overlay{
+  position:fixed;inset:0;z-index:30000;background:rgba(15,23,42,.56);
+  display:flex;align-items:center;justify-content:center;padding:16px;
+}
+.auth-card{
+  width:min(430px,96vw);background:#fff;border-radius:18px;
+  border:1px solid #dbe2ea;box-shadow:0 24px 70px rgba(15,23,42,.28);
+  padding:22px;
+}
+.auth-card h2{margin:0 0 6px;font-size:24px}
+.auth-card p{margin:0 0 16px;color:#64748b;line-height:1.45}
+.auth-card label{display:grid;gap:6px;margin:11px 0;font-size:13px;font-weight:800}
+.auth-card input{width:100%}
+.auth-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:16px}
+.auth-actions .btn{flex:1}
+.auth-message{min-height:20px;margin-top:12px;font-size:12px;font-weight:800}
+.auth-message.error{color:#b91c1c}.auth-message.ok{color:#166534}
+@media(max-width:760px){
+  .cloud-status{padding:5px 7px;font-size:10px}
+}
+
 </style>
 </head>
 <body>
 <div class="app">
+
+<div id="authOverlay" class="auth-overlay" style="display:none">
+  <div class="auth-card">
+    <h2>Orar gimnaziu Dăneasa</h2>
+    <p>Introdu utilizatorul și parola. Orarul se salvează automat online și va fi același pe toate dispozitivele.</p>
+    <label>Utilizator
+      <input id="cloudUsername" type="text" autocomplete="username" placeholder="orar" value="orar">
+    </label>
+    <label>Parolă
+      <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Parola">
+    </label>
+    <div class="auth-actions">
+      <button type="button" class="btn btn-primary" onclick="cloudLogin()">Intră</button>
+    </div>
+    <div id="authMessage" class="auth-message"></div>
+  </div>
+</div>
 
 <div class="school-banner">
   <div class="school-banner-icon">🏫</div>
@@ -1296,6 +1345,7 @@
     <div class="school-banner-subtitle">Orar gimnaziu • 2026–2027</div>
   </div>
   <div class="history-controls">
+    <span id="cloudStatus" class="cloud-status">☁ Neconectat</span>
     <button id="undoLastCommandBtn" class="history-btn" onclick="undoLastCommand()" title="Anulează ultima comandă">↶ Undo</button>
     <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ redo</button>
     <button class="history-btn" onclick="verifyTimetable()">✓ Verifică</button>
@@ -1627,6 +1677,191 @@ const CLASSES=["V","VI","VII","VIII"];
 const DAYS=["Luni","Marți","Miercuri","Joi","Vineri"];
 const HOURS=["08:00–08:50","09:00–09:50","10:00–10:50","11:00–11:50","12:00–12:50","13:00–13:50","14:00–14:50"];
 const KEY="orar_gimnaziu_v1";
+
+const SUPABASE_URL="https://tighcbdpcvqshyjuypgg.supabase.co";
+const SUPABASE_PUBLISHABLE_KEY="sb_publishable_LU7KvEOy5ubyHWMwcpDGmQ_cI_hCMG0";
+const CLOUD_AUTH_KEY=KEY+"_supabase_auth";
+let cloudSaveTimer=null;
+let cloudSaveInProgress=false;
+let cloudApplyingRemote=false;
+
+function cloudSetStatus(text,type=""){
+  const el=document.getElementById("cloudStatus");
+  if(!el) return;
+  el.textContent=text;
+  el.className="cloud-status"+(type?` ${type}`:"");
+}
+
+function cloudAuthMessage(text,type=""){
+  const el=document.getElementById("authMessage");
+  if(!el) return;
+  el.textContent=text||"";
+  el.className="auth-message"+(type?` ${type}`:"");
+}
+
+function cloudGetSession(){
+  try{return JSON.parse(localStorage.getItem(CLOUD_AUTH_KEY)||"null");}
+  catch{return null;}
+}
+
+function cloudStoreSession(session){
+  if(!session){ localStorage.removeItem(CLOUD_AUTH_KEY); return; }
+  const expiresIn=Number(session.expires_in||3600);
+  session._expires_at=Date.now()+expiresIn*1000;
+  localStorage.setItem(CLOUD_AUTH_KEY,JSON.stringify(session));
+}
+
+async function cloudRefreshSessionIfNeeded(){
+  let session=cloudGetSession();
+  if(!session) return null;
+  if(session.access_token && Number(session._expires_at||0)>Date.now()+60000) return session;
+  if(!session.refresh_token) return null;
+
+  try{
+    const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`,{
+      method:"POST",
+      headers:{
+        "apikey":SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({refresh_token:session.refresh_token})
+    });
+    if(!r.ok) throw new Error(await r.text());
+    session=await r.json();
+    cloudStoreSession(session);
+    return session;
+  }catch(err){
+    console.error("Refresh sesiune:",err);
+    localStorage.removeItem(CLOUD_AUTH_KEY);
+    return null;
+  }
+}
+
+async function cloudLogin(){
+  const username=String(document.getElementById("cloudUsername")?.value||"").trim().toLowerCase();
+  const password=String(document.getElementById("cloudPassword")?.value||"");
+  if(username!=="orar"||!password){
+    cloudAuthMessage("Utilizator sau parolă incorectă.","error");
+    return;
+  }
+
+  cloudAuthMessage("Se conectează...");
+  try{
+    const r=await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=password`,{
+      method:"POST",
+      headers:{
+        "apikey":SUPABASE_PUBLISHABLE_KEY,
+        "Content-Type":"application/json"
+      },
+      body:JSON.stringify({email:"florin.catana.ush.2@gmail.com",password})
+    });
+    const data=await r.json().catch(()=>({}));
+    if(!r.ok) throw new Error("Utilizator sau parolă incorectă.");
+    cloudStoreSession(data);
+    document.getElementById("authOverlay").style.display="none";
+    await cloudBootstrap(true);
+  }catch(err){
+    cloudAuthMessage(err.message||"Autentificare nereușită.","error");
+  }
+}
+
+
+async function cloudFetchState(session){
+  const uid=session?.user?.id;
+  if(!uid) return null;
+  const r=await fetch(`${SUPABASE_URL}/rest/v1/orar_gimnaziu?select=date_orar&user_id=eq.${encodeURIComponent(uid)}&limit=1`,{
+    headers:{
+      "apikey":SUPABASE_PUBLISHABLE_KEY,
+      "Authorization":`Bearer ${session.access_token}`
+    }
+  });
+  if(!r.ok) throw new Error(await r.text());
+  const rows=await r.json();
+  return rows?.[0]?.date_orar ?? null;
+}
+
+async function cloudWriteState(session){
+  const uid=session?.user?.id;
+  if(!uid) return;
+  const r=await fetch(`${SUPABASE_URL}/rest/v1/orar_gimnaziu?on_conflict=user_id`,{
+    method:"POST",
+    headers:{
+      "apikey":SUPABASE_PUBLISHABLE_KEY,
+      "Authorization":`Bearer ${session.access_token}`,
+      "Content-Type":"application/json",
+      "Prefer":"resolution=merge-duplicates,return=minimal"
+    },
+    body:JSON.stringify({
+      user_id:uid,
+      date_orar:state,
+      actualizat_la:new Date().toISOString()
+    })
+  });
+  if(!r.ok) throw new Error(await r.text());
+}
+
+function scheduleCloudSave(){
+  if(cloudApplyingRemote) return;
+  clearTimeout(cloudSaveTimer);
+  cloudSetStatus("☁ Se salvează…","saving");
+  cloudSaveTimer=setTimeout(()=>cloudSaveNow(),650);
+}
+
+async function cloudSaveNow(){
+  if(cloudSaveInProgress) return;
+  const session=await cloudRefreshSessionIfNeeded();
+  if(!session){
+    cloudSetStatus("☁ Neconectat","error");
+    return;
+  }
+
+  cloudSaveInProgress=true;
+  try{
+    await cloudWriteState(session);
+    cloudSetStatus("☁ Salvat online","online");
+  }catch(err){
+    console.error("Salvare online:",err);
+    cloudSetStatus("☁ Eroare salvare","error");
+  }finally{
+    cloudSaveInProgress=false;
+  }
+}
+
+async function cloudBootstrap(afterLogin=false){
+  const ov=document.getElementById("authOverlay");
+  let session=await cloudRefreshSessionIfNeeded();
+
+  if(!session){
+    cloudSetStatus("☁ Neconectat","");
+    if(ov) ov.style.display="flex";
+    return;
+  }
+
+  if(ov) ov.style.display="none";
+  cloudSetStatus("☁ Sincronizare…","saving");
+
+  try{
+    const remote=await cloudFetchState(session);
+    if(remote && typeof remote==="object"){
+      const remoteText=JSON.stringify(remote);
+      const localText=JSON.stringify(state);
+      if(remoteText!==localText){
+        cloudApplyingRemote=true;
+        localStorage.setItem(KEY,remoteText);
+        cloudApplyingRemote=false;
+        location.reload();
+        return;
+      }
+    }else{
+      await cloudWriteState(session);
+    }
+    cloudSetStatus("☁ Salvat online","online");
+  }catch(err){
+    console.error("Pornire cloud:",err);
+    cloudSetStatus("☁ Eroare conexiune","error");
+  }
+}
+
 const UNDO_STACK_KEY=KEY+"_undo_stack";
 const REDO_STACK_KEY=KEY+"_redo_stack";
 const HISTORY_LIMIT=40;
@@ -1754,6 +1989,7 @@ function save(){
   localStorage.setItem(KEY,next);
   updateStats();
   updateUndoButtonState();
+  scheduleCloudSave();
 }
 
 function updateUndoButtonState(){
@@ -7169,5 +7405,10 @@ document.addEventListener("DOMContentLoaded",()=>{
 </div>
 
 <div id="teacherPrintArea" class="print-only"></div>
+
+<script>
+window.addEventListener("load",()=>{ cloudBootstrap(false); });
+</script>
+
 </body>
 </html>
