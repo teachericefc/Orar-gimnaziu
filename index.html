@@ -2079,6 +2079,51 @@ ensureClassVBInState(state);
 // Profesori fictivi de test.
 // Se inserează o singură dată, doar dacă nu există deja profesori.
 (function seedTestTeachers(){
+  state.assignments ||= [];
+
+  // Repară versiunile de test anterioare în care încadrările au fost puse
+  // în teacher.assignments în loc de lista globală state.assignments.
+  let repairedLegacyAssignments=false;
+  (state.teachers||[]).forEach(t=>{
+    const legacy=Array.isArray(t.assignments) ? t.assignments : [];
+    legacy.forEach(a=>{
+      const exists=state.assignments.some(x=>
+        x.teacherId===t.id &&
+        x.className===a.className &&
+        String(x.subjectName||"")===String(a.subjectName||a.subject||"")
+      );
+      if(!exists){
+        state.assignments.push({
+          id:a.id||crypto.randomUUID(),
+          teacherId:t.id,
+          subjectId:a.subjectId||null,
+          subjectName:a.subjectName||a.subject||"",
+          className:a.className,
+          hours:Math.max(1,Number(a.hours||1))
+        });
+        repairedLegacyAssignments=true;
+      }
+    });
+
+    // Țintele suplinitorilor trebuie să fie vizibile și în profil/jetoane.
+    if(t.name==="Daniel Rusu"){
+      t.contractHours=16;
+      t.status="Suplinitor";
+    }else if(t.name==="Simona Tudor"){
+      t.contractHours=13;
+      t.status="Suplinitor";
+    }else if(!t.contractHours && legacy.length){
+      t.contractHours=Math.max(
+        1,
+        legacy.reduce((sum,a)=>sum+Number(a.hours||0),0)
+      );
+    }
+  });
+
+  if(repairedLegacyAssignments){
+    try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){}
+  }
+
   if((state.teachers||[]).length) return;
 
   const byClassSubject = {};
@@ -2100,6 +2145,7 @@ ensureClassVBInState(state);
       status,
       primarySubject,
       mainSubject:primarySubject,
+      contractHours:18,
       weeklyHours:0,
       assignments:[]
     };
@@ -2110,16 +2156,20 @@ ensureClassVBInState(state);
   const assign=(teacher,className,subjectName)=>{
     const s=findSubject(className,subjectName);
     if(!s) return 0;
-    teacher.assignments ||= [];
-    teacher.assignments.push({
+    const hours=Number(s.hours||0);
+    const a={
       id:crypto.randomUUID(),
+      teacherId:teacher.id,
       className,
       subjectId:s.id,
       subject:subjectName,
       subjectName:subjectName,
-      hours:Number(s.hours||0)
-    });
-    return Number(s.hours||0);
+      hours
+    };
+    teacher.assignments ||= [];
+    teacher.assignments.push({...a});
+    state.assignments.push({...a});
+    return hours;
   };
 
   const calcHours=(teacher)=>{
@@ -2192,6 +2242,7 @@ ensureClassVBInState(state);
   // 11. Suplinitor - exact 16 ore
   const t11=makeTeacher("Daniel Rusu","#6d597a","Limba engleză","Suplinitor");
   t11.targetHours=16;
+  t11.contractHours=16;
   ["V","V B","VI","VII","VIII"].forEach(c=>assign(t11,c,"Limba engleză")); // 10h
   assign(t11,"VIII","Limba și literatura română"); // 4h
   assign(t11,"V","Limba franceză"); // 2h
@@ -2200,6 +2251,7 @@ ensureClassVBInState(state);
   // 12. Suplinitor - exact 13 ore
   const t12=makeTeacher("Simona Tudor","#355070","Limba franceză","Suplinitor");
   t12.targetHours=13;
+  t12.contractHours=13;
   ["V B","VI","VII","VIII"].forEach(c=>assign(t12,c,"Limba franceză")); // 8h
   assign(t12,"VIII","Matematică"); // 4h
   assign(t12,"VII","Elemente de limbă latină și de cultură romanică"); // 1h
