@@ -5084,23 +5084,24 @@ function remainingUnassignedHoursForTeacher(teacherId,timetableData=state.timeta
 
 function remainingUnassignedHoursForAssignment(assignment,timetableData=state.timetable){
   if(!assignment) return 0;
-  let scheduled=0;
 
-  CLASSES.forEach(cls=>{
-    const data=timetableData?.[cls]||{};
-    Object.values(data).forEach(slot=>{
-      if(!slot || slot.unassigned) return;
-      if(
-        slot.teacherId===assignment.teacherId &&
-        slot.subjectId===assignment.subjectId &&
-        cls===assignment.className
-      ){
-        scheduled++;
-      }
-    });
-  });
+  const subjectName=
+    assignment.subjectName ||
+    (state.subjects||[]).find(s=>s.id===assignment.subjectId)?.name ||
+    "";
 
-  return Math.max(0,Number(assignment.hours||0)-scheduled);
+  // Limita reală este programa disciplinei la clasa respectivă,
+  // NU norma/încadrarea profesorului și nici o valoare veche din assignment.hours.
+  const required=subjectRequiredHours(assignment.className,subjectName);
+  if(required<=0) return 0;
+
+  const scheduled=scheduledSubjectHoursInClass(
+    assignment.className,
+    subjectName,
+    timetableData
+  );
+
+  return Math.max(0,required-scheduled);
 }
 
 function teacherRemainingAssignments(teacherId,timetableData=state.timetable){
@@ -6075,6 +6076,7 @@ function directScheduledHoursForAssignment(a){
 }
 
 function renderTeacherTimetableTokens(){
+  try{synchronizeAssignmentsWithSubjects();}catch(e){console.error(e);}
   if(repairTeacherAssignments(state)){
     try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
   }
@@ -6138,10 +6140,9 @@ function renderTeacherTimetableTokens(){
       );
 
       const remainingByAssignment=arr.map(a=>{
-        const scheduledForAssignment=directScheduledHoursForAssignment(a);
         return {
           a,
-          remaining:Math.max(0,Number(a.hours||0)-scheduledForAssignment)
+          remaining:remainingUnassignedHoursForAssignment(a)
         };
       });
 
@@ -6641,22 +6642,23 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
     return appMessage(`Acest jeton poate fi folosit la clasele: ${cls}.`,"error");
   }
 
-  if(remainingUnassignedHoursForAssignment(a)<=0){
-    const subjectName=a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
-    const configured=Math.max(0,Number(a.hours||0));
+  const subjectNameForLimit=a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
+  const configuredSubjectHours=subjectRequiredHours(a.className,subjectNameForLimit);
+
+  if(remainingSubjectHoursForClass(a.className,subjectNameForLimit)<=0){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
 
     await appConfirm({
-      title:"S-a atins numărul maxim pentru disciplină",
-      message:"Limita se aplică doar acestei discipline la această clasă. Profesorul poate avea în continuare alte ore, inclusiv ore cu plata sau alte discipline.",
+      title:"S-a atins limita maximă",
+      message:"Nu mai poți adăuga încă o oră din această disciplină la clasa selectată.",
       icon:"⚠️",
       confirmText:"Am înțeles",
       singleButton:true,
       details:[
         {label:"Profesor",value:teacher?.name||"Profesor"},
-        {label:"Disciplina",value:subjectName},
+        {label:"Disciplina",value:subjectNameForLimit},
         {label:"Clasa",value:classLabelRomanian(a.className)},
-        {label:"Maxim",value:`${configured} ore / săptămână`}
+        {label:"Maxim",value:`${configuredSubjectHours} ore / săptămână`}
       ]
     });
     return false;
