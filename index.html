@@ -5086,14 +5086,23 @@ function remainingUnassignedHoursForAssignment(assignment,timetableData=state.ti
   if(!assignment) return 0;
 
   const subject=canonicalSubjectForAssignment(assignment);
-  if(!subject) return 0;
+  const subjectName=
+    subject?.name ||
+    assignment.subjectName ||
+    solverSubjectName(assignment.subjectId) ||
+    "";
 
-  // La plasarea manuală nu există nicio ordine obligatorie de prioritate.
-  // Singura limită este numărul de ore al ACESTEI discipline la ACEASTĂ clasă.
-  const required=Math.max(0,Number(subject.hours||0));
+  // Limita este disciplina + clasa. Fallback-ul pe assignment.hours este doar
+  // pentru încadrări vechi care nu mai au subjectId perfect sincronizat.
+  const curriculumHours=subjectRequiredHours(assignment.className,subjectName);
+  const required=Math.max(
+    0,
+    Number(curriculumHours || subject?.hours || assignment.hours || 0)
+  );
+
   const scheduled=scheduledSubjectHoursInClass(
     assignment.className,
-    subject.name,
+    subjectName,
     timetableData
   );
 
@@ -5796,9 +5805,10 @@ function enableTimetableDragAndDrop(){
     const slot=getNestedSlot(cls,day,hour);
     const lesson=cell.querySelector(".lesson");
 
-    // Same method on phone and laptop:
-    // select teacher once, then click/tap repeatedly to "seed" hours.
-    cell.onclick=(e)=>{
+    // Același mecanism pe telefon și laptop.
+    // Folosim pointerup atât la jeton, cât și la celula din orar, ca selecția
+    // activă să nu se piardă între touchend/click pe Android.
+    const activateTimetableCell=(e)=>{
       if(e.target.closest("button")) return;
 
       const to={className:cls,day,hour};
@@ -5809,22 +5819,32 @@ function enableTimetableDragAndDrop(){
         return;
       }
 
-      if(selectedTeacherToken){
+      if(selectedTeacherToken?.assignmentIds?.length){
         if(getNestedSlot(cls,day,hour)){
           appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
           return;
         }
-        placeTeacherTokenInTimetable(selectedTeacherToken.assignmentIds,to);
+        placeTeacherTokenInTimetable([...selectedTeacherToken.assignmentIds],to);
         return;
       }
 
-      if(selectedDisciplineToken){
+      if(selectedDisciplineToken?.subjectName){
         if(getNestedSlot(cls,day,hour)){
           appMessage("Ora este deja ocupată. Folosește ↻ dacă vrei să muți sau să schimbi orele.","error");
           return;
         }
         placeDisciplineTokenInTimetable(selectedDisciplineToken.subjectName,to);
       }
+    };
+
+    cell.onclick=null;
+    cell.ontouchend=null;
+    cell.onpointerup=(e)=>{
+      if(e.pointerType==="mouse" && e.button!==0) return;
+      if(e.target.closest("button")) return;
+      e.preventDefault();
+      e.stopPropagation();
+      activateTimetableCell(e);
     };
 
     // Keep drag support as secondary convenience on desktop.
@@ -6674,12 +6694,20 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
   const subjectNameForLimit=canonicalSubject?.name || a.subjectName || solverSubjectName(a.subjectId) || "această disciplină";
   const configuredSubjectHours=Math.max(
     0,
-    Number(canonicalSubject?.hours ?? subjectRequiredHours(a.className,subjectNameForLimit))
+    Number(
+      subjectRequiredHours(a.className,subjectNameForLimit) ||
+      canonicalSubject?.hours ||
+      a.hours ||
+      0
+    )
   );
 
   // Prioritatea disciplinei NU blochează niciodată plasarea manuală.
-  // Verificăm numai limita săptămânală a disciplinei pentru clasa respectivă.
-  if(scheduledSubjectHoursInClass(a.className,subjectNameForLimit)>=configuredSubjectHours){
+  // Blocăm numai după ce există o limită reală (>0) și aceasta a fost atinsă.
+  if(
+    configuredSubjectHours>0 &&
+    scheduledSubjectHoursInClass(a.className,subjectNameForLimit)>=configuredSubjectHours
+  ){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
 
     await appConfirm({
