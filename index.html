@@ -1873,13 +1873,15 @@
 
 
 /* Evidențiere plasare jeton profesor */
-.timetable-cell.token-invalid-target{
-  background:#e5e7eb !important;
-  opacity:.62;
+#allClassTimetables td.token-invalid-target{
+  background:#d9dde3 !important;
+  opacity:.68;
   cursor:not-allowed !important;
 }
-.timetable-cell.token-invalid-target *{
-  opacity:.9;
+#allClassTimetables td.token-invalid-target .lesson,
+#allClassTimetables td.token-invalid-target .empty-slot,
+#allClassTimetables td.token-invalid-target > *{
+  opacity:.72;
 }
 
 </style>
@@ -6675,7 +6677,7 @@ async function placeDisciplineTokenInTimetable(subjectName,to){
 }
 
 function markTimetableCellsForTokenSelection(){
-  const cells=[...document.querySelectorAll(".timetable-cell")];
+  const cells=[...document.querySelectorAll("#allClassTimetables td[data-class][data-day][data-hour]")];
 
   // Curățăm marcajele anterioare.
   cells.forEach(cell=>cell.classList.remove("token-invalid-target"));
@@ -6687,7 +6689,7 @@ function markTimetableCellsForTokenSelection(){
   if(!tokenAssignments.length) return;
 
   cells.forEach(cell=>{
-    const cls=cell.dataset.className || cell.dataset.class || cell.getAttribute("data-class-name");
+    const cls=cell.dataset.class;
     const day=cell.dataset.day;
     const hourRaw=cell.dataset.hour;
     if(!cls || day==null || hourRaw==null) return;
@@ -6713,14 +6715,8 @@ function markTimetableCellsForTokenSelection(){
       }
 
       // 3. Celula este blocată.
-      if(!invalid){
-        const slot=getNestedSlot(cls,day,hour);
-        const locked=
-          slot?.locked===true ||
-          cell.classList.contains("locked") ||
-          cell.dataset.locked==="1" ||
-          cell.dataset.locked==="true";
-        if(locked) invalid=true;
+      if(!invalid && isSlotLocked(cls,day,hour)){
+        invalid=true;
       }
 
       // 4. Profesor indisponibil.
