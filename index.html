@@ -7959,9 +7959,15 @@ function buildTeacherVariant(){
   const inventory=teacherTokenInventory();
   const tt=disciplineLockedBase();
 
-  removeLockedTeacherTokensFromInventory(inventory,tt);
+  try{
+    removeLockedTeacherTokensFromInventory(inventory,tt);
+  }catch(err){
+    return {ok:false,message:err?.message||String(err)};
+  }
 
-  for(const className of randomShuffle(CLASSES)){
+  // Stabilim forma compactă a fiecărei clase.
+  const shapes={};
+  for(const className of CLASSES){
     const totalRequired=(state.assignments||[])
       .filter(a=>a.className===className)
       .reduce((sum,a)=>sum+Math.max(0,Number(a.hours)||0),0);
@@ -7973,63 +7979,125 @@ function buildTeacherVariant(){
         message:`Orele blocate ale clasei ${className} nu permit un orar compact fără ferestre.`
       };
     }
+    shapes[className]=shape;
+  }
 
-    let pool=randomShuffle(inventory[className]);
-
+  // Construim toate celulele libere ale tuturor claselor, apoi alegem de fiecare
+  // dată celula cu cele mai puține variante posibile. Astfel profesorii cu
+  // disponibilitate redusă sunt așezați înainte să le fie ocupate intervalele.
+  const cells=[];
+  for(const className of CLASSES){
+    const shape=shapes[className];
     for(let d=0;d<5;d++){
       for(let h=0;h<shape[d];h++){
         const key=`${d}-${h}`;
-        if(tt[className][key]) continue;
-
-        const usedToday=new Set();
-        for(let hh=0;hh<h;hh++){
-          const s=tt[className][`${d}-${hh}`];
-          if(s?.subject) usedToday.add(String(s.subject));
+        if(!tt[className][key]){
+          cells.push({className,d,h,key});
         }
+      }
+    }
+  }
 
-        let candidates=pool
-          .map((token,index)=>({token,index}))
-          .filter(x=>
-            isTeacherAvailable(x.token.teacherId,DAYS[d],h+1) &&
-            !teacherBusyAt(tt,x.token.teacherId,d,h,className) &&
-            !usedToday.has(String(x.token.subject))
-          );
+  const pools={};
+  CLASSES.forEach(cls=>pools[cls]=inventory[cls].slice());
 
-        // Permitem aceeași disciplină de două ori în aceeași zi doar dacă e necesar,
-        // dar niciodată același profesor simultan la două clase.
-        if(!candidates.length){
-          candidates=pool
-            .map((token,index)=>({token,index}))
-            .filter(x=>
-              isTeacherAvailable(x.token.teacherId,DAYS[d],h+1) &&
-              !teacherBusyAt(tt,x.token.teacherId,d,h,className)
-            );
-        }
+  function subjectAlreadyToday(className,d,subject){
+    for(let h=0;h<7;h++){
+      const s=tt[className]?.[`${d}-${h}`];
+      if(s?.subject && String(s.subject)===String(subject)) return true;
+    }
+    return false;
+  }
 
-        if(!candidates.length){
-          return {
-            ok:false,
-            message:`Nu pot așeza profesorii la ${DAYS[d]}, ora ${h+1}, fără suprapuneri.`
-          };
-        }
+  function feasibleCandidates(cell){
+    const pool=pools[cell.className]||[];
+    return pool
+      .map((token,index)=>({token,index}))
+      .filter(x=>
+        isTeacherAvailable(x.token.teacherId,DAYS[cell.d],cell.h+1) &&
+        !teacherBusyAt(tt,x.token.teacherId,cell.d,cell.h,cell.className)
+      );
+  }
 
-        const picked=pickCandidateWithListPriority(candidates,h);
-        const token=pool.splice(picked.index,1)[0];
+  let remaining=cells.slice();
 
-        tt[className][key]={
-          ...token,
-          className,
-          day:DAYS[d],
-          hour:h+1,
-          generated:true
+  while(remaining.length){
+    let bestIndex=-1;
+    let bestCandidates=null;
+
+    // MRV: alegem celula cea mai greu de completat.
+    for(let i=0;i<remaining.length;i++){
+      const cand=feasibleCandidates(remaining[i]);
+
+      if(!cand.length){
+        const c=remaining[i];
+        return {
+          ok:false,
+          message:`Nu pot așeza profesorii la ${classLabelRomanian(c.className)}, ${DAYS[c.d]}, ora ${c.h+1}, fără suprapuneri sau încălcarea disponibilității.`
         };
+      }
+
+      if(bestCandidates===null || cand.length<bestCandidates.length){
+        bestIndex=i;
+        bestCandidates=cand;
+        if(cand.length===1) break;
       }
     }
 
-    if(pool.length){
+    const cell=remaining[bestIndex];
+
+    // Dintre variantele posibile, preferăm:
+    // 1. profesorii care au cele mai puține alte intervale disponibile;
+    // 2. evitarea repetării aceleiași discipline în aceeași zi;
+    // 3. prioritatea disciplinei doar ca preferință, nu ca restricție.
+    const scored=bestCandidates.map(c=>{
+      let futureOptions=0;
+      for(const other of remaining){
+        if(other===cell || other.className!==cell.className) continue;
+        if(
+          isTeacherAvailable(c.token.teacherId,DAYS[other.d],other.h+1) &&
+          !teacherBusyAt(tt,c.token.teacherId,other.d,other.h,other.className)
+        ){
+          futureOptions++;
+        }
+      }
+
+      const repeatPenalty=subjectAlreadyToday(
+        cell.className,
+        cell.d,
+        c.token.subject
+      ) ? 20 : 0;
+
+      const priorityPenalty=disciplinePriorityIndex(c.token.subject);
+
+      return {
+        ...c,
+        score:futureOptions*10 + repeatPenalty + priorityPenalty + Math.random()
+      };
+    }).sort((a,b)=>a.score-b.score);
+
+    // Alegem dintre primele două variante apropiate pentru a păstra diversitatea
+    // între încercările generatorului.
+    const top=scored.slice(0,Math.min(2,scored.length));
+    const picked=top[Math.floor(Math.random()*top.length)];
+    const token=pools[cell.className].splice(picked.index,1)[0];
+
+    tt[cell.className][cell.key]={
+      ...token,
+      className:cell.className,
+      day:DAYS[cell.d],
+      hour:cell.h+1,
+      generated:true
+    };
+
+    remaining.splice(bestIndex,1);
+  }
+
+  for(const className of CLASSES){
+    if(pools[className].length){
       return {
         ok:false,
-        message:`Au rămas ${pool.length} ore de profesor neplasate la clasa ${className}.`
+        message:`Au rămas ${pools[className].length} ore de profesor neplasate la ${classLabelRomanian(className)}.`
       };
     }
   }
@@ -8770,7 +8838,7 @@ async function demoGenerate(mode="disciplines"){
     let lastError="Nu am putut construi orarul.";
 
     // Căutăm o singură soluție validă.
-    for(let attempt=0;attempt<100;attempt++){
+    for(let attempt=0;attempt<250;attempt++){
       const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
