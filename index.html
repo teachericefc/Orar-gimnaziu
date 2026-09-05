@@ -1875,9 +1875,23 @@
       <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Parola">
     </label>
     <div class="auth-actions">
-      
-    
-    
+      <button type="button" class="btn btn-primary" onclick="cloudLogin()">Intră</button>
+    </div>
+    <div id="authMessage" class="auth-message"></div>
+  </div>
+</div>
+
+<div class="school-banner">
+  <div class="school-banner-icon">🏫</div>
+  <div>
+    <div class="school-banner-title">Școala Gimnazială Dăneasa</div>
+    <div class="school-banner-subtitle">Orar gimnaziu • 2026–2027</div>
+  </div>
+  <div class="history-controls">
+    <span id="cloudStatus" class="cloud-status">☁ Neconectat</span>
+    <button id="undoLastCommandBtn" class="history-btn" onclick="undoLastCommand()" title="Anulează ultima comandă">↶ Undo</button>
+    <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ redo</button>
+    <button class="history-btn" onclick="verifyTimetable()">✓ Verifică</button>
   </div>
 </div>
 <div class="layout">
@@ -1896,7 +1910,7 @@
           <div class="teacher-compact-form">
 
             <div class="teacher-compact-top">
-<input id="teacherName" placeholder="Nume și prenume profesor">
+              <input id="teacherName" placeholder="Nume și prenume profesor">
 
               <select id="teacherStatus">
                 <option value="Titular">Titular</option>
@@ -8667,19 +8681,6 @@ function verifyTimetable(){
   <div class="verify-grid">${CLASSES.map(c=>`<div>Clasa ${c}<br>${stats[c].scheduled}/${stats[c].required} ore</div>`).join("")}</div>
   ${unique.length?`<b>Probleme găsite: ${unique.length}</b><ul class="verify-issues">${unique.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:`<div class="verify-ok">✓ Orarul trece verificările: ore complete, fără ferestre, suprapuneri sau indisponibilități.</div>`}</div>`;
   ov.onclick=e=>{if(e.target===ov||e.target.classList.contains("verify-close"))ov.remove()}; document.body.appendChild(ov);
-}
-async function restoreBackupFile(file){
-  if(!file)return;
-  try{
-    const p=JSON.parse(await file.text()),r=p?.state||p;
-    if(!r||!Array.isArray(r.teachers)||!Array.isArray(r.subjects))throw new Error("Fișier invalid.");
-    const current=localStorage.getItem(KEY);
-    if(current){const u=readHistoryStack(UNDO_STACK_KEY);u.push(current);writeHistoryStack(UNDO_STACK_KEY,u);writeHistoryStack(REDO_STACK_KEY,[]);}
-    isRestoringHistory=true;Object.keys(state).forEach(k=>delete state[k]);Object.assign(state,r);localStorage.setItem(KEY,JSON.stringify(state));
-    renderTimetable();renderTeachers();renderSubjects();renderClasses();renderAssignmentSelectors();updateStats();updateUndoButtonState();
-    appMessage("Copia de siguranță a fost restaurată.","success",1800);
-  }catch(e){appMessage("Nu am putut restaura copia: "+(e?.message||e),"error",4500)}
-  finally{isRestoringHistory=false}
 }
 async function demoGenerate(mode="disciplines"){
   mode=mode==="teachers" ? "teachers" : "disciplines";
