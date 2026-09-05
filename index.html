@@ -1949,6 +1949,83 @@
 }
 
 </style>
+
+<style id="force-vertical-class-layout">
+/* Orar clase: o singură coloană verticală, fără V B lângă V */
+#allClassTimetables{
+  display:flex !important;
+  flex-direction:column !important;
+  flex-wrap:nowrap !important;
+  align-items:stretch !important;
+  gap:18px !important;
+  width:100% !important;
+  max-width:100% !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  max-height:72vh !important;
+  padding-right:8px !important;
+  box-sizing:border-box !important;
+}
+
+/* Fiecare clasă ocupă toată lățimea disponibilă din panoul stâng */
+#allClassTimetables > *{
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+  flex:0 0 auto !important;
+  box-sizing:border-box !important;
+}
+
+/* Dacă panourile claselor folosesc clasele cunoscute de card/container */
+#allClassTimetables .class-timetable,
+#allClassTimetables .timetable-card,
+#allClassTimetables .class-card,
+#allClassTimetables .class-panel{
+  width:100% !important;
+  max-width:none !important;
+  min-width:0 !important;
+}
+
+/* Tabelul se întinde pe toată lățimea cardului */
+#allClassTimetables table{
+  width:100% !important;
+  max-width:100% !important;
+  table-layout:fixed !important;
+}
+
+/* Păstrăm scroll doar vertical în zona claselor */
+#allClassTimetables::-webkit-scrollbar{
+  width:10px;
+  height:0;
+}
+
+/* Spațiu jos ca ultima clasă să poată urca suficient în panou */
+#allClassTimetables::after{
+  content:"";
+  display:block;
+  flex:0 0 56vh;
+  width:1px;
+}
+
+/* Panoul de jetoane rămâne separat și derulabil doar vertical */
+.teacher-token-panel{
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  max-height:72vh !important;
+}
+
+/* Pe ecrane mai înguste, păstrăm aceeași logică */
+@media (max-width:900px){
+  #allClassTimetables,
+  .teacher-token-panel{
+    max-height:70vh !important;
+  }
+  #allClassTimetables::after{
+    flex-basis:54vh !important;
+  }
+}
+</style>
+
 </head>
 <body>
 <div class="app">
