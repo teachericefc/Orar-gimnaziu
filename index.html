@@ -3295,11 +3295,94 @@ function addTeacher(){
   renderClasses();
   renderAssignmentSelectors();
 }
-function deleteTeacher(id){
-  state.teachers=state.teachers.filter(t=>t.id!==id);
-  state.assignments=state.assignments.filter(a=>a.teacherId!==id);
-  if(state.availability) delete state.availability[id];
-  save();renderTeachers();renderAssignmentSelectors();renderAssignments();
+async function deleteTeacher(id){
+  const teacher=(state.teachers||[]).find(t=>t.id===id);
+  if(!teacher) return;
+
+  const assignmentCount=(state.assignments||[]).filter(a=>a.teacherId===id).length;
+  let timetableCount=0;
+  for(const className of CLASSES){
+    const data=state.timetable?.[className]||{};
+    Object.values(data).forEach(slot=>{
+      if(slot?.teacherId===id) timetableCount++;
+    });
+  }
+
+  const ok=await appConfirm({
+    title:`Ștergi profesorul ${teacher.name}?`,
+    message:"Profesorul va fi eliminat complet împreună cu toate datele asociate lui.",
+    icon:"🗑️",
+    confirmText:"Șterge profesorul",
+    cancelText:"Renunță",
+    details:[
+      {label:"Încadrări",value:String(assignmentCount)},
+      {label:"Ore din orar",value:String(timetableCount)},
+      {label:"Disponibilitate",value:state.availability?.[id] ? "se șterge" : "—"}
+    ]
+  });
+  if(!ok) return;
+
+  // 1. Profesorul propriu-zis.
+  state.teachers=(state.teachers||[]).filter(t=>t.id!==id);
+
+  // 2. Toate încadrările/repartizările profesorului.
+  state.assignments=(state.assignments||[]).filter(a=>a.teacherId!==id);
+
+  // 3. Toate disponibilitățile / indisponibilitățile.
+  if(state.availability && typeof state.availability==="object"){
+    delete state.availability[id];
+  }
+
+  // 4. Toate orele profesorului deja puse în orar.
+  state.timetable ||= {};
+  for(const className of CLASSES){
+    const data=state.timetable[className]||{};
+    for(const key of Object.keys(data)){
+      const slot=data[key];
+      if(slot?.teacherId===id){
+        data[key]=null;
+      }
+    }
+  }
+
+  // 5. Orice ore blocate care aparțineau profesorului.
+  if(state.lockedSlots && typeof state.lockedSlots==="object"){
+    for(const key of Object.keys(state.lockedSlots)){
+      const lock=state.lockedSlots[key];
+      if(lock?.teacherId===id || lock?.snapshot?.teacherId===id){
+        delete state.lockedSlots[key];
+      }
+    }
+  }
+
+  // 6. Curățăm orice alte referințe orfane rămase.
+  try{sanitizeOrphanTimetableSlots();}catch(e){console.error(e);}
+  try{invalidateFinalSchedule();}catch(e){}
+
+  // 7. Curățăm și starea temporară a jetoanelor selectate.
+  try{
+    if(selectedTeacherToken?.assignmentIds?.length){
+      const liveIds=new Set((state.assignments||[]).map(a=>a.id));
+      selectedTeacherToken.assignmentIds=selectedTeacherToken.assignmentIds.filter(x=>liveIds.has(x));
+      if(!selectedTeacherToken.assignmentIds.length) selectedTeacherToken=null;
+    }
+    draggedTeacherToken=null;
+  }catch(e){}
+
+  save();
+
+  // Reafișăm toate zonele care pot conține referințe la profesor.
+  try{renderTeachers();}catch(e){}
+  try{renderAssignmentSelectors();}catch(e){}
+  try{renderAssignments();}catch(e){}
+  try{renderTimetable();}catch(e){}
+  try{renderTeacherTimetableTokens();}catch(e){}
+  try{renderDisciplineTimetableTokens();}catch(e){}
+  try{renderLockedHoursList();}catch(e){}
+  try{renderGlobalHoursSummary();}catch(e){}
+  try{renderTeacherSchedules?.();}catch(e){}
+
+  appMessage(`Profesorul ${teacher.name} și toate datele asociate au fost șterse.`,"success",2400);
 }
 function renderTeachers(){
   const box=document.getElementById("teachersTable");
