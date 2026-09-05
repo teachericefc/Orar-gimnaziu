@@ -2032,6 +2032,97 @@
   }
 }
 
+
+
+/* === FIX FINAL: clase + jetoane vizibile simultan === */
+
+.orar-workspace{
+  display:grid !important;
+  grid-template-columns:minmax(0,1fr) 300px !important;
+  gap:12px !important;
+  height:calc(100vh - 205px) !important;
+  min-height:520px !important;
+  overflow:hidden !important;
+  align-items:stretch !important;
+}
+
+/* Clasele se derulează numai în panoul lor. */
+#allClassTimetables.all-class-timetables{
+  min-width:0 !important;
+  width:100% !important;
+  height:100% !important;
+  max-height:100% !important;
+  overflow-y:auto !important;
+  overflow-x:auto !important;
+  grid-template-columns:1fr !important;
+  align-content:start !important;
+  padding:0 8px 0 0 !important;
+  margin:0 !important;
+  scroll-padding-top:8px !important;
+}
+
+/* Spațiu real după ultima clasă: permite Clasei VIII să ajungă sus,
+   fără să poată urca sub bara de meniu. */
+#allClassTimetables.all-class-timetables::after{
+  content:"";
+  display:block;
+  height:calc(100% - 105px);
+  min-height:260px;
+  grid-column:1;
+}
+
+/* Panoul cu jetoane rămâne permanent vizibil în dreapta. */
+.teacher-token-panel{
+  display:block !important;
+  min-width:0 !important;
+  width:auto !important;
+  height:100% !important;
+  max-height:100% !important;
+  overflow-y:auto !important;
+  overflow-x:hidden !important;
+  position:relative !important;
+  top:auto !important;
+  padding:10px !important;
+}
+
+/* Taburile Profesori / Discipline nu dispar când derulezi jetoanele. */
+.teacher-token-panel .token-panel-tabs{
+  display:grid !important;
+  position:sticky !important;
+  top:0 !important;
+  z-index:100 !important;
+  background:#f8fafc !important;
+}
+
+.teacher-token-panel .teacher-token-help{
+  position:static !important;
+}
+
+/* Pe ecrane înguste păstrăm tot două panouri, dar reducem coloana jetoanelor. */
+@media(max-width:900px){
+  .orar-workspace{
+    grid-template-columns:minmax(0,1fr) 235px !important;
+    height:68vh !important;
+    min-height:520px !important;
+    overflow:hidden !important;
+  }
+
+  #allClassTimetables.all-class-timetables{
+    height:100% !important;
+    max-height:100% !important;
+  }
+
+  #allClassTimetables.all-class-timetables::after{
+    height:calc(100% - 95px);
+    min-height:300px;
+  }
+
+  .teacher-token-panel{
+    height:100% !important;
+    max-height:100% !important;
+  }
+}
+
 </style>
 </head>
 <body>
