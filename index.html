@@ -1886,240 +1886,65 @@
 
 
 
-/* Panouri independente în zona de repartizare manuală:
-   clasele și profesorii se pot derula separat, astfel încât orice clasă
-   să poată fi adusă în dreptul oricărui profesor. */
+/* === Derulare simplă, cu aspectul original păstrat === */
+
+/* Păstrăm dimensiunile și așezarea originale ale claselor și jetoanelor. */
 .orar-workspace{
-  height:calc(100vh - 205px);
-  min-height:520px;
-  overflow:hidden;
+  align-items:start;
 }
 
+/* Coloana CLASE: scroll doar sus/jos, fără schimbarea lățimii/cardurilor. */
 #allClassTimetables.all-class-timetables{
-  height:100%;
-  max-height:100%;
+  max-height:72vh;
   overflow-y:auto;
-  overflow-x:hidden;
-  align-content:start;
-  padding-right:8px;
-  margin-top:0;
-  scrollbar-gutter:stable;
+  overflow-x:visible;
   overscroll-behavior:contain;
-}
-
-.teacher-token-panel{
-  position:relative;
-  top:auto;
-  height:100%;
-  max-height:100%;
-  overflow-y:auto;
-  overflow-x:hidden;
   scrollbar-gutter:stable;
-  overscroll-behavior:contain;
+  padding-right:6px;
+  scroll-padding-top:8px;
 }
 
-/* File de derulare mai ușor de observat pe desktop, fără a încărca vizual pagina. */
-#allClassTimetables.all-class-timetables::-webkit-scrollbar,
-.teacher-token-panel::-webkit-scrollbar{
-  width:9px;
-}
-#allClassTimetables.all-class-timetables::-webkit-scrollbar-thumb,
-.teacher-token-panel::-webkit-scrollbar-thumb{
-  background:#cbd5e1;
-  border-radius:999px;
-}
-#allClassTimetables.all-class-timetables::-webkit-scrollbar-track,
-.teacher-token-panel::-webkit-scrollbar-track{
-  background:transparent;
-}
-
-@media(max-width:900px){
-  .orar-workspace{
-    height:auto;
-    min-height:0;
-    overflow:visible;
-  }
-  #allClassTimetables.all-class-timetables{
-    height:68vh;
-    max-height:68vh;
-    overflow-y:auto;
-  }
-  .teacher-token-panel{
-    position:relative;
-    height:58vh;
-    max-height:58vh;
-    overflow-y:auto;
-  }
-}
-
-
-
-/* === Corecții derulare manuală === */
-
-/* Zona claselor rămâne sub bara de sus; se derulează doar în interiorul ei. */
-#allClassTimetables.all-class-timetables{
-  position:relative;
-  scroll-padding-top:10px;
-  /* Spațiu suplimentar la final ca și ultima clasă să poată ajunge sus în panou. */
-  padding-bottom:calc(100% - 150px);
-  box-sizing:border-box;
-}
-
-/* Nu lăsăm conținutul derulat să treacă vizual sub bara/meniul aplicației. */
-.orar-workspace{
-  position:relative;
-  overflow:hidden;
-}
-
-/* Panoul cu jetoane are derulare proprie, dar taburile rămân permanent vizibile sus. */
-.teacher-token-panel{
-  position:relative;
-  overflow-y:auto;
-  overflow-x:hidden;
-  padding-top:0;
-}
-
-
-
-/* Pe mobil păstrăm aceleași reguli și suficient spațiu pentru ultima clasă. */
-@media(max-width:900px){
-  #allClassTimetables.all-class-timetables{
-    padding-bottom:calc(68vh - 130px);
-  }
-  .teacher-token-panel{
-    overflow-y:auto;
-  }
-}
-
-
-/* Taburile reale ale jetoanelor rămân permanent vizibile. */
-.teacher-token-panel .token-panel-tabs{
-  position:sticky !important;
-  top:0 !important;
-  z-index:50 !important;
-  background:#f8fafc !important;
-  margin-top:0;
-}
-
-/* Ajutorul rămâne imediat sub taburi, fără să ascundă lista. */
-.teacher-token-panel .teacher-token-help{
-  position:sticky;
-  top:48px;
-  z-index:49;
-  background:#fff;
-  padding:7px 2px;
-  margin-top:4px;
-  margin-bottom:8px;
-}
-
-/* Capetele fiecărui jeton NU sunt sticky. */
-.teacher-token-panel .teacher-token-head{
-  position:static !important;
-}
-
-/* Ultima clasă poate fi ridicată până aproape de partea de sus a panoului,
-   dar panoul însuși rămâne sub bara aplicației. */
-#allClassTimetables.all-class-timetables{
-  padding-bottom:calc(100vh - 285px) !important;
-  scroll-padding-top:12px;
-}
-
-@media(max-width:900px){
-  #allClassTimetables.all-class-timetables{
-    height:68vh;
-    max-height:68vh;
-    padding-bottom:calc(68vh - 135px) !important;
-  }
-}
-
-
-
-/* === FIX FINAL: clase + jetoane vizibile simultan === */
-
-.orar-workspace{
-  display:grid !important;
-  grid-template-columns:minmax(0,1fr) 300px !important;
-  gap:12px !important;
-  height:calc(100vh - 205px) !important;
-  min-height:520px !important;
-  overflow:hidden !important;
-  align-items:stretch !important;
-}
-
-/* Clasele se derulează numai în panoul lor. */
-#allClassTimetables.all-class-timetables{
-  min-width:0 !important;
-  width:100% !important;
-  height:100% !important;
-  max-height:100% !important;
-  overflow-y:auto !important;
-  overflow-x:auto !important;
-  grid-template-columns:1fr !important;
-  align-content:start !important;
-  padding:0 8px 0 0 !important;
-  margin:0 !important;
-  scroll-padding-top:8px !important;
-}
-
-/* Spațiu real după ultima clasă: permite Clasei VIII să ajungă sus,
-   fără să poată urca sub bara de meniu. */
+/* Spațiu după ultima clasă ca să poată fi urcată până sus în panou.
+   Fiind scroll intern, nu poate intra sub meniul aplicației. */
 #allClassTimetables.all-class-timetables::after{
   content:"";
   display:block;
-  height:calc(100% - 105px);
-  min-height:260px;
-  grid-column:1;
+  min-height:58vh;
+  grid-column:1 / -1;
 }
 
-/* Panoul cu jetoane rămâne permanent vizibil în dreapta. */
+/* Coloana JETOANE: scroll separat sus/jos, exact în locul unde era înainte. */
 .teacher-token-panel{
-  display:block !important;
-  min-width:0 !important;
-  width:auto !important;
-  height:100% !important;
-  max-height:100% !important;
-  overflow-y:auto !important;
-  overflow-x:hidden !important;
-  position:relative !important;
-  top:auto !important;
-  padding:10px !important;
+  position:sticky;
+  top:12px;
+  max-height:72vh;
+  overflow-y:auto;
+  overflow-x:hidden;
+  overscroll-behavior:contain;
+  scrollbar-gutter:stable;
 }
 
-/* Taburile Profesori / Discipline nu dispar când derulezi jetoanele. */
+/* Taburile Profesori / Discipline rămân vizibile când derulăm jetoanele. */
 .teacher-token-panel .token-panel-tabs{
-  display:grid !important;
-  position:sticky !important;
-  top:0 !important;
-  z-index:100 !important;
-  background:#f8fafc !important;
+  position:sticky;
+  top:0;
+  z-index:30;
+  background:#f8fafc;
 }
 
-.teacher-token-panel .teacher-token-help{
-  position:static !important;
+/* Nu modificăm capetele jetoanelor/profesorilor. */
+.teacher-token-panel .teacher-token-head{
+  position:static;
 }
 
-/* Pe ecrane înguste păstrăm tot două panouri, dar reducem coloana jetoanelor. */
 @media(max-width:900px){
-  .orar-workspace{
-    grid-template-columns:minmax(0,1fr) 235px !important;
-    height:68vh !important;
-    min-height:520px !important;
-    overflow:hidden !important;
-  }
-
-  #allClassTimetables.all-class-timetables{
-    height:100% !important;
-    max-height:100% !important;
+  #allClassTimetables.all-class-timetables,
+  .teacher-token-panel{
+    max-height:70vh;
   }
 
   #allClassTimetables.all-class-timetables::after{
-    height:calc(100% - 95px);
-    min-height:300px;
-  }
-
-  .teacher-token-panel{
-    height:100% !important;
-    max-height:100% !important;
+    min-height:56vh;
   }
 }
 
