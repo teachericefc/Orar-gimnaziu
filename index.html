@@ -1871,6 +1871,17 @@
   }
 }
 
+
+/* Evidențiere plasare jeton profesor */
+.timetable-cell.token-invalid-target{
+  background:#e5e7eb !important;
+  opacity:.62;
+  cursor:not-allowed !important;
+}
+.timetable-cell.token-invalid-target *{
+  opacity:.9;
+}
+
 </style>
 </head>
 <body>
@@ -5739,6 +5750,7 @@ function swapTimetableSlots(a,b){
   save();
   renderTimetable();
   renderTeacherTimetableTokens();
+  markTimetableCellsForTokenSelection();
   renderTeachers();
   renderGlobalHoursSummary();
 
@@ -6663,29 +6675,88 @@ async function placeDisciplineTokenInTimetable(subjectName,to){
 }
 
 function markTimetableCellsForTokenSelection(){
-  const hasToken=!!selectedTeacherToken || !!selectedDisciplineToken;
-  document.querySelectorAll("#allClassTimetables td[data-class][data-day][data-hour]").forEach(cell=>{
-    cell.classList.toggle("token-click-target",hasToken);
-  });
+  const cells=[...document.querySelectorAll(".timetable-cell")];
 
-  let hint=document.getElementById("teacherTokenTapHint");
-  const panel=document.querySelector(".teacher-token-panel");
-  if(hasToken){
-    if(panel && !hint){
-      hint=document.createElement("div");
-      hint.id="teacherTokenTapHint";
-      hint.className="token-place-hint";
-      const firstContent=panel.querySelector(".token-tab-content");
-      panel.insertBefore(hint,firstContent);
+  // Curățăm marcajele anterioare.
+  cells.forEach(cell=>cell.classList.remove("token-invalid-target"));
+
+  if(!selectedTeacherToken?.assignmentIds?.length) return;
+
+  const ids=[...selectedTeacherToken.assignmentIds];
+  const tokenAssignments=(state.assignments||[]).filter(a=>ids.includes(a.id));
+  if(!tokenAssignments.length) return;
+
+  cells.forEach(cell=>{
+    const cls=cell.dataset.className || cell.dataset.class || cell.getAttribute("data-class-name");
+    const day=cell.dataset.day;
+    const hourRaw=cell.dataset.hour;
+    if(!cls || day==null || hourRaw==null) return;
+
+    const hour=Number(hourRaw);
+    const matchingAssignment=tokenAssignments.find(a=>a.className===cls);
+
+    let invalid=false;
+
+    // 1. Profesorul/jetonul nu are repartizare la clasa respectivă.
+    if(!matchingAssignment){
+      invalid=true;
+    }else{
+      const teacherId=matchingAssignment.teacherId;
+      const subjectName=
+        matchingAssignment.subjectName ||
+        (state.subjects||[]).find(s=>s.id===matchingAssignment.subjectId)?.name ||
+        "";
+
+      // 2. Celula este deja ocupată.
+      if(getNestedSlot(cls,day,hour)){
+        invalid=true;
+      }
+
+      // 3. Celula este blocată.
+      if(!invalid){
+        const slot=getNestedSlot(cls,day,hour);
+        const locked=
+          slot?.locked===true ||
+          cell.classList.contains("locked") ||
+          cell.dataset.locked==="1" ||
+          cell.dataset.locked==="true";
+        if(locked) invalid=true;
+      }
+
+      // 4. Profesor indisponibil.
+      if(!invalid && !isTeacherAvailable(teacherId,day,hour)){
+        invalid=true;
+      }
+
+      // 5. Profesor deja ocupat la altă clasă în același interval.
+      if(!invalid){
+        const dayIndex=["Luni","Marți","Miercuri","Joi","Vineri"].indexOf(day);
+        const hourIndex=hour-1;
+        if(dayIndex>=0 && teacherBusyAt(state.timetable,teacherId,dayIndex,hourIndex,cls)){
+          invalid=true;
+        }
+      }
+
+      // 6. Limita săptămânală a disciplinei la clasă a fost atinsă.
+      if(!invalid && subjectName){
+        const canonical=canonicalSubjectForAssignment(matchingAssignment);
+        const maxHours=
+          subjectRequiredHours(cls,subjectName) ||
+          canonical?.hours ||
+          matchingAssignment.hours ||
+          0;
+
+        if(
+          Number(maxHours)>0 &&
+          scheduledSubjectHoursInClass(cls,subjectName)>=Number(maxHours)
+        ){
+          invalid=true;
+        }
+      }
     }
-    if(hint){
-      hint.textContent=selectedTeacherToken
-        ? "Profesor selectat — apasă succesiv pe orele libere pentru a-l repartiza în orar."
-        : "Disciplină selectată — apasă succesiv pe orele libere; profesorul poate fi repartizat mai târziu.";
-    }
-  }else if(hint){
-    hint.remove();
-  }
+
+    if(invalid) cell.classList.add("token-invalid-target");
+  });
 }
 
 function appConfirm({
