@@ -1875,26 +1875,9 @@
       <input id="cloudPassword" type="password" autocomplete="current-password" placeholder="Parola">
     </label>
     <div class="auth-actions">
-      <button type="button" class="btn btn-primary" onclick="cloudLogin()">Intră</button>
-    </div>
-    <div id="authMessage" class="auth-message"></div>
-  </div>
-</div>
-
-<div class="school-banner">
-  <div class="school-banner-icon">🏫</div>
-  <div>
-    <div class="school-banner-title">Școala Gimnazială Dăneasa</div>
-    <div class="school-banner-subtitle">Orar gimnaziu • 2026–2027</div>
-  </div>
-  <div class="history-controls">
-    <span id="cloudStatus" class="cloud-status">☁ Neconectat</span>
-    <button id="undoLastCommandBtn" class="history-btn" onclick="undoLastCommand()" title="Anulează ultima comandă">↶ Undo</button>
-    <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ redo</button>
-    <button class="history-btn" onclick="verifyTimetable()">✓ Verifică</button>
-    <button class="history-btn" onclick="exportBackup()">⇩ Copie</button>
-    <button class="history-btn" onclick="document.getElementById('backupRestoreInput').click()">⇧ Restaurează</button>
-    <input id="backupRestoreInput" type="file" accept=".json,application/json" hidden onchange="restoreBackupFile(this.files?.[0]);this.value=''">
+      
+    
+    
   </div>
 </div>
 <div class="layout">
@@ -1913,7 +1896,7 @@
           <div class="teacher-compact-form">
 
             <div class="teacher-compact-top">
-              <input id="teacherName" placeholder="Nume și prenume profesor">
+<input id="teacherName" placeholder="Nume și prenume profesor">
 
               <select id="teacherStatus">
                 <option value="Titular">Titular</option>
@@ -2449,6 +2432,28 @@ function repairTeacherAssignments(target){
 
 
 
+
+function sanitizeOrphanTimetableSlots(){
+  let changed=false;
+  state.timetable ||= {};
+
+  for(const className of CLASSES){
+    const data=state.timetable[className]||{};
+    for(const key of Object.keys(data)){
+      const slot=data[key];
+      if(slot && !isCurrentValidScheduledSlot(className,slot)){
+        data[key]=null;
+        changed=true;
+      }
+    }
+  }
+
+  if(changed){
+    try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
+  }
+  return changed;
+}
+
 function cloudStableStringify(value){
   if(Array.isArray(value)){
     return "["+value.map(cloudStableStringify).join(",")+"]";
@@ -2710,6 +2715,7 @@ if(repairTeacherAssignments(state)){
 }
 
 removeTestTeachersFromState();
+sanitizeOrphanTimetableSlots();
 try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){}
 
 
@@ -6358,14 +6364,53 @@ function readTeacherTokenFromDragEvent(e){
 
 
 
+
+function isCurrentValidScheduledSlot(className,slot){
+  if(!slot || typeof slot!=="object") return false;
+
+  // A slot without a subject is never a valid scheduled lesson.
+  const subjectName=
+    slot.subjectName ||
+    (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+    "";
+  if(!subjectName) return false;
+
+  // Subject must still exist in the current curriculum for this class.
+  const subjectExists=(state.subjects||[]).some(
+    s=>s.className===className &&
+       normalizedSubjectKey(s.name)===normalizedSubjectKey(subjectName) &&
+       Number(s.hours||0)>0
+  );
+  if(!subjectExists) return false;
+
+  // If a teacher is attached, that teacher must still exist.
+  if(slot.teacherId){
+    const teacherExists=(state.teachers||[]).some(t=>t.id===slot.teacherId);
+    if(!teacherExists) return false;
+  }
+
+  return true;
+}
+
 function scheduledSubjectHoursInClass(className,subjectName,timetableData=state.timetable){
-  let count=0;
-  Object.values(timetableData?.[className]||{}).forEach(slot=>{
-    if(!slot) return;
-    const slotName=slot.subject || (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name || "";
-    if(String(slotName).trim().toLocaleLowerCase("ro")===String(subjectName).trim().toLocaleLowerCase("ro")) count++;
+  const key=normalizedSubjectKey(subjectName);
+  let total=0;
+  const data=timetableData?.[className]||{};
+
+  Object.values(data).forEach(slot=>{
+    if(!isCurrentValidScheduledSlot(className,slot)) return;
+
+    const slotSubjectName=
+      slot.subjectName ||
+      (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
+      "";
+
+    if(normalizedSubjectKey(slotSubjectName)===key){
+      total++;
+    }
   });
-  return count;
+
+  return total;
 }
 
 function remainingSubjectHoursForClass(className,subjectName,timetableData=state.timetable){
@@ -6700,6 +6745,93 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
     scheduledSubjectHoursInClass(a.className,subjectNameForLimit)>=configuredSubjectHours
   ){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
+
+  // Verificare explicită a indisponibilității profesorului.
+  // Acceptăm mai multe forme vechi de stocare a disponibilității.
+  const availabilityData=
+    teacher?.availability ??
+    teacher?.unavailable ??
+    teacher?.indisponibilitate ??
+    teacher?.indisponibilitati ??
+    null;
+
+  const dayName=["Luni","Marți","Miercuri","Joi","Vineri"][Number(to.day)] || "Ziua selectată";
+  const hourNumber=Number(to.hour)+1;
+
+  function teacherMarkedUnavailable(data,dayIndex,hourIndex){
+    if(!data) return false;
+
+    const dayKeys=[
+      String(dayIndex),
+      ["luni","marti","miercuri","joi","vineri"][dayIndex],
+      ["Luni","Marți","Miercuri","Joi","Vineri"][dayIndex]
+    ].filter(Boolean);
+
+    // Arrays by day.
+    if(Array.isArray(data)){
+      const dayValue=data[dayIndex];
+      if(dayValue===false) return true;
+      if(Array.isArray(dayValue)){
+        const v=dayValue[hourIndex];
+        return v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil";
+      }
+      if(dayValue && typeof dayValue==="object"){
+        const v=dayValue[hourIndex] ?? dayValue[String(hourIndex)] ?? dayValue[hourIndex+1] ?? dayValue[String(hourIndex+1)];
+        return v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil";
+      }
+    }
+
+    // Objects keyed by day.
+    if(typeof data==="object"){
+      for(const dk of dayKeys){
+        if(!(dk in data)) continue;
+        const dayValue=data[dk];
+
+        if(dayValue===false) return true;
+        if(dayValue===true) return false;
+
+        if(Array.isArray(dayValue)){
+          const v=dayValue[hourIndex];
+          if(v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil") return true;
+        }else if(dayValue && typeof dayValue==="object"){
+          const v=
+            dayValue[hourIndex] ??
+            dayValue[String(hourIndex)] ??
+            dayValue[hourIndex+1] ??
+            dayValue[String(hourIndex+1)];
+          if(v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil") return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  let unavailableNow=teacherMarkedUnavailable(availabilityData,Number(to.day),Number(to.hour));
+
+  // Keep compatibility with the app's existing helper if present.
+  try{
+    if(typeof isTeacherAvailable==="function" && isTeacherAvailable(teacher.id,to.day,to.hour)===false){
+      unavailableNow=true;
+    }
+  }catch(e){}
+
+  if(unavailableNow){
+    await appConfirm({
+      title:`Profesorul este indisponibil ${dayName.toLocaleLowerCase("ro")}`,
+      message:"Nu poți repartiza profesorul în această zi/oră deoarece este marcat indisponibil.",
+      icon:"⛔",
+      confirmText:"Am înțeles",
+      singleButton:true,
+      details:[
+        {label:"Profesor",value:teacher?.name||"Profesor"},
+        {label:"Ziua",value:dayName},
+        {label:"Ora",value:String(hourNumber)}
+      ]
+    });
+    return false;
+  }
+
 
     await appConfirm({
       title:"S-a atins limita maximă",
@@ -8535,12 +8667,6 @@ function verifyTimetable(){
   <div class="verify-grid">${CLASSES.map(c=>`<div>Clasa ${c}<br>${stats[c].scheduled}/${stats[c].required} ore</div>`).join("")}</div>
   ${unique.length?`<b>Probleme găsite: ${unique.length}</b><ul class="verify-issues">${unique.map(x=>`<li>${esc(x)}</li>`).join("")}</ul>`:`<div class="verify-ok">✓ Orarul trece verificările: ore complete, fără ferestre, suprapuneri sau indisponibilități.</div>`}</div>`;
   ov.onclick=e=>{if(e.target===ov||e.target.classList.contains("verify-close"))ov.remove()}; document.body.appendChild(ov);
-}
-function exportBackup(){
-  const payload={app:"Orar gimnaziu",version:1,exportedAt:new Date().toISOString(),state};
-  const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json"}),url=URL.createObjectURL(blob),a=document.createElement("a");
-  a.href=url;a.download=`orar-gimnaziu-backup-${new Date().toISOString().slice(0,10)}.json`;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  appMessage("Copia de siguranță a fost creată.","success",1500);
 }
 async function restoreBackupFile(file){
   if(!file)return;
