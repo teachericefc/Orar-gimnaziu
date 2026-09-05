@@ -2543,6 +2543,7 @@ function applyRemoteStateWithoutReload(remote){
 
     ensureClassVBInState(state);
     repairTeacherAssignments(state);
+    sanitizeOrphanTimetableSlots();
     localStorage.setItem(KEY,JSON.stringify(state));
 
     try{synchronizeAssignmentsWithSubjects();}catch(e){console.error(e);}
@@ -6384,6 +6385,7 @@ function isCurrentValidScheduledSlot(className,slot){
 
   // A slot without a subject is never a valid scheduled lesson.
   const subjectName=
+    slot.subject ||
     slot.subjectName ||
     (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
     "";
@@ -6415,6 +6417,7 @@ function scheduledSubjectHoursInClass(className,subjectName,timetableData=state.
     if(!isCurrentValidScheduledSlot(className,slot)) return;
 
     const slotSubjectName=
+      slot.subject ||
       slot.subjectName ||
       (state.subjects||[]).find(s=>s.id===slot.subjectId)?.name ||
       "";
@@ -6734,6 +6737,51 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
   const ids=Array.isArray(assignmentIds)?assignmentIds:[assignmentIds];
   const candidates=(state.assignments||[]).filter(a=>ids.includes(a.id));
   const a=candidates.find(x=>x.className===to.className);
+
+  // Dacă profesorul selectat nu are repartizare la clasa țintă,
+  // explicăm clar de ce jetonul nu poate fi pus acolo.
+  if(!a){
+    const firstAssignment=(state.assignments||[]).find(
+      x=>assignmentIds.includes(x.id)
+    );
+    const teacherId=firstAssignment?.teacherId;
+    const teacher=(state.teachers||[]).find(t=>t.id===teacherId);
+
+    const assignedClasses=(state.assignments||[])
+      .filter(x=>x.teacherId===teacherId)
+      .map(x=>x.className)
+      .filter(Boolean)
+      .filter((v,i,arr)=>arr.indexOf(v)===i);
+
+    const assignedSubjects=(state.assignments||[])
+      .filter(x=>x.teacherId===teacherId)
+      .map(x=>x.subjectName || (state.subjects||[]).find(s=>s.id===x.subjectId)?.name)
+      .filter(Boolean)
+      .filter((v,i,arr)=>arr.indexOf(v)===i);
+
+    const classText=assignedClasses.length
+      ? assignedClasses.map(c=>classLabelRomanian(c)).join(", ")
+      : "nicio clasă";
+
+    const subjectText=assignedSubjects.length
+      ? assignedSubjects.join(", ")
+      : "disciplina profesorului";
+
+    await appConfirm({
+      title:`Profesorul ${teacher?.name||""} nu predă ${subjectText} la ${classLabelRomanian(to.className)}!`,
+      message:"Acest jeton nu poate fi pus la clasa selectată.",
+      icon:"🚫",
+      confirmText:"Am înțeles",
+      singleButton:true,
+      details:[
+        {label:"Profesor",value:teacher?.name||"Profesor"},
+        {label:"Disciplina",value:subjectText},
+        {label:"Clasa",value:classLabelRomanian(to.className)}
+      ]
+    });
+    return false;
+  }
+
 
   if(!a){
     const cls=[...new Set(candidates.map(x=>x.className))].join(", ");
