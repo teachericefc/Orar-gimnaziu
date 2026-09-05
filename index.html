@@ -8041,268 +8041,162 @@ function buildTeacherVariant(){
     return {ok:false,message:err?.message||String(err)};
   }
 
+  // Generator GLOBAL: rezolvă simultan toate clasele și toți profesorii.
+  // Regula de formă se aplică doar generatorului:
+  // minimum 4 ore consecutive/zi pentru fiecare clasă; restul liber.
   const freeCellsByClass={};
 
-  // Regula generatorului după profesor:
-  // - fiecare clasă trebuie să aibă CEL PUȚIN 4 ore în fiecare zi;
-  // - orele suplimentare se pot distribui liber între zile, în orice combinație;
-  // - clasele rămân fără ferestre: dacă o zi are 6 ore, sunt ocupate orele 1..6.
   for(const className of CLASSES){
-    const lockedSlots=Object.entries(tt[className]||{})
-      .filter(([,slot])=>!!slot);
+    const locked=Object.entries(tt[className]||{}).filter(([,s])=>!!s);
+    const total=locked.length+(inventory[className]?.length||0);
+    const counts=Array(DAYS.length).fill(4);
 
-    const lockedCount=lockedSlots.length;
-    const remainingTokens=inventory[className]?.length||0;
-    const totalRequired=lockedCount+remainingTokens;
-
-    const dailyCounts=Array(DAYS.length).fill(4);
-
-    // Dacă există ore deja blocate mai jos, ziua respectivă trebuie să ajungă
-    // până la acel rând pentru a nu crea ferestre.
-    for(const [key] of lockedSlots){
-      const parts=String(key).split("-");
-      const d=Number(parts[0]);
-      const h=Number(parts[1]);
-      if(Number.isInteger(d) && Number.isInteger(h) && d>=0 && d<DAYS.length){
-        dailyCounts[d]=Math.max(dailyCounts[d],h+1);
+    for(const [key] of locked){
+      const [d,h]=String(key).split("-").map(Number);
+      if(Number.isInteger(d)&&Number.isInteger(h)&&d>=0&&d<DAYS.length){
+        counts[d]=Math.max(counts[d],h+1);
       }
     }
 
-    let used=dailyCounts.reduce((a,b)=>a+b,0);
-
-    if(totalRequired<used){
-      return {
-        ok:false,
-        message:`${classLabelRomanian(className)} are ${totalRequired} ore, dar regula de minimum 4 ore/zi împreună cu orele blocate cere cel puțin ${used} ore.`
-      };
+    let used=counts.reduce((a,b)=>a+b,0);
+    if(total<used){
+      return {ok:false,message:`${classLabelRomanian(className)} nu poate respecta minimum 4 ore/zi cu orele blocate existente.`};
     }
 
-    // Restul orelor se distribuie LIBER între zile.
-    // O zi poate ajunge la 6 ore chiar dacă alta rămâne la 4.
-    while(used<totalRequired){
-      const candidateDays=[];
-      for(let d=0;d<dailyCounts.length;d++){
-        if(dailyCounts[d]<HOURS.length){
-          candidateDays.push(d);
-        }
-      }
-
-      if(!candidateDays.length){
-        return {
-          ok:false,
-          message:`Nu mai există suficiente intervale pentru ${classLabelRomanian(className)}.`
-        };
-      }
-
-      const d=candidateDays[Math.floor(Math.random()*candidateDays.length)];
-      dailyCounts[d]++;
+    // Ore suplimentare distribuite liber. Preferăm zilele care ajută profesorii
+    // cu disponibilitate redusă, dar fără obligația 4->5->6.
+    while(used<total){
+      const days=counts.map((n,d)=>({n,d})).filter(x=>x.n<HOURS.length);
+      if(!days.length) return {ok:false,message:`Nu sunt suficiente intervale pentru ${classLabelRomanian(className)}.`};
+      const pick=days[Math.floor(Math.random()*days.length)];
+      counts[pick.d]++;
       used++;
     }
 
-    const cells=[];
+    freeCellsByClass[className]=[];
     for(let d=0;d<DAYS.length;d++){
-      for(let h=0;h<dailyCounts[d];h++){
+      for(let h=0;h<counts[d];h++){
         const key=`${d}-${h}`;
-        if(!tt[className]?.[key]){
-          cells.push({className,d,h,key});
-        }
+        if(!tt[className]?.[key]) freeCellsByClass[className].push({className,d,h,key});
       }
     }
-
-    freeCellsByClass[className]=cells;
   }
 
-  // Grupăm orele identice. Astfel nu mai căutăm aceeași soluție de zeci de
-  // ori doar pentru că două jetoane identice au fost inversate între ele.
+  // Grupăm jetoanele identice ca să reducem enorm căutarea.
   const groups=[];
-  const groupMap=new Map();
-
+  const map=new Map();
   for(const className of CLASSES){
-    for(const token of (inventory[className]||[])){
-      const key=[
-        className,
-        token.teacherId||"",
-        token.subjectId||"",
-        normalizedSubjectKey(token.subject||"")
-      ].join("¦");
-
-      let g=groupMap.get(key);
+    for(const token of inventory[className]||[]){
+      const k=[className,token.teacherId||"",token.subjectId||"",normalizedSubjectKey(token.subject||"")].join("|");
+      let g=map.get(k);
       if(!g){
-        g={
-          key,
-          className,
-          teacherId:token.teacherId,
-          teacher:token.teacher,
-          subjectId:token.subjectId||null,
-          subject:token.subject,
-          remaining:0
-        };
-        groupMap.set(key,g);
-        groups.push(g);
+        g={...token,className,remaining:0};
+        map.set(k,g); groups.push(g);
       }
       g.remaining++;
     }
   }
 
-  const totalRemaining=()=>groups.reduce((s,g)=>s+g.remaining,0);
-  const cellFree=cell=>!tt[cell.className]?.[cell.key];
+  const isFree=c=>!tt[c.className]?.[c.key];
+  const fits=(g,c)=>
+    g.className===c.className &&
+    isFree(c) &&
+    isTeacherAvailable(g.teacherId,DAYS[c.d],c.h+1) &&
+    !teacherBusyAt(tt,g.teacherId,c.d,c.h,c.className);
 
-  function fits(g,cell){
-    return (
-      g.className===cell.className &&
-      cellFree(cell) &&
-      isTeacherAvailable(g.teacherId,DAYS[cell.d],cell.h+1) &&
-      !teacherBusyAt(tt,g.teacherId,cell.d,cell.h,cell.className)
-    );
-  }
-
-  function feasible(g){
-    return (freeCellsByClass[g.className]||[]).filter(c=>fits(g,c));
-  }
-
-  function teacherFutureCapacity(teacherId){
-    const wanted=groups
-      .filter(g=>g.remaining>0 && g.teacherId===teacherId)
-      .reduce((s,g)=>s+g.remaining,0);
-
-    if(!wanted) return true;
-
-    const seen=new Set();
-    for(const g of groups){
-      if(g.remaining<=0 || g.teacherId!==teacherId) continue;
-      for(const c of freeCellsByClass[g.className]||[]){
-        if(!cellFree(c)) continue;
-        if(!isTeacherAvailable(teacherId,DAYS[c.d],c.h+1)) continue;
-        if(teacherBusyAt(tt,teacherId,c.d,c.h,c.className)) continue;
-        seen.add(`${c.d}-${c.h}`);
-      }
-    }
-    return seen.size>=wanted;
-  }
+  const options=g=>(freeCellsByClass[g.className]||[]).filter(c=>fits(g,c));
 
   function forwardCheck(){
-    const teachers=new Set();
-
+    // Fiecare grupă trebuie să mai aibă suficiente celule.
     for(const g of groups){
       if(g.remaining<=0) continue;
-      const cells=feasible(g);
-      if(cells.length<g.remaining) return false;
-      teachers.add(g.teacherId);
+      if(options(g).length<g.remaining) return false;
     }
 
-    for(const teacherId of teachers){
-      if(!teacherFutureCapacity(teacherId)) return false;
+    // Pentru fiecare profesor, numărul de intervale distincte încă disponibile
+    // trebuie să fie cel puțin egal cu numărul orelor lui rămase.
+    const teacherIds=[...new Set(groups.filter(g=>g.remaining>0).map(g=>g.teacherId))];
+    for(const teacherId of teacherIds){
+      const need=groups.filter(g=>g.remaining>0&&g.teacherId===teacherId)
+        .reduce((s,g)=>s+g.remaining,0);
+      const slots=new Set();
+      for(const g of groups){
+        if(g.remaining<=0||g.teacherId!==teacherId) continue;
+        for(const c of options(g)) slots.add(`${c.d}-${c.h}`);
+      }
+      if(slots.size<need) return false;
     }
     return true;
   }
 
+  let remaining=groups.reduce((s,g)=>s+g.remaining,0);
   let nodes=0;
-  const NODE_LIMIT=45000;
+  const LIMIT=180000;
 
   function solve(){
-    if(totalRemaining()===0) return true;
-    if(++nodes>NODE_LIMIT) return false;
+    if(remaining===0) return true;
+    if(++nodes>LIMIT) return false;
 
-    // MRV: alegem grupa cea mai constrânsă în momentul curent.
-    let chosenGroup=null;
-    let chosenCells=null;
-    let chosenSlack=Infinity;
-
+    // Alegem global grupa cu cel mai mic "slack".
+    let gBest=null, optsBest=null, slackBest=Infinity;
     for(const g of groups){
       if(g.remaining<=0) continue;
-      const cells=feasible(g);
-      if(cells.length<g.remaining) return false;
-
-      const slack=cells.length-g.remaining;
-      if(
-        chosenGroup===null ||
-        slack<chosenSlack ||
-        (slack===chosenSlack && g.remaining>chosenGroup.remaining)
-      ){
-        chosenGroup=g;
-        chosenCells=cells;
-        chosenSlack=slack;
-        if(slack===0) break;
+      const opts=options(g);
+      if(opts.length<g.remaining) return false;
+      const slack=opts.length-g.remaining;
+      if(gBest===null || slack<slackBest || (slack===slackBest && g.remaining>gBest.remaining)){
+        gBest=g; optsBest=opts; slackBest=slack;
       }
     }
+    if(!gBest) return false;
 
-    if(!chosenGroup || !chosenCells?.length) return false;
-
-    // Încercăm întâi intervalele care sunt mai puțin valoroase pentru
-    // celelalte ore ale aceluiași profesor.
-    chosenCells.sort((a,b)=>{
-      function pressure(cell){
-        let n=0;
-        for(const other of groups){
-          if(
-            other.remaining>0 &&
-            other!==chosenGroup &&
-            other.teacherId===chosenGroup.teacherId &&
-            other.className!==cell.className &&
-            (freeCellsByClass[other.className]||[]).some(c=>
-              c.d===cell.d && c.h===cell.h && fits(other,c)
-            )
-          ) n+=10;
+    // Celulele cele mai restrictive primele.
+    optsBest.sort((a,b)=>{
+      const pressure=c=>{
+        let p=0;
+        for(const g of groups){
+          if(g.remaining<=0 || g===gBest) continue;
+          if(g.teacherId===gBest.teacherId && g.className!==c.className){
+            if((freeCellsByClass[g.className]||[]).some(x=>x.d===c.d&&x.h===c.h&&fits(g,x))) p+=20;
+          }
         }
-
-        // Preferință ușoară pentru a nu repeta disciplina în aceeași zi.
-        for(let h=0;h<7;h++){
-          const s=tt[cell.className]?.[`${cell.d}-${h}`];
-          if(
-            s &&
-            normalizedSubjectKey(s.subject||"")===
-            normalizedSubjectKey(chosenGroup.subject||"")
-          ) n+=2;
-        }
-        return n+Math.random();
-      }
+        // Preferință ușoară pentru ore mai devreme, fără a o transforma în restricție.
+        p+=c.h*0.15;
+        return p+Math.random();
+      };
       return pressure(a)-pressure(b);
     });
 
-    for(const cell of chosenCells){
-      if(!fits(chosenGroup,cell)) continue;
+    for(const c of optsBest){
+      if(!fits(gBest,c)) continue;
 
-      tt[cell.className][cell.key]={
-        subjectId:chosenGroup.subjectId,
-        subject:chosenGroup.subject,
-        teacherId:chosenGroup.teacherId,
-        teacher:chosenGroup.teacher,
+      tt[c.className][c.key]={
+        subjectId:gBest.subjectId||null,
+        subject:gBest.subject,
+        teacherId:gBest.teacherId,
+        teacher:gBest.teacher,
         unassigned:false,
-        className:cell.className,
-        day:DAYS[cell.d],
-        hour:cell.h+1,
+        className:c.className,
+        day:DAYS[c.d],
+        hour:c.h+1,
         generated:true
       };
-      chosenGroup.remaining--;
+      gBest.remaining--; remaining--;
 
       if(forwardCheck() && solve()) return true;
 
-      chosenGroup.remaining++;
-      delete tt[cell.className][cell.key];
+      remaining++; gBest.remaining++;
+      delete tt[c.className][c.key];
     }
-
     return false;
   }
 
-  if(solve()){
-    return {ok:true,tt};
-  }
+  if(forwardCheck() && solve()) return {ok:true,tt};
 
-  // Mesaj util dacă forma aleasă nu a putut fi rezolvată; demoGenerate()
-  // va încerca automat alte distribuții ale orelor pe zile.
-  const hardest=groups
-    .filter(g=>g.remaining>0)
-    .map(g=>({g,n:feasible(g).length}))
-    .sort((a,b)=>a.n-b.n)[0];
-
-  if(hardest){
-    return {
-      ok:false,
-      message:`Nu am găsit încă o combinație pentru ${hardest.g.teacher||solverTeacherName(hardest.g.teacherId)} – ${hardest.g.subject}, ${classLabelRomanian(hardest.g.className)}.`
-    };
-  }
-
-  return {ok:false,message:"Nu am găsit o combinație validă după profesori."};
+  return {
+    ok:false,
+    message:"Nu am găsit soluția în această distribuție a orelor pe zile. Generatorul va încerca automat o altă distribuție."
+  };
 }
 
 function disciplineLockedBase(){
@@ -9232,7 +9126,7 @@ async function demoGenerate(mode="disciplines"){
     let lastError="Nu am putut construi orarul.";
 
     // Căutăm o singură soluție validă.
-    for(let attempt=0;attempt<40;attempt++){
+    for(let attempt=0;attempt<60;attempt++){
       const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
