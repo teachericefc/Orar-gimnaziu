@@ -1952,6 +1952,86 @@
   }
 }
 
+
+
+/* === Corecții derulare manuală === */
+
+/* Zona claselor rămâne sub bara de sus; se derulează doar în interiorul ei. */
+#allClassTimetables.all-class-timetables{
+  position:relative;
+  scroll-padding-top:10px;
+  /* Spațiu suplimentar la final ca și ultima clasă să poată ajunge sus în panou. */
+  padding-bottom:calc(100% - 150px);
+  box-sizing:border-box;
+}
+
+/* Nu lăsăm conținutul derulat să treacă vizual sub bara/meniul aplicației. */
+.orar-workspace{
+  position:relative;
+  overflow:hidden;
+}
+
+/* Panoul cu jetoane are derulare proprie, dar taburile rămân permanent vizibile sus. */
+.teacher-token-panel{
+  position:relative;
+  overflow-y:auto;
+  overflow-x:hidden;
+  padding-top:0;
+}
+
+
+
+/* Pe mobil păstrăm aceleași reguli și suficient spațiu pentru ultima clasă. */
+@media(max-width:900px){
+  #allClassTimetables.all-class-timetables{
+    padding-bottom:calc(68vh - 130px);
+  }
+  .teacher-token-panel{
+    overflow-y:auto;
+  }
+}
+
+
+/* Taburile reale ale jetoanelor rămân permanent vizibile. */
+.teacher-token-panel .token-panel-tabs{
+  position:sticky !important;
+  top:0 !important;
+  z-index:50 !important;
+  background:#f8fafc !important;
+  margin-top:0;
+}
+
+/* Ajutorul rămâne imediat sub taburi, fără să ascundă lista. */
+.teacher-token-panel .teacher-token-help{
+  position:sticky;
+  top:48px;
+  z-index:49;
+  background:#fff;
+  padding:7px 2px;
+  margin-top:4px;
+  margin-bottom:8px;
+}
+
+/* Capetele fiecărui jeton NU sunt sticky. */
+.teacher-token-panel .teacher-token-head{
+  position:static !important;
+}
+
+/* Ultima clasă poate fi ridicată până aproape de partea de sus a panoului,
+   dar panoul însuși rămâne sub bara aplicației. */
+#allClassTimetables.all-class-timetables{
+  padding-bottom:calc(100vh - 285px) !important;
+  scroll-padding-top:12px;
+}
+
+@media(max-width:900px){
+  #allClassTimetables.all-class-timetables{
+    height:68vh;
+    max-height:68vh;
+    padding-bottom:calc(68vh - 135px) !important;
+  }
+}
+
 </style>
 </head>
 <body>
