@@ -8038,29 +8038,26 @@ function buildTeacherVariant(){
     return {ok:false,message:err?.message||String(err)};
   }
 
-  // Stabilim forma compactă a fiecărei clase.
+  // Forma compactă a fiecărei clase.
   const shapes={};
+  const freeCellsByClass={};
+
   for(const className of CLASSES){
-    const totalRequired=(state.assignments||[])
-      .filter(a=>a.className===className)
-      .reduce((sum,a)=>sum+Math.max(0,Number(a.hours)||0),0);
+    // IMPORTANT: folosim numărul real de jetoane rămase + orele deja blocate,
+    // nu totalul brut din încadrări. Așa evităm forme imposibile după blocări.
+    const lockedCount=Object.values(tt[className]||{}).filter(Boolean).length;
+    const totalRequired=lockedCount + (inventory[className]?.length||0);
 
     const shape=compactDailyShape(totalRequired,className);
     if(!shape){
       return {
         ok:false,
-        message:`Orele blocate ale clasei ${className} nu permit un orar compact fără ferestre.`
+        message:`Orele blocate ale ${classLabelRomanian(className)} nu permit un orar compact.`
       };
     }
     shapes[className]=shape;
-  }
 
-  // Construim toate celulele libere ale tuturor claselor, apoi alegem de fiecare
-  // dată celula cu cele mai puține variante posibile. Astfel profesorii cu
-  // disponibilitate redusă sunt așezați înainte să le fie ocupate intervalele.
-  const cells=[];
-  for(const className of CLASSES){
-    const shape=shapes[className];
+    const cells=[];
     for(let d=0;d<5;d++){
       for(let h=0;h<shape[d];h++){
         const key=`${d}-${h}`;
@@ -8069,110 +8066,108 @@ function buildTeacherVariant(){
         }
       }
     }
+    freeCellsByClass[className]=cells;
   }
 
-  const pools={};
-  CLASSES.forEach(cls=>pools[cls]=inventory[cls].slice());
-
-  function subjectAlreadyToday(className,d,subject){
-    for(let h=0;h<7;h++){
-      const s=tt[className]?.[`${d}-${h}`];
-      if(s?.subject && String(s.subject)===String(subject)) return true;
+  // Toate jetoanele rămase, cu clasa atașată.
+  let tokens=[];
+  for(const className of CLASSES){
+    for(const token of (inventory[className]||[])){
+      tokens.push({...token,className});
     }
-    return false;
   }
 
-  function feasibleCandidates(cell){
-    const pool=pools[cell.className]||[];
-    return pool
-      .map((token,index)=>({token,index}))
-      .filter(x=>
-        isTeacherAvailable(x.token.teacherId,DAYS[cell.d],cell.h+1) &&
-        !teacherBusyAt(tt,x.token.teacherId,cell.d,cell.h,cell.className)
-      );
+  function isCellFree(cell){
+    return !tt[cell.className]?.[cell.key];
   }
 
-  let remaining=cells.slice();
+  function tokenFitsCell(token,cell){
+    if(token.className!==cell.className) return false;
+    if(!isCellFree(cell)) return false;
+    if(!isTeacherAvailable(token.teacherId,DAYS[cell.d],cell.h+1)) return false;
+    if(teacherBusyAt(tt,token.teacherId,cell.d,cell.h,cell.className)) return false;
+    return true;
+  }
 
-  while(remaining.length){
-    let bestIndex=-1;
-    let bestCandidates=null;
+  function feasibleCells(token){
+    return (freeCellsByClass[token.className]||[]).filter(cell=>tokenFitsCell(token,cell));
+  }
 
-    // MRV: alegem celula cea mai greu de completat.
-    for(let i=0;i<remaining.length;i++){
-      const cand=feasibleCandidates(remaining[i]);
+  function sameSubjectTodayPenalty(token,cell){
+    for(let h=0;h<7;h++){
+      const s=tt[cell.className]?.[`${cell.d}-${h}`];
+      if(s?.subject && String(s.subject)===String(token.subject)) return 12;
+    }
+    return 0;
+  }
 
-      if(!cand.length){
-        const c=remaining[i];
+  // Punem mai întâi jetoanele cu cele mai puține locuri posibile.
+  while(tokens.length){
+    let bestTokenIndex=-1;
+    let bestCells=null;
+
+    for(let i=0;i<tokens.length;i++){
+      const cells=feasibleCells(tokens[i]);
+
+      if(!cells.length){
+        const token=tokens[i];
+        const teacher=token.teacher || solverTeacherName(token.teacherId);
         return {
           ok:false,
-          message:`Nu pot așeza profesorii la ${classLabelRomanian(c.className)}, ${DAYS[c.d]}, ora ${c.h+1}, fără suprapuneri sau încălcarea disponibilității.`
+          message:`Nu găsesc interval liber pentru ${teacher} – ${token.subject}, ${classLabelRomanian(token.className)}.`
         };
       }
 
-      if(bestCandidates===null || cand.length<bestCandidates.length){
-        bestIndex=i;
-        bestCandidates=cand;
-        if(cand.length===1) break;
+      if(bestCells===null || cells.length<bestCells.length){
+        bestTokenIndex=i;
+        bestCells=cells;
+        if(cells.length===1) break;
       }
     }
 
-    const cell=remaining[bestIndex];
+    const token=tokens[bestTokenIndex];
 
-    // Dintre variantele posibile, preferăm:
-    // 1. profesorii care au cele mai puține alte intervale disponibile;
-    // 2. evitarea repetării aceleiași discipline în aceeași zi;
-    // 3. prioritatea disciplinei doar ca preferință, nu ca restricție.
-    const scored=bestCandidates.map(c=>{
-      let futureOptions=0;
-      for(const other of remaining){
-        if(other===cell || other.className!==cell.className) continue;
+    // Preferăm celula care lasă profesorului cât mai multe alternative pentru
+    // celelalte ore și evităm repetarea aceleiași discipline în aceeași zi.
+    const scored=bestCells.map(cell=>{
+      let conflictCost=0;
+
+      for(const other of tokens){
+        if(other===token || other.teacherId!==token.teacherId) continue;
+
+        // Dacă punem tokenul aici, aceeași zi/oră nu mai e disponibilă
+        // pentru celelalte clase ale aceluiași profesor.
         if(
-          isTeacherAvailable(c.token.teacherId,DAYS[other.d],other.h+1) &&
-          !teacherBusyAt(tt,c.token.teacherId,other.d,other.h,other.className)
+          other.className!==cell.className &&
+          isTeacherAvailable(other.teacherId,DAYS[cell.d],cell.h+1) &&
+          (freeCellsByClass[other.className]||[]).some(c=>c.d===cell.d && c.h===cell.h && isCellFree(c))
         ){
-          futureOptions++;
+          conflictCost+=8;
         }
       }
 
-      const repeatPenalty=subjectAlreadyToday(
-        cell.className,
-        cell.d,
-        c.token.subject
-      ) ? 20 : 0;
-
-      const priorityPenalty=disciplinePriorityIndex(c.token.subject);
+      const repeatCost=sameSubjectTodayPenalty(token,cell);
+      const earlyPreference=Math.max(0,cell.h-2) * Math.max(0,3-disciplinePriorityIndex(token.subject));
 
       return {
-        ...c,
-        score:futureOptions*10 + repeatPenalty + priorityPenalty + Math.random()
+        cell,
+        score:conflictCost + repeatCost + earlyPreference + Math.random()*2
       };
     }).sort((a,b)=>a.score-b.score);
 
-    // Alegem dintre primele două variante apropiate pentru a păstra diversitatea
-    // între încercările generatorului.
+    // Alegem dintre cele mai bune 2 pentru diversitate între încercări.
     const top=scored.slice(0,Math.min(2,scored.length));
-    const picked=top[Math.floor(Math.random()*top.length)];
-    const token=pools[cell.className].splice(picked.index,1)[0];
+    const chosen=top[Math.floor(Math.random()*top.length)].cell;
 
-    tt[cell.className][cell.key]={
+    tt[chosen.className][chosen.key]={
       ...token,
-      className:cell.className,
-      day:DAYS[cell.d],
-      hour:cell.h+1,
+      className:chosen.className,
+      day:DAYS[chosen.d],
+      hour:chosen.h+1,
       generated:true
     };
 
-    remaining.splice(bestIndex,1);
-  }
-
-  for(const className of CLASSES){
-    if(pools[className].length){
-      return {
-        ok:false,
-        message:`Au rămas ${pools[className].length} ore de profesor neplasate la ${classLabelRomanian(className)}.`
-      };
-    }
+    tokens.splice(bestTokenIndex,1);
   }
 
   return {ok:true,tt};
@@ -9105,7 +9100,7 @@ async function demoGenerate(mode="disciplines"){
     let lastError="Nu am putut construi orarul.";
 
     // Căutăm o singură soluție validă.
-    for(let attempt=0;attempt<250;attempt++){
+    for(let attempt=0;attempt<35;attempt++){
       const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
@@ -9115,7 +9110,7 @@ async function demoGenerate(mode="disciplines"){
 
       lastError=result.message||lastError;
 
-      if(attempt>0 && attempt%10===0){
+      if(attempt>0 && attempt%3===0){
         await new Promise(resolve=>setTimeout(resolve,0));
       }
     }
