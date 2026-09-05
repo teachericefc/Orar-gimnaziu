@@ -6760,93 +6760,6 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
   ){
     const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
 
-  // Verificare explicită a indisponibilității profesorului.
-  // Acceptăm mai multe forme vechi de stocare a disponibilității.
-  const availabilityData=
-    teacher?.availability ??
-    teacher?.unavailable ??
-    teacher?.indisponibilitate ??
-    teacher?.indisponibilitati ??
-    null;
-
-  const dayName=["Luni","Marți","Miercuri","Joi","Vineri"][Number(to.day)] || "Ziua selectată";
-  const hourNumber=Number(to.hour)+1;
-
-  function teacherMarkedUnavailable(data,dayIndex,hourIndex){
-    if(!data) return false;
-
-    const dayKeys=[
-      String(dayIndex),
-      ["luni","marti","miercuri","joi","vineri"][dayIndex],
-      ["Luni","Marți","Miercuri","Joi","Vineri"][dayIndex]
-    ].filter(Boolean);
-
-    // Arrays by day.
-    if(Array.isArray(data)){
-      const dayValue=data[dayIndex];
-      if(dayValue===false) return true;
-      if(Array.isArray(dayValue)){
-        const v=dayValue[hourIndex];
-        return v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil";
-      }
-      if(dayValue && typeof dayValue==="object"){
-        const v=dayValue[hourIndex] ?? dayValue[String(hourIndex)] ?? dayValue[hourIndex+1] ?? dayValue[String(hourIndex+1)];
-        return v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil";
-      }
-    }
-
-    // Objects keyed by day.
-    if(typeof data==="object"){
-      for(const dk of dayKeys){
-        if(!(dk in data)) continue;
-        const dayValue=data[dk];
-
-        if(dayValue===false) return true;
-        if(dayValue===true) return false;
-
-        if(Array.isArray(dayValue)){
-          const v=dayValue[hourIndex];
-          if(v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil") return true;
-        }else if(dayValue && typeof dayValue==="object"){
-          const v=
-            dayValue[hourIndex] ??
-            dayValue[String(hourIndex)] ??
-            dayValue[hourIndex+1] ??
-            dayValue[String(hourIndex+1)];
-          if(v===false || v===0 || v==="0" || v==="unavailable" || v==="indisponibil") return true;
-        }
-      }
-    }
-
-    return false;
-  }
-
-  let unavailableNow=teacherMarkedUnavailable(availabilityData,Number(to.day),Number(to.hour));
-
-  // Keep compatibility with the app's existing helper if present.
-  try{
-    if(typeof isTeacherAvailable==="function" && isTeacherAvailable(teacher.id,to.day,to.hour)===false){
-      unavailableNow=true;
-    }
-  }catch(e){}
-
-  if(unavailableNow){
-    await appConfirm({
-      title:`Profesorul este indisponibil ${dayName.toLocaleLowerCase("ro")}`,
-      message:"Nu poți repartiza profesorul în această zi/oră deoarece este marcat indisponibil.",
-      icon:"⛔",
-      confirmText:"Am înțeles",
-      singleButton:true,
-      details:[
-        {label:"Profesor",value:teacher?.name||"Profesor"},
-        {label:"Ziua",value:dayName},
-        {label:"Ora",value:String(hourNumber)}
-      ]
-    });
-    return false;
-  }
-
-
     await appConfirm({
       title:"S-a atins limita maximă",
       message:"Nu mai poți adăuga încă o oră din această disciplină la clasa selectată.",
@@ -6873,15 +6786,21 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
 
   if(!isTeacherAvailable(a.teacherId,to.day,Number(to.hour))){
     const teacherForAvailability=(state.teachers||[]).find(t=>t.id===a.teacherId);
-    const dayName=DAY_NAMES?.[to.day] || ["Luni","Marți","Miercuri","Joi","Vineri"][to.day] || "ziua selectată";
+
+    // to.day este deja numele zilei ("Luni", "Joi", "Vineri" etc.).
+    // Nu folosim DAY_NAMES aici: variabila nu există în această aplicație și
+    // provoca o eroare exact înainte de afișarea mesajului.
+    const dayName=String(to.day||"ziua selectată");
+    const teacherName=teacherForAvailability?.name||"Profesorul";
+
     await appConfirm({
-      title:"Profesorul este indisponibil " + String(dayName).toLocaleLowerCase("ro"),
-      message:"Nu poți repartiza profesorul în această zi/oră deoarece este marcat indisponibil.",
+      title:`Profesorul ${teacherName} este indisponibil ${dayName.toLocaleLowerCase("ro")}!`,
+      message:"Nu poți repartiza această oră deoarece profesorul este marcat indisponibil.",
       icon:"⛔",
       confirmText:"Am înțeles",
       singleButton:true,
       details:[
-        {label:"Profesor",value:teacherForAvailability?.name||"Profesor"},
+        {label:"Profesor",value:teacherName},
         {label:"Ziua",value:dayName},
         {label:"Ora",value:String(Number(to.hour)+1)}
       ]
