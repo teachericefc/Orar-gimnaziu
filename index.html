@@ -1917,7 +1917,13 @@
 
     <main>
 <section id="teachers" class="section">
-        <div class="page-head"><div><h2>Profesori</h2><p>Adaugă profesorul împreună cu încadrarea inițială. Datele pot fi ajustate oricând din Fișă profesor.</p></div></div>
+        <div class="page-head">
+          <div>
+            <h2>Profesori</h2>
+            <p>Adaugă profesorul împreună cu încadrarea inițială. Datele pot fi ajustate oricând din Fișă profesor.</p>
+          </div>
+          <button type="button" class="btn btn-light" onclick="downloadTeacherAssignmentsPdf()">⬇ PDF încadrări profesori</button>
+        </div>
         <div class="card teacher-add-card" style="margin-bottom:16px">
           <div class="teacher-compact-form">
 
@@ -8526,6 +8532,200 @@ function openAllClassesPdf(){
   }
 }
 
+
+
+function teacherAssignmentRowsForPdf(teacherId){
+  const rows=[];
+  const grouped=new Map();
+
+  (state.assignments||[])
+    .filter(a=>a.teacherId===teacherId)
+    .forEach(a=>{
+      const subject=
+        a.subjectName ||
+        (state.subjects||[]).find(s=>s.id===a.subjectId)?.name ||
+        "Disciplina";
+
+      if(!grouped.has(subject)) grouped.set(subject,[]);
+      grouped.get(subject).push({
+        className:a.className,
+        hours:Number(a.hours||0)
+      });
+    });
+
+  for(const [subject,items] of grouped.entries()){
+    items.sort((a,b)=>CLASSES.indexOf(a.className)-CLASSES.indexOf(b.className));
+    const classes=items
+      .map(x=>`${x.className} (${x.hours})`)
+      .join("   ");
+    const total=items.reduce((s,x)=>s+x.hours,0);
+    rows.push({subject,classes,total});
+  }
+
+  return rows.sort((a,b)=>String(a.subject).localeCompare(String(b.subject),"ro"));
+}
+
+function buildTeacherAssignmentsPageStream(teacher){
+  const W=841.89,H=595.28;
+  const margin=34;
+  const cmd=[];
+  cmd.push("0 G 0 g");
+  cmd.push("0.75 w");
+
+  const contract=teacherContractHours(teacher.id);
+  const assigned=teacherAssignedCurriculumHours(teacher.id);
+  const toComplete=Math.max(0,contract-assigned);
+  const extra=Math.max(0,assigned-contract);
+
+  const name=pdfTrim(teacher?.name||"Profesor",70);
+  const status=pdfTrim(teacher?.status||"",40);
+
+  cmd.push(`BT /F1 20 Tf ${margin} ${H-42} Td (${pdfEscape(name)}) Tj ET`);
+  if(status){
+    cmd.push(`BT /F1 10 Tf ${margin} ${H-62} Td (${pdfEscape(status)}) Tj ET`);
+  }
+
+  const summaryY=H-92;
+  cmd.push(`BT /F1 12 Tf ${margin} ${summaryY} Td (${pdfEscape(`Incadrare: ${contract} h`)}) Tj ET`);
+  cmd.push(`BT /F1 12 Tf ${margin+165} ${summaryY} Td (${pdfEscape(`Repartizate: ${assigned} h`)}) Tj ET`);
+
+  if(toComplete>0){
+    cmd.push(`BT /F1 12 Tf ${margin+360} ${summaryY} Td (${pdfEscape(`De completat: ${toComplete} h`)}) Tj ET`);
+  }else if(extra>0){
+    cmd.push(`BT /F1 12 Tf ${margin+360} ${summaryY} Td (${pdfEscape(`Suplimentar: ${extra} h`)}) Tj ET`);
+  }else{
+    cmd.push(`BT /F1 12 Tf ${margin+360} ${summaryY} Td (${pdfEscape("Incadrare completa")}) Tj ET`);
+  }
+
+  const rows=teacherAssignmentRowsForPdf(teacher.id);
+  const tableTop=H-122;
+  const rowH=38;
+  const col1=margin;
+  const col2=340;
+  const col3=735;
+  const right=W-margin;
+
+  // Header.
+  cmd.push(`${col1} ${tableTop} m ${right} ${tableTop} l S`);
+  cmd.push(`${col1} ${tableTop-rowH} m ${right} ${tableTop-rowH} l S`);
+  cmd.push(`${col1} ${tableTop} m ${col1} ${tableTop-rowH} l S`);
+  cmd.push(`${col2} ${tableTop} m ${col2} ${tableTop-rowH} l S`);
+  cmd.push(`${col3} ${tableTop} m ${col3} ${tableTop-rowH} l S`);
+  cmd.push(`${right} ${tableTop} m ${right} ${tableTop-rowH} l S`);
+
+  cmd.push(`BT /F1 11 Tf ${col1+8} ${tableTop-24} Td (${pdfEscape("Disciplina")}) Tj ET`);
+  cmd.push(`BT /F1 11 Tf ${col2+8} ${tableTop-24} Td (${pdfEscape("Clase si ore/saptamana")}) Tj ET`);
+  cmd.push(`BT /F1 11 Tf ${col3+8} ${tableTop-24} Td (${pdfEscape("Total")}) Tj ET`);
+
+  let y=tableTop-rowH;
+
+  if(!rows.length){
+    const bottom=y-rowH;
+    cmd.push(`${col1} ${bottom} m ${right} ${bottom} l S`);
+    cmd.push(`${col1} ${y} m ${col1} ${bottom} l S`);
+    cmd.push(`${right} ${y} m ${right} ${bottom} l S`);
+    cmd.push(`BT /F1 10 Tf ${col1+8} ${y-24} Td (${pdfEscape("Nu exista ore repartizate.")}) Tj ET`);
+  }else{
+    for(const row of rows){
+      const bottom=y-rowH;
+
+      cmd.push(`${col1} ${bottom} m ${right} ${bottom} l S`);
+      cmd.push(`${col1} ${y} m ${col1} ${bottom} l S`);
+      cmd.push(`${col2} ${y} m ${col2} ${bottom} l S`);
+      cmd.push(`${col3} ${y} m ${col3} ${bottom} l S`);
+      cmd.push(`${right} ${y} m ${right} ${bottom} l S`);
+
+      cmd.push(`BT /F1 10 Tf ${col1+8} ${y-24} Td (${pdfEscape(pdfTrim(row.subject,34))}) Tj ET`);
+      cmd.push(`BT /F1 10 Tf ${col2+8} ${y-24} Td (${pdfEscape(pdfTrim(row.classes,55))}) Tj ET`);
+      cmd.push(`BT /F1 10 Tf ${col3+16} ${y-24} Td (${pdfEscape(String(row.total))}) Tj ET`);
+
+      y=bottom;
+
+      // One page per teacher; cap safely if someone has very many distinct subjects.
+      if(y<60) break;
+    }
+  }
+
+  cmd.push(`BT /F1 8 Tf ${margin} 24 Td (${pdfEscape("Scoala Gimnaziala Daneasa - Incadrari profesori 2026-2027")}) Tj ET`);
+  return cmd.join("\n");
+}
+
+function makeTeacherAssignmentsPdfBlob(teachers){
+  const enc=new TextEncoder();
+  const streams=teachers.map(buildTeacherAssignmentsPageStream);
+  const pageCount=streams.length;
+
+  const firstPageObj=3;
+  const firstContentObj=firstPageObj+pageCount;
+  const fontObj=firstContentObj+pageCount;
+  const lastObj=fontObj;
+
+  const objs=[];
+  objs[1]="<< /Type /Catalog /Pages 2 0 R >>";
+
+  const kids=Array.from({length:pageCount},(_,i)=>`${firstPageObj+i} 0 R`).join(" ");
+  objs[2]=`<< /Type /Pages /Kids [${kids}] /Count ${pageCount} >>`;
+
+  for(let i=0;i<pageCount;i++){
+    const pageObj=firstPageObj+i;
+    const contentObj=firstContentObj+i;
+    objs[pageObj]=`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 841.89 595.28] /Resources << /Font << /F1 ${fontObj} 0 R >> >> /Contents ${contentObj} 0 R >>`;
+  }
+
+  for(let i=0;i<pageCount;i++){
+    const contentObj=firstContentObj+i;
+    const stream=streams[i];
+    objs[contentObj]=`<< /Length ${enc.encode(stream).length} >>\nstream\n${stream}\nendstream`;
+  }
+
+  objs[fontObj]="<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>";
+
+  let pdf="%PDF-1.4\n";
+  const offsets=[0];
+
+  for(let i=1;i<=lastObj;i++){
+    offsets[i]=enc.encode(pdf).length;
+    pdf+=`${i} 0 obj\n${objs[i]}\nendobj\n`;
+  }
+
+  const xref=enc.encode(pdf).length;
+  pdf+=`xref\n0 ${lastObj+1}\n`;
+  pdf+="0000000000 65535 f \n";
+
+  for(let i=1;i<=lastObj;i++){
+    pdf+=String(offsets[i]).padStart(10,"0")+" 00000 n \n";
+  }
+
+  pdf+=`trailer\n<< /Size ${lastObj+1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF`;
+
+  return new Blob([enc.encode(pdf)],{type:"application/pdf"});
+}
+
+function downloadTeacherAssignmentsPdf(){
+  try{
+    const teachers=teacherPdfTeachers();
+
+    if(!teachers.length){
+      appMessage("Nu există profesori pentru PDF.","error",2200);
+      return;
+    }
+
+    const blob=makeTeacherAssignmentsPdfBlob(teachers);
+    const url=URL.createObjectURL(blob);
+    const a=document.createElement("a");
+    a.href=url;
+    a.download="Incadrari profesori 2026-2027.pdf";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url),60000);
+
+    appMessage(`PDF creat: ${teachers.length} profesori, câte unul pe pagină.`,"success",2600);
+  }catch(err){
+    console.error("PDF încadrări profesori:",err);
+    appMessage("Nu am putut crea PDF-ul cu încadrările profesorilor.","error",3000);
+  }
+}
 
 function teacherPdfTeachers(){
   return (state.teachers||[])
