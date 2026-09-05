@@ -8444,6 +8444,39 @@ function pdfAscii(value){
     .replace(/[^\x20-\x7E]/g," ");
 }
 
+
+function pdfTimeParts(value){
+  const s=String(value||"").trim();
+  const m=s.match(/^\s*(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})\s*$/);
+  return m ? [m[1],m[2]] : [s,""];
+}
+
+function pdfApproxTextWidth(value,fontSize){
+  return String(value||"").length*Number(fontSize||8)*0.50;
+}
+
+function pdfCenteredTwoLineTime(xCenter,yTop,timeValue,fontSize=7,lineGap=9){
+  const parts=pdfTimeParts(timeValue);
+  let out="";
+  if(parts[0]){
+    const x1=xCenter-(pdfApproxTextWidth(parts[0],fontSize)/2);
+    out+=`BT /F1 ${fontSize} Tf ${x1.toFixed(2)} ${yTop.toFixed(2)} Td (${pdfEscape(parts[0])}) Tj ET\n`;
+  }
+  if(parts[1]){
+    const x2=xCenter-(pdfApproxTextWidth(parts[1],fontSize)/2);
+    out+=`BT /F1 ${fontSize} Tf ${x2.toFixed(2)} ${(yTop-lineGap).toFixed(2)} Td (${pdfEscape(parts[1])}) Tj ET\n`;
+  }
+  return out;
+}
+
+function pdfPolishScheduleStream(stream){
+  // Numărul orei și intervalul rămân mici/normale.
+  // Transformă în două rânduri intervalele care apar în aceeași operație text.
+  return String(stream||"").replace(
+    /\((\d{1,2})\.\s+(\d{1,2}:\d{2})\s*[-–—]\s*(\d{1,2}:\d{2})\)\s*Tj/g,
+    (all,n,start,end)=>`(${pdfEscape(n+".")}) Tj 0 -8 Td (${pdfEscape(start)}) Tj 0 -8 Td (${pdfEscape(end)}) Tj`
+  );
+}
 function pdfEscape(value){
   return pdfAscii(value)
     .replace(/\\/g,"\\\\")
