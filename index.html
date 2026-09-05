@@ -6726,8 +6726,21 @@ async function placeTeacherTokenInTimetable(assignmentIds,to){
   }
 
   if(!isTeacherAvailable(a.teacherId,to.day,Number(to.hour))){
-    const teacher=(state.teachers||[]).find(t=>t.id===a.teacherId);
-    return appMessage(`${teacher?.name||"Profesorul"} este indisponibil în ${to.day}, ora ${to.hour}.`,"error");
+    const teacherForAvailability=(state.teachers||[]).find(t=>t.id===a.teacherId);
+    const dayName=DAY_NAMES?.[to.day] || ["Luni","Marți","Miercuri","Joi","Vineri"][to.day] || "ziua selectată";
+    await appConfirm({
+      title:"Profesorul este indisponibil " + String(dayName).toLocaleLowerCase("ro"),
+      message:"Nu poți repartiza profesorul în această zi/oră deoarece este marcat indisponibil.",
+      icon:"⛔",
+      confirmText:"Am înțeles",
+      singleButton:true,
+      details:[
+        {label:"Profesor",value:teacherForAvailability?.name||"Profesor"},
+        {label:"Ziua",value:dayName},
+        {label:"Ora",value:String(Number(to.hour)+1)}
+      ]
+    });
+    return false;
   }
 
   if(teacherHasConflictAt(a.teacherId,to.day,to.hour)){
