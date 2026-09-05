@@ -8040,28 +8040,22 @@ function buildTeacherVariant(){
 
   const freeCellsByClass={};
 
-  // Construim o formă zilnică pentru fiecare clasă.
+  // Generatorul după profesor permite FERETRE.
+  // Nu mai impunem dinainte o formă compactă a zilei.
+  // Orice interval din cele 7 ore ale zilei poate fi folosit,
+  // cu excepția celor deja ocupate/blocate.
   for(const className of CLASSES){
-    const lockedCount=Object.values(tt[className]||{}).filter(Boolean).length;
-    const totalRequired=lockedCount+(inventory[className]?.length||0);
-    const shape=compactDailyShape(totalRequired,className);
-
-    if(!shape){
-      return {
-        ok:false,
-        message:`Orele blocate ale ${classLabelRomanian(className)} nu permit distribuirea orarului.`
-      };
-    }
-
     const cells=[];
-    for(let d=0;d<5;d++){
-      for(let h=0;h<shape[d];h++){
+
+    for(let d=0;d<DAYS.length;d++){
+      for(let h=0;h<HOURS.length;h++){
         const key=`${d}-${h}`;
         if(!tt[className]?.[key]){
           cells.push({className,d,h,key});
         }
       }
     }
+
     freeCellsByClass[className]=cells;
   }
 
@@ -9185,7 +9179,7 @@ async function demoGenerate(mode="disciplines"){
     let lastError="Nu am putut construi orarul.";
 
     // Căutăm o singură soluție validă.
-    for(let attempt=0;attempt<24;attempt++){
+    for(let attempt=0;attempt<8;attempt++){
       const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
