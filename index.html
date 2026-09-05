@@ -8043,14 +8043,10 @@ function buildTeacherVariant(){
 
   const freeCellsByClass={};
 
-  // PROFESORII pot avea ferestre, dar CLASELE nu.
-  // Pentru fiecare clasă construim zile compacte de sus în jos:
-  // mai întâi minimum 4 ore/zi, apoi completăm rândul 5,
-  // apoi rândul 6, apoi rândul 7 dacă este nevoie.
-  //
-  // Ordinea zilelor care primesc orele suplimentare se schimbă la
-  // fiecare încercare, ca solverul să poată găsi o combinație compatibilă
-  // cu disponibilitatea profesorilor.
+  // Regula generatorului după profesor:
+  // - fiecare clasă trebuie să aibă CEL PUȚIN 4 ore în fiecare zi;
+  // - orele suplimentare se pot distribui liber între zile, în orice combinație;
+  // - clasele rămân fără ferestre: dacă o zi are 6 ore, sunt ocupate orele 1..6.
   for(const className of CLASSES){
     const lockedSlots=Object.entries(tt[className]||{})
       .filter(([,slot])=>!!slot);
@@ -8059,11 +8055,10 @@ function buildTeacherVariant(){
     const remainingTokens=inventory[className]?.length||0;
     const totalRequired=lockedCount+remainingTokens;
 
-    // Numărul minim de ore consecutive necesare în fiecare zi.
-    // Pornim de la 4 ore/zi, dar dacă există o oră blocată mai jos,
-    // ziua trebuie să ajungă până la acel rând ca să nu apară fereastră.
     const dailyCounts=Array(DAYS.length).fill(4);
 
+    // Dacă există ore deja blocate mai jos, ziua respectivă trebuie să ajungă
+    // până la acel rând pentru a nu crea ferestre.
     for(const [key] of lockedSlots){
       const parts=String(key).split("-");
       const d=Number(parts[0]);
@@ -8082,38 +8077,23 @@ function buildTeacherVariant(){
       };
     }
 
-    // Completăm pe rânduri: întâi toate orele 5 posibile, apoi 6, apoi 7.
+    // Restul orelor se distribuie LIBER între zile.
+    // O zi poate ajunge la 6 ore chiar dacă alta rămâne la 4.
     while(used<totalRequired){
-      const minCount=Math.min(...dailyCounts);
       const candidateDays=[];
-
       for(let d=0;d<dailyCounts.length;d++){
-        if(dailyCounts[d]===minCount && dailyCounts[d]<HOURS.length){
+        if(dailyCounts[d]<HOURS.length){
           candidateDays.push(d);
         }
       }
 
-      // Dacă toate zilele de nivel minim sunt deja la limită, căutăm
-      // următorul nivel disponibil.
       if(!candidateDays.length){
-        const availableDays=dailyCounts
-          .map((count,d)=>({count,d}))
-          .filter(x=>x.count<HOURS.length)
-          .sort((a,b)=>a.count-b.count);
-
-        if(!availableDays.length){
-          return {
-            ok:false,
-            message:`Nu mai există suficiente intervale pentru ${classLabelRomanian(className)}.`
-          };
-        }
-
-        const nextLevel=availableDays[0].count;
-        candidateDays.push(...availableDays.filter(x=>x.count===nextLevel).map(x=>x.d));
+        return {
+          ok:false,
+          message:`Nu mai există suficiente intervale pentru ${classLabelRomanian(className)}.`
+        };
       }
 
-      // Alegere aleatoare doar între zile aflate pe același rând.
-      // Astfel nu apare niciodată ora 6 înainte ca rândul 5 să fie umplut.
       const d=candidateDays[Math.floor(Math.random()*candidateDays.length)];
       dailyCounts[d]++;
       used++;
