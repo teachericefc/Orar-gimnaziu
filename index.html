@@ -442,6 +442,18 @@
 }
 
 
+
+.class-checkbox-group label.profile-class-unavailable{
+  opacity:.42;
+  background:#e5e7eb !important;
+  border-color:#d1d5db !important;
+  color:#6b7280 !important;
+  cursor:not-allowed;
+  filter:grayscale(1);
+}
+.class-checkbox-group label.profile-class-unavailable input{
+  cursor:not-allowed;
+}
 .class-checkbox-group{
   display:flex;
   flex-wrap:wrap;
@@ -3947,7 +3959,10 @@ function openTeacherProfile(teacherId){
   document.getElementById("profileTeacherContractHours").value=teacherContractHours(teacher.id);
   document.getElementById("profileTeacherColor").value=teacher.color||"#dbeafe";
 
+  const newSubject=document.getElementById("profileNewSubject");
+  if(newSubject) newSubject.value="";
   renderTeacherProfileAssignments();
+  updateProfileNewClassAvailability();
   document.getElementById("teacherProfileModal").style.display="flex";
 }
 
@@ -3995,6 +4010,8 @@ function renderTeacherProfileAssignments(){
       </tr>`).join("")}
     </tbody>
   </table>` : '<div class="card empty">Profesorul nu are încă ore încadrate.</div>';
+
+  updateProfileNewClassAvailability();
 }
 
 function updateProfileAssignment(assignmentId,field,value){
@@ -4036,6 +4053,54 @@ function updateProfileAssignment(assignmentId,field,value){
   renderClasses();
   renderTeacherProfileAssignments();
 }
+
+function updateProfileNewClassAvailability(){
+  const box=document.getElementById("profileNewClasses");
+  if(!box)return;
+
+  const subjectName=(document.getElementById("profileNewSubject")?.value||"").trim();
+  const labels=[...box.querySelectorAll("label")];
+
+  labels.forEach(label=>{
+    const input=label.querySelector('input[type="checkbox"]');
+    if(!input)return;
+
+    const className=input.value;
+    let unavailable=false;
+    let reason="";
+
+    if(subjectName){
+      // Dacă disciplina nu există la clasa respectivă, clasa nu poate fi aleasă.
+      if(!subjectEntry(className,subjectName)){
+        unavailable=true;
+        reason=`${subjectName} nu se predă la ${classLabelRomanian(className)}.`;
+      }else{
+        // Dacă disciplina este deja repartizată la această clasă (acestui profesor
+        // sau altuia), nu mai poate fi selectată încă o dată.
+        const existing=(state.assignments||[]).find(a=>
+          a.className===className &&
+          normalizedSubjectKey(
+            a.subjectName || (state.subjects||[]).find(s=>s.id===a.subjectId)?.name || ""
+          )===normalizedSubjectKey(subjectName)
+        );
+
+        if(existing){
+          unavailable=true;
+          const owner=(state.teachers||[]).find(t=>t.id===existing.teacherId);
+          reason=existing.teacherId===currentTeacherProfileId
+            ? `${subjectName} este deja repartizată acestui profesor la ${classLabelRomanian(className)}.`
+            : `${subjectName} este deja repartizată profesorului ${owner?.name||""} la ${classLabelRomanian(className)}.`;
+        }
+      }
+    }
+
+    input.disabled=unavailable;
+    if(unavailable) input.checked=false;
+    label.classList.toggle("profile-class-unavailable",unavailable);
+    label.title=unavailable ? reason : "";
+  });
+}
+
 function addTeacherProfileAssignment(){
   if(!currentTeacherProfileId)return;
 
@@ -4084,6 +4149,7 @@ function addTeacherProfileAssignment(){
   if(teacher && !teacher.primarySubject) teacher.primarySubject=subjectName;
 
   document.getElementById("profileNewSubject").value="";
+  updateProfileNewClassAvailability();
 
   save();
   refreshTeacherSubjectSuggestions();
@@ -8996,7 +9062,7 @@ document.addEventListener("DOMContentLoaded",()=>{
     <div class="profile-add-assignment">
       <strong>Adaugă o încadrare</strong>
       <div class="form-row" style="grid-template-columns:1.3fr 1.6fr 1fr auto;margin-top:8px">
-        <select id="profileNewSubject">
+        <select id="profileNewSubject" onchange="updateProfileNewClassAvailability()">
           <option value="">Alege disciplina</option>
         </select>
         <div class="class-checkbox-group" id="profileNewClasses">
