@@ -8028,6 +8028,9 @@ function removeLockedTeacherTokensFromInventory(inventory,tt){
   }
 }
 
+// Regula 4 ore/zi -> rândul 5 -> rândul 6 se aplică DOAR la generarea automată.
+ // Editarea manuală și mutarea orelor după generare rămân libere, sub rezerva
+ // regulilor reale: profesorul predă la clasă, disponibilitate, conflict, ocupat/blocat.
 function buildTeacherVariant(){
   const inventory=teacherTokenInventory();
   const tt=disciplineLockedBase();
@@ -8040,15 +8043,85 @@ function buildTeacherVariant(){
 
   const freeCellsByClass={};
 
-  // Generatorul după profesor permite FERETRE.
-  // Nu mai impunem dinainte o formă compactă a zilei.
-  // Orice interval din cele 7 ore ale zilei poate fi folosit,
-  // cu excepția celor deja ocupate/blocate.
+  // PROFESORII pot avea ferestre, dar CLASELE nu.
+  // Pentru fiecare clasă construim zile compacte de sus în jos:
+  // mai întâi minimum 4 ore/zi, apoi completăm rândul 5,
+  // apoi rândul 6, apoi rândul 7 dacă este nevoie.
+  //
+  // Ordinea zilelor care primesc orele suplimentare se schimbă la
+  // fiecare încercare, ca solverul să poată găsi o combinație compatibilă
+  // cu disponibilitatea profesorilor.
   for(const className of CLASSES){
-    const cells=[];
+    const lockedSlots=Object.entries(tt[className]||{})
+      .filter(([,slot])=>!!slot);
 
+    const lockedCount=lockedSlots.length;
+    const remainingTokens=inventory[className]?.length||0;
+    const totalRequired=lockedCount+remainingTokens;
+
+    // Numărul minim de ore consecutive necesare în fiecare zi.
+    // Pornim de la 4 ore/zi, dar dacă există o oră blocată mai jos,
+    // ziua trebuie să ajungă până la acel rând ca să nu apară fereastră.
+    const dailyCounts=Array(DAYS.length).fill(4);
+
+    for(const [key] of lockedSlots){
+      const parts=String(key).split("-");
+      const d=Number(parts[0]);
+      const h=Number(parts[1]);
+      if(Number.isInteger(d) && Number.isInteger(h) && d>=0 && d<DAYS.length){
+        dailyCounts[d]=Math.max(dailyCounts[d],h+1);
+      }
+    }
+
+    let used=dailyCounts.reduce((a,b)=>a+b,0);
+
+    if(totalRequired<used){
+      return {
+        ok:false,
+        message:`${classLabelRomanian(className)} are ${totalRequired} ore, dar regula de minimum 4 ore/zi împreună cu orele blocate cere cel puțin ${used} ore.`
+      };
+    }
+
+    // Completăm pe rânduri: întâi toate orele 5 posibile, apoi 6, apoi 7.
+    while(used<totalRequired){
+      const minCount=Math.min(...dailyCounts);
+      const candidateDays=[];
+
+      for(let d=0;d<dailyCounts.length;d++){
+        if(dailyCounts[d]===minCount && dailyCounts[d]<HOURS.length){
+          candidateDays.push(d);
+        }
+      }
+
+      // Dacă toate zilele de nivel minim sunt deja la limită, căutăm
+      // următorul nivel disponibil.
+      if(!candidateDays.length){
+        const availableDays=dailyCounts
+          .map((count,d)=>({count,d}))
+          .filter(x=>x.count<HOURS.length)
+          .sort((a,b)=>a.count-b.count);
+
+        if(!availableDays.length){
+          return {
+            ok:false,
+            message:`Nu mai există suficiente intervale pentru ${classLabelRomanian(className)}.`
+          };
+        }
+
+        const nextLevel=availableDays[0].count;
+        candidateDays.push(...availableDays.filter(x=>x.count===nextLevel).map(x=>x.d));
+      }
+
+      // Alegere aleatoare doar între zile aflate pe același rând.
+      // Astfel nu apare niciodată ora 6 înainte ca rândul 5 să fie umplut.
+      const d=candidateDays[Math.floor(Math.random()*candidateDays.length)];
+      dailyCounts[d]++;
+      used++;
+    }
+
+    const cells=[];
     for(let d=0;d<DAYS.length;d++){
-      for(let h=0;h<HOURS.length;h++){
+      for(let h=0;h<dailyCounts[d];h++){
         const key=`${d}-${h}`;
         if(!tt[className]?.[key]){
           cells.push({className,d,h,key});
@@ -9179,7 +9252,7 @@ async function demoGenerate(mode="disciplines"){
     let lastError="Nu am putut construi orarul.";
 
     // Căutăm o singură soluție validă.
-    for(let attempt=0;attempt<8;attempt++){
+    for(let attempt=0;attempt<40;attempt++){
       const result=isTeachers ? buildTeacherVariant() : buildDisciplineVariant();
 
       if(result.ok){
