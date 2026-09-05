@@ -1884,6 +1884,74 @@
   opacity:.72;
 }
 
+
+
+/* Panouri independente în zona de repartizare manuală:
+   clasele și profesorii se pot derula separat, astfel încât orice clasă
+   să poată fi adusă în dreptul oricărui profesor. */
+.orar-workspace{
+  height:calc(100vh - 205px);
+  min-height:520px;
+  overflow:hidden;
+}
+
+#allClassTimetables.all-class-timetables{
+  height:100%;
+  max-height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  align-content:start;
+  padding-right:8px;
+  margin-top:0;
+  scrollbar-gutter:stable;
+  overscroll-behavior:contain;
+}
+
+.teacher-token-panel{
+  position:relative;
+  top:auto;
+  height:100%;
+  max-height:100%;
+  overflow-y:auto;
+  overflow-x:hidden;
+  scrollbar-gutter:stable;
+  overscroll-behavior:contain;
+}
+
+/* File de derulare mai ușor de observat pe desktop, fără a încărca vizual pagina. */
+#allClassTimetables.all-class-timetables::-webkit-scrollbar,
+.teacher-token-panel::-webkit-scrollbar{
+  width:9px;
+}
+#allClassTimetables.all-class-timetables::-webkit-scrollbar-thumb,
+.teacher-token-panel::-webkit-scrollbar-thumb{
+  background:#cbd5e1;
+  border-radius:999px;
+}
+#allClassTimetables.all-class-timetables::-webkit-scrollbar-track,
+.teacher-token-panel::-webkit-scrollbar-track{
+  background:transparent;
+}
+
+@media(max-width:900px){
+  .orar-workspace{
+    height:auto;
+    min-height:0;
+    overflow:visible;
+  }
+  #allClassTimetables.all-class-timetables{
+    height:68vh;
+    max-height:68vh;
+    overflow-y:auto;
+  }
+  .teacher-token-panel{
+    position:relative;
+    height:58vh;
+    max-height:58vh;
+    overflow-y:auto;
+  }
+}
+
 </style>
 </head>
 <body>
@@ -1915,7 +1983,7 @@
   <div class="history-controls">
     <span id="cloudStatus" class="cloud-status">☁ Neconectat</span>
     <button id="undoLastCommandBtn" class="history-btn" onclick="undoLastCommand()" title="Anulează ultima comandă">↶ Undo</button>
-    <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ redo</button>
+    <button id="redoLastCommandBtn" class="history-btn" onclick="redoLastCommand()" title="Reaplică ultima comandă anulată">↷ Redo</button>
     <button class="history-btn" onclick="verifyTimetable()">✓ Verifică</button>
   </div>
 </div>
